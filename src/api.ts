@@ -294,6 +294,18 @@ function isTaskLike(value: unknown) {
   return ['title', 'text', 'name', 'assignment', 'content', 'memo', 'done', 'completed', 'checked'].some((key) => key in item);
 }
 
+function shouldSkipMentoringKey(key: string) {
+  const normalized = key.toLowerCase();
+  return (
+    normalized === 'problems' ||
+    normalized.includes('wrong_answer') ||
+    normalized.includes('wronganswer') ||
+    normalized.includes('clinic_records') ||
+    normalized.includes('image') ||
+    normalized.includes('score')
+  );
+}
+
 function walkMentoringTasks(
   value: unknown,
   context: { studentId: string; weekId: string; weekRecordId?: string; field: string; subject?: Subject; path: Array<string | number> },
@@ -341,6 +353,7 @@ function walkMentoringTasks(
   }
 
   Object.entries(parsed as Record<string, unknown>).forEach(([key, child]) => {
+    if (shouldSkipMentoringKey(key)) return;
     const nextSubject = DEFAULT_SUBJECTS.includes(key) || /국|수|영|과|탐|논/.test(key) ? toSubject(key) : context.subject;
     walkMentoringTasks(child, { ...context, subject: nextSubject, path: [...context.path, key] }, tasks);
   });
@@ -390,7 +403,9 @@ export async function loadMentoringTasks(studentId: string): Promise<{ tasks: Ta
     const subjectRecords = payload.subject_records ?? payload.subjectRecords ?? [];
     subjectRecords.forEach((row, index) => {
       const subject = toSubject(row.subject || row.name || index);
-      walkMentoringTasks(row.tasks || row.todos || row.assignments || row, {
+      const taskSource = row.tasks || row.todos || row.assignments || row.daily_tasks || row.b_daily_tasks || row.b_daily_tasks_this_week;
+      if (!taskSource) return;
+      walkMentoringTasks(taskSource, {
         studentId,
         weekId: String(latestWeek),
         weekRecordId,

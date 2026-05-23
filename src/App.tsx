@@ -294,6 +294,15 @@ function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: stri
   const [mode, setMode] = useState<Role>('user');
   const [name, setName] = useState('김도윤');
   const [id, setId] = useState('qtf258');
+  const [medischeduleToken, setMedischeduleToken] = useState(() => localStorage.getItem('medical-study-medischedule-token') || '');
+  const [mentorToken, setMentorToken] = useState(() => localStorage.getItem('medical-study-mentor-token') || '');
+
+  function saveIntegrationTokens() {
+    const cleanMedischeduleToken = medischeduleToken.trim().replace(/^Bearer\s+/i, '');
+    const cleanMentorToken = mentorToken.trim().replace(/^Bearer\s+/i, '');
+    if (cleanMedischeduleToken) localStorage.setItem('medical-study-medischedule-token', cleanMedischeduleToken);
+    if (cleanMentorToken) localStorage.setItem('medical-study-mentor-token', cleanMentorToken);
+  }
 
   return (
     <div className="login-screen">
@@ -323,7 +332,19 @@ function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: stri
           학생 ID
           <input value={id} onChange={(event) => setId(event.target.value)} />
         </label>
-        <button className="login-submit" type="button" onClick={() => onLogin(mode, name.trim() || '학생', id.trim() || 'student-demo')}>
+        {mode === 'admin' ? (
+          <div className="login-token-grid">
+            <label>
+              medischedule token
+              <input value={medischeduleToken} onChange={(event) => setMedischeduleToken(event.target.value)} placeholder="adminToken" />
+            </label>
+            <label>
+              medimentors token
+              <input value={mentorToken} onChange={(event) => setMentorToken(event.target.value)} placeholder="token" />
+            </label>
+          </div>
+        ) : null}
+        <button className="login-submit" type="button" onPointerDown={saveIntegrationTokens} onMouseDown={saveIntegrationTokens} onClick={() => onLogin(mode, name.trim() || '학생', id.trim() || 'student-demo')}>
           시작하기
           <ChevronRight size={24} />
         </button>
@@ -944,6 +965,8 @@ function AdminPage({
   const [messageBody, setMessageBody] = useState('');
   const [selectedStudentTasks, setSelectedStudentTasks] = useState<Task[]>(data.tasks);
   const [selectedTaskSource, setSelectedTaskSource] = useState('medimentors.kr');
+  const [selectedSchedule, setSelectedSchedule] = useState<ScheduleItem[]>(schedule);
+  const [selectedScheduleSource, setSelectedScheduleSource] = useState('medischedule.kr');
   const rewardSettings = normalizeRewardSettings(data.rewardSettings);
   const sorted = [...students].sort((a, b) => b.todayMinutes - a.todayMinutes);
   const adminStudents = useMemo(() => sortStudents(students, studentSort), [students, studentSort]);
@@ -954,7 +977,9 @@ function AdminPage({
   const resting = students.filter((student) => student.status === 'break').length;
   const offline = students.filter((student) => student.status === 'offline').length;
   const completed = visibleTasks.filter((task) => task.completed).length;
-  const todaySchedule = schedule.filter((item) => item.day === ['일', '월', '화', '수', '목', '금', '토'][new Date().getDay()]).slice(0, 4);
+  const selectedTodayIndex = new Date().getDay();
+  const selectedTodayDay = selectedTodayIndex === 0 ? weekDays[6] : weekDays[selectedTodayIndex - 1];
+  const selectedTodaySchedule = selectedSchedule.filter((item) => item.day === selectedTodayDay).slice(0, 4);
   const monthDates = monthDateKeys();
   const attendedDates = new Set(data.attendanceDates);
   const monthAttendance = data.attendanceDates.filter((key) => monthDates.includes(key)).length;
@@ -976,15 +1001,20 @@ function AdminPage({
   useEffect(() => {
     if (!selectedStudent?.id) return;
     let cancelled = false;
-    async function refreshSelectedTasks() {
+    async function refreshSelectedStudentData() {
       if (!selectedStudent?.id) return;
-      const result = await loadMentoringTasks(selectedStudent.id);
+      const [taskResult, scheduleResult] = await Promise.all([
+        loadMentoringTasks(selectedStudent.id),
+        loadSchedule(selectedStudent.id),
+      ]);
       if (cancelled) return;
-      setSelectedStudentTasks(result.tasks);
-      setSelectedTaskSource(result.source);
+      setSelectedStudentTasks(taskResult.tasks);
+      setSelectedTaskSource(taskResult.source);
+      setSelectedSchedule(scheduleResult.items);
+      setSelectedScheduleSource(scheduleResult.source);
     }
-    void refreshSelectedTasks();
-    const id = window.setInterval(refreshSelectedTasks, 60000);
+    void refreshSelectedStudentData();
+    const id = window.setInterval(refreshSelectedStudentData, 60000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -1056,7 +1086,7 @@ function AdminPage({
               <div className="admin-panel admin-ops">
                 <div className="admin-panel-head"><h2>학생 페이지 관리</h2><span>일정 · 과제 · 보상 · 출석</span></div>
                 <div className="admin-control-grid">
-                  <div><CalendarDays size={22} /><span>오늘 일정</span><strong>{todaySchedule.length}건</strong></div>
+                  <div><CalendarDays size={22} /><span>오늘 일정</span><strong>{selectedTodaySchedule.length}건</strong></div>
                   <div><ClipboardList size={22} /><span>과제 완료</span><strong>{completed}/{visibleTasks.length}</strong></div>
                   <div><CircleDollarSign size={22} /><span>포인트</span><strong>{data.points.toLocaleString('ko-KR')}P</strong></div>
                   <div><Gift size={22} /><span>열매</span><strong>{data.fruits}개</strong></div>
@@ -1104,6 +1134,13 @@ function AdminPage({
                 <div><span>최근 메시지</span><strong>{selectedMessages.length}건</strong></div>
               </div>
               <div className="admin-student-task-preview">
+                {selectedTodaySchedule.length ? selectedTodaySchedule.map((item) => (
+                  <div key={item.id}>
+                    <span>{item.start}-{item.end}</span>
+                    <strong>{item.title}</strong>
+                    <em>{selectedScheduleSource}</em>
+                  </div>
+                )) : <div><span>오늘 일정</span><strong>연동된 일정 없음</strong><em>{selectedScheduleSource}</em></div>}
                 {visibleTasks.slice(0, 4).map((task) => (
                   <div key={task.id}>
                     <span>{task.subject}</span>
