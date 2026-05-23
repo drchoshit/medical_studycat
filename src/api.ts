@@ -1,0 +1,495 @@
+import { DEFAULT_SUBJECTS, demoSchedule, demoTasks, todayKey } from './demoData';
+import type { ScheduleItem, StudentStatus, Subject, Task } from './types';
+
+export const weekDays = ['월', '화', '수', '목', '금', '토', '일'];
+
+const medischeduleBase =
+  import.meta.env.VITE_MEDISCHEDULE_API_BASE ||
+  import.meta.env.VITE_MEDISCHECHEDULE_API_BASE ||
+  '/medischedule-api';
+
+const mentoringBase = import.meta.env.VITE_MENTORING_API_BASE || '/mentoring-api';
+
+function thisWeekStart(date = new Date()) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  d.setHours(0, 0, 0, 0);
+  return todayKey(d);
+}
+
+function getStoredToken(keys: string[], envToken?: string) {
+  if (envToken) return envToken;
+  if (typeof localStorage === 'undefined') return '';
+  for (const key of keys) {
+    const value = localStorage.getItem(key);
+    if (value && value !== 'null' && value !== 'undefined') return value;
+  }
+  return '';
+}
+
+function authHeaders(kind: 'medischedule' | 'mentoring', contentType = false): HeadersInit {
+  const token =
+    kind === 'medischedule'
+      ? getStoredToken(
+          ['medical-study-medischedule-token', 'adminToken', 'studentToken', 'token'],
+          import.meta.env.VITE_MEDISCHEDULE_TOKEN || import.meta.env.VITE_MEDISCHECHEDULE_TOKEN,
+        )
+      : getStoredToken(
+          ['medical-study-mentor-token', 'mentorToken', 'token'],
+          import.meta.env.VITE_MENTORING_TOKEN,
+        );
+
+  return {
+    ...(contentType ? { 'Content-Type': 'application/json' } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 4500): Promise<T> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      credentials: 'include',
+      ...init,
+      signal: init?.signal ?? controller.signal,
+    });
+    const text = await res.text();
+    const json = text ? JSON.parse(text) : null;
+    if (!res.ok) {
+      const message = json?.error || json?.message || `HTTP ${res.status}`;
+      throw new Error(message);
+    }
+    return json as T;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+function extractRows(payload: unknown): unknown[] {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== 'object') return [];
+  const object = payload as Record<string, unknown>;
+  const candidates = [object.students, object.schedules, object.tasks, object.data, object.items, object.rows, object.list];
+  return candidates.find(Array.isArray) as unknown[] | undefined ?? [];
+}
+
+function normalizeDay(value: unknown) {
+  const text = String(value ?? '').trim();
+  if (weekDays.includes(text)) return text;
+  const map: Record<string, string> = {
+    Mon: '월',
+    Tue: '화',
+    Wed: '수',
+    Thu: '목',
+    Fri: '금',
+    Sat: '토',
+    Sun: '일',
+    Monday: '월',
+    Tuesday: '화',
+    Wednesday: '수',
+    Thursday: '목',
+    Friday: '금',
+    Saturday: '토',
+    Sunday: '일',
+  };
+  if (map[text]) return map[text];
+  return text.slice(0, 1);
+}
+
+function normalizeTime(value: unknown) {
+  const text = String(value ?? '').trim();
+  return text.includes(':') ? text.slice(0, 5) : text;
+}
+
+function normalizeScheduleType(value: unknown): ScheduleItem['type'] {
+  const text = String(value ?? '').trim().toLowerCase();
+  if (text === '센터' || text === 'center') return 'center';
+  if (text === '외부' || text === 'external' || text === '원외') return 'outside';
+  return 'self';
+}
+
+type RemoteScheduleRow = {
+  id?: string | number;
+  day?: string;
+  start?: string;
+  end?: string;
+  type?: string;
+  description?: string;
+  title?: string;
+  student_id?: string | number;
+  studentId?: string | number;
+  week_start?: string;
+};
+
+function normalizeSchedule(rows: unknown[], studentId?: string): ScheduleItem[] {
+  return rows
+    .map((raw, index) => {
+      const row = raw && typeof raw === 'object' ? (raw as RemoteScheduleRow) : {};
+      const rowStudentId = String(row.student_id ?? row.studentId ?? '').trim();
+      if (studentId && rowStudentId && rowStudentId !== studentId) return null;
+      const day = normalizeDay(row.day);
+      const start = normalizeTime(row.start);
+      const end = normalizeTime(row.end);
+      if (!day || !start || !end) return null;
+      return {
+        id: String(row.id ?? `remote-schedule-${studentId ?? 'all'}-${index}`),
+        day,
+        start,
+        end,
+        title: String(row.description || row.title || row.type || '일정'),
+        type: normalizeScheduleType(row.type),
+      };
+    })
+    .filter(Boolean) as ScheduleItem[];
+}
+
+type RemoteStudentRow = {
+  id?: string | number;
+  studentId?: string | number;
+  customId?: string | number;
+  name?: string;
+  studentName?: string;
+  phone?: string;
+  studentPhone?: string;
+  student_phone?: string;
+  parentPhone?: string;
+  parent_phone?: string;
+  guardianPhone?: string;
+};
+
+function normalizeStudents(rows: unknown[]): StudentStatus[] {
+  return rows
+    .map((raw, index) => {
+      const row = raw && typeof raw === 'object' ? (raw as RemoteStudentRow) : {};
+      const id = String(row.studentId ?? row.customId ?? row.id ?? `med-${index + 1}`).trim();
+      const name = String(row.studentName ?? row.name ?? id).trim();
+      const studentPhone = String(row.studentPhone ?? row.student_phone ?? row.phone ?? '').trim();
+      const parentPhone = String(row.parentPhone ?? row.parent_phone ?? row.guardianPhone ?? '').trim();
+      return {
+        id,
+        name,
+        studentPhone: studentPhone || undefined,
+        parentPhone: parentPhone || undefined,
+        status: 'offline' as const,
+        todayMinutes: 0,
+        subject: DEFAULT_SUBJECTS[0],
+      };
+    })
+    .filter((student) => student.id && student.name);
+}
+
+export async function loadMedischeduleStudents(): Promise<StudentStatus[]> {
+  const endpoints = [`${medischeduleBase}/admin/students`, `${medischeduleBase}/students`];
+  for (const endpoint of endpoints) {
+    try {
+      const payload = await fetchJson<unknown>(
+        `${endpoint}${endpoint.includes('?') ? '&' : '?'}_t=${Date.now()}`,
+        { headers: authHeaders('medischedule') },
+        5000,
+      );
+      const students = normalizeStudents(extractRows(payload));
+      if (students.length) return students;
+    } catch {
+      // A real medischedule admin token is required for the live roster.
+    }
+  }
+  return [];
+}
+
+export async function loadSchedule(studentId: string): Promise<{ items: ScheduleItem[]; source: string }> {
+  const weekStart = thisWeekStart();
+  const headers = authHeaders('medischedule');
+
+  try {
+    const payload = await fetchJson<unknown>(
+      `${medischeduleBase}/student/schedules/${encodeURIComponent(studentId)}?weekStart=${weekStart}&_t=${Date.now()}`,
+      { headers },
+      5000,
+    );
+    return { items: normalizeSchedule(extractRows(payload), studentId), source: 'medischedule.kr 실시간' };
+  } catch {
+    // Try the admin schedule feed next. This works when an admin token is available.
+  }
+
+  try {
+    const payload = await fetchJson<unknown>(
+      `${medischeduleBase}/admin/schedules?weekStart=${weekStart}&_t=${Date.now()}`,
+      { headers },
+      5000,
+    );
+    return { items: normalizeSchedule(extractRows(payload), studentId), source: 'medischedule.kr 관리자 일정' };
+  } catch {
+    return { items: demoSchedule, source: '데모 일정 - medischedule 인증 필요' };
+  }
+}
+
+type RemoteMentoringRecord = {
+  id?: string | number;
+  record?: RemoteMentoringRecord;
+  week_record?: Record<string, unknown>;
+  weekRecord?: Record<string, unknown>;
+  subjects?: Array<{ name?: string; subject?: string; tasks?: unknown[]; todos?: unknown[] }>;
+  subject_records?: Array<Record<string, unknown>>;
+  subjectRecords?: Array<Record<string, unknown>>;
+  todos?: unknown[];
+  tasks?: unknown[];
+};
+
+function parseMaybeJson(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  const text = value.trim();
+  if (!text) return value;
+  if ((text.startsWith('{') && text.endsWith('}')) || (text.startsWith('[') && text.endsWith(']'))) {
+    try {
+      return JSON.parse(text);
+    } catch {
+      return value;
+    }
+  }
+  return value;
+}
+
+function toSubject(value: unknown): Subject {
+  const text = String(value || '').trim();
+  if (!text) return DEFAULT_SUBJECTS[1];
+  if (DEFAULT_SUBJECTS.includes(text)) return text;
+  if (text.includes('국')) return '국어';
+  if (text.includes('영')) return '영어';
+  if (text.includes('과') || text.includes('생') || text.includes('화') || text.includes('물')) return '과학';
+  if (text.includes('탐')) return '탐구';
+  if (text.includes('논') || text.includes('면접')) return '의학논술';
+  return text.includes('수') ? '수학' : DEFAULT_SUBJECTS[1];
+}
+
+function readTaskTitle(raw: unknown, fallback: string) {
+  if (typeof raw === 'string') return raw.trim();
+  const item = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  return String(item.title || item.text || item.name || item.assignment || item.content || item.memo || fallback).trim();
+}
+
+function readTaskDone(raw: unknown) {
+  const item = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  return Boolean(item.completed || item.done || item.checked || item.status === 'done' || item.status === 'completed');
+}
+
+function normalizeTask(raw: unknown, index: number, subject: Subject, meta: Partial<Task> = {}): Task {
+  const title = readTaskTitle(raw, `멘토링 과제 ${index + 1}`);
+  return {
+    id: String((raw as Record<string, unknown> | undefined)?.id || `mentor-task-${subject}-${index}`),
+    subject,
+    title,
+    completed: readTaskDone(raw),
+    elapsedSeconds: Number((raw as Record<string, unknown> | undefined)?.elapsedSeconds || (raw as Record<string, unknown> | undefined)?.elapsed_seconds || 0),
+    portalStatus: 'synced',
+    ...meta,
+  };
+}
+
+function isTaskLike(value: unknown) {
+  if (!value || typeof value !== 'object') return false;
+  const item = value as Record<string, unknown>;
+  return ['title', 'text', 'name', 'assignment', 'content', 'memo', 'done', 'completed', 'checked'].some((key) => key in item);
+}
+
+function walkMentoringTasks(
+  value: unknown,
+  context: { studentId: string; weekId: string; weekRecordId?: string; field: string; subject?: Subject; path: Array<string | number> },
+  tasks: Task[],
+) {
+  const parsed = parseMaybeJson(value);
+  if (Array.isArray(parsed)) {
+    parsed.forEach((item, index) => {
+      walkMentoringTasks(item, { ...context, path: [...context.path, index] }, tasks);
+    });
+    return;
+  }
+
+  if (typeof parsed === 'string') {
+    parsed
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line, index) => {
+        const subject = context.subject ?? toSubject(context.path.at(-1));
+        tasks.push(normalizeTask(line, tasks.length + index, subject, {
+          id: `mentor-task-${context.field}-${context.path.join('-')}-${index}`,
+          mentorStudentId: context.studentId,
+          mentorWeekId: context.weekId,
+          mentorWeekRecordId: context.weekRecordId,
+          mentorField: context.field,
+          mentorPath: JSON.stringify([...context.path, index]),
+        }));
+      });
+    return;
+  }
+
+  if (!parsed || typeof parsed !== 'object') return;
+  if (isTaskLike(parsed)) {
+    const subject = context.subject ?? toSubject(context.path.at(-1));
+    tasks.push(normalizeTask(parsed, tasks.length, subject, {
+      id: `mentor-task-${context.field}-${context.path.join('-') || tasks.length}`,
+      mentorStudentId: context.studentId,
+      mentorWeekId: context.weekId,
+      mentorWeekRecordId: context.weekRecordId,
+      mentorField: context.field,
+      mentorPath: JSON.stringify(context.path),
+    }));
+    return;
+  }
+
+  Object.entries(parsed as Record<string, unknown>).forEach(([key, child]) => {
+    const nextSubject = DEFAULT_SUBJECTS.includes(key) || /국|수|영|과|탐|논/.test(key) ? toSubject(key) : context.subject;
+    walkMentoringTasks(child, { ...context, subject: nextSubject, path: [...context.path, key] }, tasks);
+  });
+}
+
+function uniqueTasks(tasks: Task[]) {
+  const seen = new Set<string>();
+  return tasks.filter((task) => {
+    const key = `${task.subject}-${task.title}-${task.mentorField}-${task.mentorPath}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return Boolean(task.title);
+  });
+}
+
+export async function loadMentoringTasks(studentId: string): Promise<{ tasks: Task[]; source: string }> {
+  const headers = authHeaders('mentoring');
+
+  try {
+    const weeks = await fetchJson<{ weeks?: Array<{ id: string | number }> }>(`${mentoringBase}/api/weeks`, { headers }, 5000);
+    const sortedWeeks = [...(weeks.weeks ?? [])].sort((a, b) => Number(a.id) - Number(b.id));
+    const latestWeek = sortedWeeks.at(-1)?.id;
+    if (!latestWeek) throw new Error('No week id');
+
+    const record = await fetchJson<RemoteMentoringRecord>(
+      `${mentoringBase}/api/mentoring/record?studentId=${encodeURIComponent(studentId)}&weekId=${encodeURIComponent(String(latestWeek))}`,
+      { headers },
+      6000,
+    );
+    const payload = record.record ?? record;
+    const weekRecord = (payload.week_record ?? payload.weekRecord ?? {}) as Record<string, unknown>;
+    const weekRecordId = String(weekRecord.id ?? payload.id ?? '').trim() || undefined;
+    const nextTasks: Task[] = [];
+
+    if (Array.isArray(payload.subjects)) {
+      payload.subjects.forEach((subjectRow, subjectIndex) => {
+        const subject = toSubject(subjectRow.name || subjectRow.subject || subjectIndex);
+        const rows = Array.isArray(subjectRow.tasks) ? subjectRow.tasks : Array.isArray(subjectRow.todos) ? subjectRow.todos : [];
+        rows.forEach((row) => nextTasks.push(normalizeTask(row, nextTasks.length, subject, {
+          mentorStudentId: studentId,
+          mentorWeekId: String(latestWeek),
+          mentorWeekRecordId: weekRecordId,
+        })));
+      });
+    }
+
+    const subjectRecords = payload.subject_records ?? payload.subjectRecords ?? [];
+    subjectRecords.forEach((row, index) => {
+      const subject = toSubject(row.subject || row.name || index);
+      walkMentoringTasks(row.tasks || row.todos || row.assignments || row, {
+        studentId,
+        weekId: String(latestWeek),
+        weekRecordId,
+        field: 'subject_records',
+        subject,
+        path: [index],
+      }, nextTasks);
+    });
+
+    ['b_daily_tasks_this_week', 'b_daily_tasks'].forEach((field) => {
+      if (weekRecord[field] === undefined) return;
+      walkMentoringTasks(weekRecord[field], {
+        studentId,
+        weekId: String(latestWeek),
+        weekRecordId,
+        field,
+        path: [],
+      }, nextTasks);
+    });
+
+    const flatRows = Array.isArray(payload.tasks) ? payload.tasks : Array.isArray(payload.todos) ? payload.todos : [];
+    flatRows.forEach((row, index) => nextTasks.push(normalizeTask(row, index, toSubject((row as Record<string, unknown>)?.subject), {
+      mentorStudentId: studentId,
+      mentorWeekId: String(latestWeek),
+      mentorWeekRecordId: weekRecordId,
+    })));
+
+    const tasks = uniqueTasks(nextTasks);
+    if (tasks.length) return { tasks, source: 'medimentors.kr 실시간' };
+    return { tasks: [], source: 'medimentors.kr 실시간 - 과제 없음' };
+  } catch {
+    return { tasks: demoTasks, source: '데모 멘토링 - medimentors 인증 필요' };
+  }
+}
+
+function updateTaskCompletionInValue(value: unknown, title: string, completed: boolean): { value: unknown; changed: boolean } {
+  const parsed = parseMaybeJson(value);
+  if (Array.isArray(parsed)) {
+    let changed = false;
+    const next = parsed.map((item) => {
+      const result = updateTaskCompletionInValue(item, title, completed);
+      changed ||= result.changed;
+      return result.value;
+    });
+    return { value: next, changed };
+  }
+
+  if (!parsed || typeof parsed !== 'object') return { value: parsed, changed: false };
+
+  const object = parsed as Record<string, unknown>;
+  if (isTaskLike(object) && readTaskTitle(object, '') === title) {
+    return {
+      value: {
+        ...object,
+        done: completed,
+        completed,
+        status: completed ? 'completed' : 'pending',
+      },
+      changed: true,
+    };
+  }
+
+  let changed = false;
+  const next: Record<string, unknown> = {};
+  Object.entries(object).forEach(([key, child]) => {
+    const result = updateTaskCompletionInValue(child, title, completed);
+    changed ||= result.changed;
+    next[key] = result.value;
+  });
+  return { value: next, changed };
+}
+
+export async function syncMentoringTaskCompletion(task: Task, completed: boolean): Promise<boolean> {
+  if (!task.mentorStudentId || !task.mentorWeekId || !task.mentorWeekRecordId || !task.mentorField) return false;
+  const headers = authHeaders('mentoring', true);
+
+  try {
+    const record = await fetchJson<RemoteMentoringRecord>(
+      `${mentoringBase}/api/mentoring/record?studentId=${encodeURIComponent(task.mentorStudentId)}&weekId=${encodeURIComponent(task.mentorWeekId)}`,
+      { headers },
+      5000,
+    );
+    const payload = record.record ?? record;
+    const weekRecord = (payload.week_record ?? payload.weekRecord ?? {}) as Record<string, unknown>;
+    const current = weekRecord[task.mentorField];
+    const updated = updateTaskCompletionInValue(current, task.title, completed);
+    if (!updated.changed) return false;
+
+    await fetchJson(
+      `${mentoringBase}/api/mentoring/week-record/${encodeURIComponent(task.mentorWeekRecordId)}`,
+      {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify({ [task.mentorField]: updated.value }),
+      },
+      5000,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
