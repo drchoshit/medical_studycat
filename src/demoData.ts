@@ -82,6 +82,7 @@ export function defaultAppData(name = '학생', id = 'student-demo'): AppData {
     rewardSettings: defaultRewardSettings,
     adminMessages: [],
     dismissedMessageIds: [],
+    hiddenTaskIds: [],
     timerSkin: 'pure',
   };
 }

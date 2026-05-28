@@ -87,6 +87,7 @@ export type AppData = {
   rewardSettings: RewardSettings;
   adminMessages: AdminMessage[];
   dismissedMessageIds: string[];
+  hiddenTaskIds: string[];
   timerSkin: TimerSkin;
 };
 

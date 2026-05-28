@@ -1,4 +1,4 @@
-import { DEFAULT_SUBJECTS, demoSchedule, demoTasks, todayKey } from './demoData';
+import { DEFAULT_SUBJECTS, demoSchedule, todayKey } from './demoData';
 import type { ScheduleItem, StudentStatus, Subject, Task } from './types';
 
 export const weekDays = ['월', '화', '수', '목', '금', '토', '일'];
@@ -231,11 +231,17 @@ type RemoteMentoringRecord = {
   record?: RemoteMentoringRecord;
   week_record?: Record<string, unknown>;
   weekRecord?: Record<string, unknown>;
-  subjects?: Array<{ name?: string; subject?: string; tasks?: unknown[]; todos?: unknown[] }>;
+  subjects?: Array<{ name?: string; subject?: string; subjectName?: string; subject_name?: string; title?: string; tasks?: unknown[]; todos?: unknown[] }>;
   subject_records?: Array<Record<string, unknown>>;
   subjectRecords?: Array<Record<string, unknown>>;
   todos?: unknown[];
   tasks?: unknown[];
+};
+
+type MentoringTasksResult = {
+  tasks: Task[];
+  subjects: Subject[];
+  source: string;
 };
 
 function parseMaybeJson(value: unknown): unknown {
@@ -252,16 +258,60 @@ function parseMaybeJson(value: unknown): unknown {
   return value;
 }
 
-function toSubject(value: unknown): Subject {
+function cleanSubjectName(value: unknown): Subject | undefined {
   const text = String(value || '').trim();
-  if (!text) return DEFAULT_SUBJECTS[1];
+  if (!text || text === '[object Object]' || /^\d+$/.test(text)) return undefined;
   if (DEFAULT_SUBJECTS.includes(text)) return text;
-  if (text.includes('국')) return '국어';
-  if (text.includes('영')) return '영어';
-  if (text.includes('과') || text.includes('생') || text.includes('화') || text.includes('물')) return '과학';
-  if (text.includes('탐')) return '탐구';
-  if (text.includes('논') || text.includes('면접')) return '의학논술';
-  return text.includes('수') ? '수학' : DEFAULT_SUBJECTS[1];
+  const lower = text.toLowerCase();
+  const englishMap: Record<string, Subject> = {
+    korean: '국어',
+    math: '수학',
+    mathematics: '수학',
+    english: '영어',
+    science: '과학',
+  };
+  return englishMap[lower] ?? text;
+}
+
+function toSubject(value: unknown, fallback: Subject = DEFAULT_SUBJECTS[1]): Subject {
+  return cleanSubjectName(value) ?? fallback;
+}
+
+function addSubject(subjects: Subject[], value: unknown) {
+  const subject = cleanSubjectName(value);
+  if (subject && !subjects.includes(subject)) subjects.push(subject);
+  return subject;
+}
+
+function subjectFromRecord(row: Record<string, unknown>, fallback?: unknown) {
+  return cleanSubjectName(row.subject || row.subjectName || row.subject_name || row.name || row.title || fallback);
+}
+
+function isGenericMentoringKey(key: string) {
+  const normalized = key.toLowerCase();
+  return [
+    'tasks',
+    'todos',
+    'assignments',
+    'daily_tasks',
+    'b_daily_tasks',
+    'b_daily_tasks_this_week',
+    'completed',
+    'done',
+    'checked',
+    'status',
+    'title',
+    'text',
+    'name',
+    'memo',
+    'content',
+    'id',
+  ].includes(normalized);
+}
+
+function isSubjectKey(key: string, knownSubjects: Subject[] = []) {
+  const subject = cleanSubjectName(key);
+  return Boolean(subject && !isGenericMentoringKey(key) && (knownSubjects.includes(subject) || !key.includes('_')));
 }
 
 function readTaskTitle(raw: unknown, fallback: string) {
@@ -308,7 +358,7 @@ function shouldSkipMentoringKey(key: string) {
 
 function walkMentoringTasks(
   value: unknown,
-  context: { studentId: string; weekId: string; weekRecordId?: string; field: string; subject?: Subject; path: Array<string | number> },
+  context: { studentId: string; weekId: string; weekRecordId?: string; field: string; subject?: Subject; subjects?: Subject[]; path: Array<string | number> },
   tasks: Task[],
 ) {
   const parsed = parseMaybeJson(value);
@@ -354,7 +404,7 @@ function walkMentoringTasks(
 
   Object.entries(parsed as Record<string, unknown>).forEach(([key, child]) => {
     if (shouldSkipMentoringKey(key)) return;
-    const nextSubject = DEFAULT_SUBJECTS.includes(key) || /국|수|영|과|탐|논/.test(key) ? toSubject(key) : context.subject;
+    const nextSubject = isSubjectKey(key, context.subjects) ? toSubject(key, context.subject) : context.subject;
     walkMentoringTasks(child, { ...context, subject: nextSubject, path: [...context.path, key] }, tasks);
   });
 }
@@ -369,7 +419,7 @@ function uniqueTasks(tasks: Task[]) {
   });
 }
 
-export async function loadMentoringTasks(studentId: string): Promise<{ tasks: Task[]; source: string }> {
+export async function loadMentoringTasks(studentId: string): Promise<MentoringTasksResult> {
   const headers = authHeaders('mentoring');
 
   try {
@@ -387,10 +437,11 @@ export async function loadMentoringTasks(studentId: string): Promise<{ tasks: Ta
     const weekRecord = (payload.week_record ?? payload.weekRecord ?? {}) as Record<string, unknown>;
     const weekRecordId = String(weekRecord.id ?? payload.id ?? '').trim() || undefined;
     const nextTasks: Task[] = [];
+    const portalSubjects: Subject[] = [];
 
     if (Array.isArray(payload.subjects)) {
       payload.subjects.forEach((subjectRow, subjectIndex) => {
-        const subject = toSubject(subjectRow.name || subjectRow.subject || subjectIndex);
+        const subject = addSubject(portalSubjects, subjectRow.subject || subjectRow.subjectName || subjectRow.subject_name || subjectRow.name || subjectRow.title) ?? toSubject(subjectIndex);
         const rows = Array.isArray(subjectRow.tasks) ? subjectRow.tasks : Array.isArray(subjectRow.todos) ? subjectRow.todos : [];
         rows.forEach((row) => nextTasks.push(normalizeTask(row, nextTasks.length, subject, {
           mentorStudentId: studentId,
@@ -402,7 +453,7 @@ export async function loadMentoringTasks(studentId: string): Promise<{ tasks: Ta
 
     const subjectRecords = payload.subject_records ?? payload.subjectRecords ?? [];
     subjectRecords.forEach((row, index) => {
-      const subject = toSubject(row.subject || row.name || index);
+      const subject = addSubject(portalSubjects, subjectFromRecord(row, index)) ?? toSubject(index);
       const taskSource = row.tasks || row.todos || row.assignments || row.daily_tasks || row.b_daily_tasks || row.b_daily_tasks_this_week;
       if (!taskSource) return;
       walkMentoringTasks(taskSource, {
@@ -411,33 +462,46 @@ export async function loadMentoringTasks(studentId: string): Promise<{ tasks: Ta
         weekRecordId,
         field: 'subject_records',
         subject,
+        subjects: portalSubjects,
         path: [index],
       }, nextTasks);
     });
 
     ['b_daily_tasks_this_week', 'b_daily_tasks'].forEach((field) => {
       if (weekRecord[field] === undefined) return;
+      const parsed = parseMaybeJson(weekRecord[field]);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        Object.keys(parsed as Record<string, unknown>).forEach((key) => {
+          if (!shouldSkipMentoringKey(key) && !isGenericMentoringKey(key)) addSubject(portalSubjects, key);
+        });
+      }
       walkMentoringTasks(weekRecord[field], {
         studentId,
         weekId: String(latestWeek),
         weekRecordId,
         field,
+        subjects: portalSubjects,
         path: [],
       }, nextTasks);
     });
 
     const flatRows = Array.isArray(payload.tasks) ? payload.tasks : Array.isArray(payload.todos) ? payload.todos : [];
-    flatRows.forEach((row, index) => nextTasks.push(normalizeTask(row, index, toSubject((row as Record<string, unknown>)?.subject), {
-      mentorStudentId: studentId,
-      mentorWeekId: String(latestWeek),
-      mentorWeekRecordId: weekRecordId,
-    })));
+    flatRows.forEach((row, index) => {
+      const raw = row as Record<string, unknown>;
+      const subject = addSubject(portalSubjects, raw?.subject || raw?.subjectName || raw?.subject_name) ?? toSubject(raw?.subject);
+      nextTasks.push(normalizeTask(row, index, subject, {
+        mentorStudentId: studentId,
+        mentorWeekId: String(latestWeek),
+        mentorWeekRecordId: weekRecordId,
+      }));
+    });
 
     const tasks = uniqueTasks(nextTasks);
-    if (tasks.length) return { tasks, source: 'medimentors.kr 실시간' };
-    return { tasks: [], source: 'medimentors.kr 실시간 - 과제 없음' };
+    tasks.forEach((task) => addSubject(portalSubjects, task.subject));
+    if (tasks.length) return { tasks, subjects: portalSubjects, source: 'medimentors.kr 실시간' };
+    return { tasks: [], subjects: portalSubjects, source: 'medimentors.kr 실시간 - 과제 없음' };
   } catch {
-    return { tasks: demoTasks, source: '데모 멘토링 - medimentors 인증 필요' };
+    return { tasks: [], subjects: [], source: 'medimentors.kr 인증 필요' };
   }
 }
 
