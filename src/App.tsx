@@ -1659,14 +1659,6 @@ function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppDa
       {tab === 'garden' ? (
         <section className="modern-garden-layout">
           <div className="modern-growth-panel">
-            <div className="modern-tree-panel modern-growth-tree">
-              <img src={treeSceneUrl} alt="" />
-            </div>
-            <div className="modern-growth-stats">
-              <div><span>포인트</span><strong>{data.points.toLocaleString('ko-KR')}P</strong></div>
-              <div><span>다음 열매</span><strong>{threshold - pointProgress}P</strong></div>
-              <div><span>이번 달 출석</span><strong>{monthCount}일</strong></div>
-            </div>
             <div className="modern-growth-progress">
               <div>
                 <span>열매 진행률</span>
@@ -1674,9 +1666,16 @@ function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppDa
               </div>
               <i><b style={{ width: `${(pointProgress / threshold) * 100}%` }} /></i>
             </div>
+            <div className="modern-tree-panel modern-growth-tree">
+              <img src={treeSceneUrl} alt="" />
+            </div>
           </div>
           <aside className="modern-wallet-panel">
-            <div><span>보유 포인트</span><strong>{data.points.toLocaleString('ko-KR')}P</strong></div>
+            <div className="modern-growth-stats">
+              <div><span>포인트</span><strong>{data.points.toLocaleString('ko-KR')}P</strong></div>
+              <div><span>다음 열매</span><strong>{threshold - pointProgress}P</strong></div>
+              <div><span>이번 달 출석</span><strong>{monthCount}일</strong></div>
+            </div>
             <div><span>보유 열매</span><strong>{data.fruits}개</strong></div>
             <div className="modern-point-rule">
               <span>공부 1분 = {rewardSettings.pointsPerMinute}P</span>
