@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   BarChart3,
@@ -6,10 +6,10 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronRight,
-  CircleDollarSign,
   ClipboardList,
   Edit3,
   Expand,
+  Flag,
   Gift,
   Home,
   LogOut,
@@ -25,6 +25,7 @@ import {
   Sprout,
   Square,
   Stamp,
+  Star,
   Timer,
   Trash2,
   Trophy,
@@ -32,15 +33,16 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { loadMedischeduleStudents, loadMentoringTasks, loadSchedule, syncMentoringTaskCompletion, weekDays } from './api';
+import { loadMedischeduleStudents, loadMentoringTasks, loadPenaltySummary, loadSchedule, syncMentoringTaskCompletion, weekDays } from './api';
 import { DEFAULT_SUBJECTS, defaultAppData, defaultRewardSettings, demoSchedule, demoStudents, rewardItems, subjectColor, todayKey } from './demoData';
 import fruitUrl from './assets/tree-fruit.png';
 import treeSceneUrl from './assets/reward-tree-modern.png';
-import type { AdminMessage, AppData, PageKey, RewardPurchase, RewardSettings, Role, RunningSession, ScheduleItem, StudentStatus, StudyBlock, Subject, Task, TimerSkin } from './types';
+import type { AdminMessage, AppData, PageKey, PenaltySummary, RewardPurchase, RewardSettings, Role, RunningSession, ScheduleItem, StudentStatus, StudyBlock, Subject, Task, TimerSkin } from './types';
 
 const STORAGE_KEY = 'medical-roadmap-study-v3';
 const ROLE_KEY = 'medical-roadmap-role-v1';
 const ATTENDANCE_HIDE_KEY = 'medical-roadmap-attendance-hide-date-v1';
+const REWARD_MAP_LAYOUT_KEY = 'medical-roadmap-reward-map-layouts-v1';
 type TimerTab = 'main' | Subject;
 type StudentSortKey = 'name' | 'phone';
 
@@ -84,21 +86,25 @@ const modernNavItems: Array<{ key: PageKey; label: string; Icon: typeof Home }> 
 ];
 
 const modernTimerSkinOptions: Array<{ key: TimerSkin; label: string }> = [
-  { key: 'pure', label: 'Core' },
-  { key: 'glass', label: 'Calm' },
-  { key: 'studio', label: 'Deck' },
-  { key: 'halo', label: 'Glow' },
-  { key: 'line', label: 'Line' },
+  { key: 'pure', label: '모던' },
+  { key: 'studio', label: '아날로그' },
+  { key: 'halo', label: '오로라' },
 ];
 
-const subjectFallbackLabels = ['국어', '수학', '영어', '과학', '탐구', '수학논술'];
+const subjectFallbackLabels = ['국어', '수학', '영어', '탐구', '탐구', '탐구'];
 const subjectAlias: Record<string, string> = {
   '援?뼱': '국어',
   '?섑븰': '수학',
   '?곸뼱': '영어',
-  '怨쇳븰': '과학',
+  '怨쇳븰': '탐구',
   '?먭뎄': '탐구',
-  '?섑븰?쇱닠': '수학논술',
+  '?섑븰?쇱닠': '탐구',
+  '과학': '탐구',
+  '의학논술': '탐구',
+  '수학논술': '탐구',
+  '탐구-1': '탐구',
+  '탐구-2': '탐구',
+  '탐구-3': '탐구',
 };
 
 const demoTaskTitles: Record<string, string> = {
@@ -145,6 +151,737 @@ const modernRewardItems = [
   { id: 'reward-10', name: '집중석 예약권', cost: 4, stock: '교환 가능' },
 ];
 
+type RewardMapTheme = 'august' | 'september' | 'october' | 'november' | 'december';
+type RewardStageNode = { x: number; y: number; label: string };
+const rewardStageTotal = 11;
+
+const rewardMapMonths: Array<{ key: string; label: string; title: string; subtitle: string; theme: RewardMapTheme }> = [
+  { key: '2026-08', label: '8월', title: 'Blue Coast Run', subtitle: '오픈 시즌 해안 맵', theme: 'august' },
+  { key: '2026-09', label: '9월', title: 'Campus Hills', subtitle: '개학 시즌 언덕 맵', theme: 'september' },
+  { key: '2026-10', label: '10월', title: 'Night Festival', subtitle: '가을 축제 맵', theme: 'october' },
+  { key: '2026-11', label: '11월', title: 'Crystal Lab', subtitle: '실전 집중 맵', theme: 'november' },
+  { key: '2026-12', label: '12월', title: 'Snow Finale', subtitle: '연말 완주 맵', theme: 'december' },
+];
+
+const normalizeRewardMapVisibility = (visibility?: Record<string, boolean>): Record<string, boolean> => Object.fromEntries(
+  rewardMapMonths.map((month) => [month.key, visibility?.[month.key] !== false]),
+);
+
+const rewardMapImages: Record<RewardMapTheme, string> = {
+  august: '/reward-maps/blue-coast-run.png',
+  september: '/reward-maps/campus-hills.png',
+  october: '/reward-maps/night-festival.png',
+  november: '/reward-maps/crystal-lab.png',
+  december: '/reward-maps/snow-finale.png',
+};
+
+const rewardStageLayouts: Record<RewardMapTheme, RewardStageNode[]> = {
+  august: [
+    { x: 9, y: 67, label: 'START' },
+    { x: 16, y: 60, label: '1' },
+    { x: 26, y: 49, label: '2' },
+    { x: 36, y: 51, label: '3' },
+    { x: 46, y: 41, label: '4' },
+    { x: 54, y: 31, label: '5' },
+    { x: 66, y: 43, label: '6' },
+    { x: 77, y: 53, label: '7' },
+    { x: 86, y: 60, label: '8' },
+    { x: 76, y: 66, label: '9' },
+    { x: 63, y: 70, label: '10' },
+    { x: 49, y: 75, label: 'GOAL' },
+  ],
+  september: [
+    { x: 12, y: 75, label: 'START' },
+    { x: 22, y: 67, label: '1' },
+    { x: 32, y: 59, label: '2' },
+    { x: 42, y: 51, label: '3' },
+    { x: 51, y: 56, label: '4' },
+    { x: 59, y: 49, label: '5' },
+    { x: 69, y: 43, label: '6' },
+    { x: 80, y: 49, label: '7' },
+    { x: 86, y: 57, label: '8' },
+    { x: 78, y: 66, label: '9' },
+    { x: 65, y: 72, label: '10' },
+    { x: 50, y: 76, label: 'GOAL' },
+  ],
+  october: [
+    { x: 10, y: 76, label: 'START' },
+    { x: 21, y: 67, label: '1' },
+    { x: 32, y: 60, label: '2' },
+    { x: 43, y: 52, label: '3' },
+    { x: 37, y: 42, label: '4' },
+    { x: 50, y: 33, label: '5' },
+    { x: 61, y: 42, label: '6' },
+    { x: 72, y: 36, label: '7' },
+    { x: 83, y: 46, label: '8' },
+    { x: 76, y: 56, label: '9' },
+    { x: 63, y: 63, label: '10' },
+    { x: 48, y: 68, label: 'GOAL' },
+  ],
+  november: [
+    { x: 12, y: 68, label: 'START' },
+    { x: 23, y: 61, label: '1' },
+    { x: 34, y: 55, label: '2' },
+    { x: 45, y: 49, label: '3' },
+    { x: 55, y: 40, label: '4' },
+    { x: 64, y: 47, label: '5' },
+    { x: 75, y: 41, label: '6' },
+    { x: 83, y: 49, label: '7' },
+    { x: 76, y: 60, label: '8' },
+    { x: 63, y: 67, label: '9' },
+    { x: 50, y: 61, label: '10' },
+    { x: 38, y: 71, label: 'GOAL' },
+  ],
+  december: [
+    { x: 12, y: 72, label: 'START' },
+    { x: 24, y: 64, label: '1' },
+    { x: 35, y: 56, label: '2' },
+    { x: 45, y: 49, label: '3' },
+    { x: 55, y: 56, label: '4' },
+    { x: 64, y: 48, label: '5' },
+    { x: 59, y: 36, label: '6' },
+    { x: 70, y: 30, label: '7' },
+    { x: 81, y: 40, label: '8' },
+    { x: 73, y: 53, label: '9' },
+    { x: 62, y: 65, label: '10' },
+    { x: 48, y: 73, label: 'GOAL' },
+  ],
+};
+
+const buildRewardMapPath = (nodes: RewardStageNode[]) => {
+  if (nodes.length === 0) return '';
+  if (nodes.length === 1) return `M ${nodes[0].x} ${nodes[0].y}`;
+  const command = [`M ${nodes[0].x} ${nodes[0].y}`];
+  for (let index = 0; index < nodes.length - 1; index += 1) {
+    const previous = nodes[Math.max(0, index - 1)];
+    const current = nodes[index];
+    const next = nodes[index + 1];
+    const afterNext = nodes[Math.min(nodes.length - 1, index + 2)];
+    const controlA = {
+      x: current.x + (next.x - previous.x) / 6,
+      y: current.y + (next.y - previous.y) / 6,
+    };
+    const controlB = {
+      x: next.x - (afterNext.x - current.x) / 6,
+      y: next.y - (afterNext.y - current.y) / 6,
+    };
+    command.push(`C ${controlA.x.toFixed(2)} ${controlA.y.toFixed(2)}, ${controlB.x.toFixed(2)} ${controlB.y.toFixed(2)}, ${next.x} ${next.y}`);
+  }
+  return command.join(' ');
+};
+
+const clampRewardMapPercent = (value: number) => Math.min(98, Math.max(2, Number(value.toFixed(2))));
+
+const cloneRewardStageNodes = (nodes: RewardStageNode[]) => nodes.map((node) => ({
+  x: clampRewardMapPercent(Number(node.x)),
+  y: clampRewardMapPercent(Number(node.y)),
+  label: String(node.label),
+}));
+
+const loadRewardMapLayouts = (): Record<string, RewardStageNode[]> => {
+  try {
+    const raw = localStorage.getItem(REWARD_MAP_LAYOUT_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, RewardStageNode[]>;
+    return Object.fromEntries(
+      Object.entries(parsed)
+        .filter(([, nodes]) => Array.isArray(nodes) && nodes.length === rewardStageTotal)
+        .map(([key, nodes]) => [key, cloneRewardStageNodes(nodes)]),
+    );
+  } catch {
+    return {};
+  }
+};
+
+const saveRewardMapLayouts = (layouts: Record<string, RewardStageNode[]>) => {
+  localStorage.setItem(REWARD_MAP_LAYOUT_KEY, JSON.stringify(layouts));
+};
+
+const mapObject = (kind: string, x: number, y: number, scale = 1, rotate = 0) => ({
+  kind,
+  x,
+  y,
+  scale,
+  rotate,
+});
+
+type PremiumMapObject = { id?: string; kind: string; x: number; y: number; scale?: number; rotate?: number };
+type PremiumLandmark = Required<Pick<PremiumMapObject, 'id'>> & PremiumMapObject;
+type PremiumWorldConfig = {
+  skyTop: string;
+  skyMid: string;
+  skyBottom: string;
+  horizon: string;
+  terrainA: string;
+  terrainB: string;
+  terrainC: string;
+  sideA: string;
+  sideB: string;
+  shadow: string;
+  accent: string;
+  landmarkTop: string;
+  landmarkFront: string;
+  landmarkSide: string;
+  landmarks: PremiumLandmark[];
+};
+
+const premiumWorldConfigs: Record<RewardMapTheme, PremiumWorldConfig> = {
+  august: {
+    skyTop: '#6ee7ff',
+    skyMid: '#dffcff',
+    skyBottom: '#58d8cf',
+    horizon: '#c7fff1',
+    terrainA: '#9af064',
+    terrainB: '#35c96d',
+    terrainC: '#098a55',
+    sideA: '#c07831',
+    sideB: '#84421f',
+    shadow: '#065f46',
+    accent: '#f59e0b',
+    landmarkTop: '#a5f3fc',
+    landmarkFront: '#22c7a9',
+    landmarkSide: '#0f766e',
+    landmarks: [
+      { id: 'august-lighthouse', ...mapObject('coast-lighthouse', 210, 172, 1.28, -6) },
+      { id: 'august-sand-castle', ...mapObject('coast-sand-castle', 520, 130, 1.16, 8) },
+      { id: 'august-pier', ...mapObject('coast-pier', 1030, 460, 1.08, -12) },
+      { id: 'august-sailboat', ...mapObject('coast-sailboat', 858, 504, 0.94, 7) },
+    ],
+  },
+  september: {
+    skyTop: '#c8f7ff',
+    skyMid: '#f7ffe8',
+    skyBottom: '#b9f4c9',
+    horizon: '#f1ffe8',
+    terrainA: '#c4ef66',
+    terrainB: '#65c94e',
+    terrainC: '#2b8b48',
+    sideA: '#b68745',
+    sideB: '#6f4d2a',
+    shadow: '#315a2e',
+    accent: '#2563eb',
+    landmarkTop: '#dbeafe',
+    landmarkFront: '#60a5fa',
+    landmarkSide: '#2563eb',
+    landmarks: [
+      { id: 'september-clocktower', ...mapObject('campus-clocktower', 180, 135, 1.18, -5) },
+      { id: 'september-greenhouse', ...mapObject('campus-greenhouse', 540, 130, 1.08, 8) },
+      { id: 'september-fountain', ...mapObject('campus-fountain', 1040, 480, 1.1, -4) },
+      { id: 'september-library-cart', ...mapObject('campus-library-cart', 300, 500, 0.92, 5) },
+    ],
+  },
+  october: {
+    skyTop: '#2b174d',
+    skyMid: '#5b21b6',
+    skyBottom: '#f59e0b',
+    horizon: '#fed7aa',
+    terrainA: '#f6b75f',
+    terrainB: '#c66a2f',
+    terrainC: '#7c2d12',
+    sideA: '#8f4f2a',
+    sideB: '#4b1f16',
+    shadow: '#1e1b4b',
+    accent: '#f97316',
+    landmarkTop: '#fde68a',
+    landmarkFront: '#fb7185',
+    landmarkSide: '#be123c',
+    landmarks: [
+      { id: 'october-tent', ...mapObject('festival-tent', 180, 135, 1.18, -5) },
+      { id: 'october-stage', ...mapObject('festival-stage', 300, 500, 0.94, 7) },
+      { id: 'october-arch', ...mapObject('festival-arch', 1040, 480, 1.08, -4) },
+      { id: 'october-moon-boat', ...mapObject('festival-moon-boat', 1120, 430, 0.9, 5) },
+    ],
+  },
+  november: {
+    skyTop: '#dbeafe',
+    skyMid: '#eef2ff',
+    skyBottom: '#c4b5fd',
+    horizon: '#e0f2fe',
+    terrainA: '#93c5fd',
+    terrainB: '#6366f1',
+    terrainC: '#312e81',
+    sideA: '#5344a7',
+    sideB: '#2e2365',
+    shadow: '#312e81',
+    accent: '#22d3ee',
+    landmarkTop: '#ffffff',
+    landmarkFront: '#67e8f9',
+    landmarkSide: '#4f46e5',
+    landmarks: [
+      { id: 'november-observatory', ...mapObject('lab-observatory', 180, 135, 1.16, -6) },
+      { id: 'november-reactor', ...mapObject('lab-reactor', 540, 130, 1.08, 6) },
+      { id: 'november-prism-tower', ...mapObject('lab-prism-tower', 1040, 480, 1.04, -5) },
+      { id: 'november-crystal-gate', ...mapObject('lab-crystal-gate', 1120, 430, 0.88, 5) },
+    ],
+  },
+  december: {
+    skyTop: '#dbeafe',
+    skyMid: '#ffffff',
+    skyBottom: '#bfdbfe',
+    horizon: '#eff6ff',
+    terrainA: '#ffffff',
+    terrainB: '#bfdbfe',
+    terrainC: '#60a5fa',
+    sideA: '#93b7d2',
+    sideB: '#547c9c',
+    shadow: '#1d4ed8',
+    accent: '#2563eb',
+    landmarkTop: '#ffffff',
+    landmarkFront: '#93c5fd',
+    landmarkSide: '#2563eb',
+    landmarks: [
+      { id: 'december-cabin', ...mapObject('snow-cabin', 180, 135, 1.14, -6) },
+      { id: 'december-igloo', ...mapObject('snow-igloo', 345, 110, 1.04, 4) },
+      { id: 'december-castle', ...mapObject('snow-castle', 1040, 480, 1.06, -5) },
+      { id: 'december-lodge', ...mapObject('snow-lodge', 1120, 430, 0.9, 6) },
+    ],
+  },
+};
+
+function RewardWorldBackdrop({ theme }: { theme: RewardMapTheme }) {
+  const config = premiumWorldConfigs[theme];
+  const skyId = `${theme}-premium-sky`;
+  const terrainId = `${theme}-premium-terrain`;
+  const sideId = `${theme}-premium-side`;
+  const glowId = `${theme}-premium-light`;
+  const waterId = `${theme}-premium-water`;
+  const textureId = `${theme}-premium-texture`;
+  const gridId = `${theme}-premium-grid`;
+  const platformShapes: Record<RewardMapTheme, { top: string; side: string; rim: string }> = {
+    august: {
+      top: 'M70 354 C132 284 244 260 350 292 C438 210 600 188 748 238 C866 218 1010 236 1130 306 C1162 325 1156 364 1110 392 C1014 452 842 468 686 436 C548 490 352 480 206 414 C120 420 54 394 70 354Z',
+      side: 'M70 354 C132 284 244 260 350 292 C438 210 600 188 748 238 C866 218 1010 236 1130 306 C1162 325 1156 364 1110 392 C1014 452 842 468 686 436 C548 490 352 480 206 414 C120 420 54 394 70 354 L70 392 C124 454 270 498 446 500 C528 502 610 494 686 474 C844 507 1030 484 1130 426 C1162 407 1170 370 1130 340 C1010 270 866 252 748 272 C600 222 438 244 350 326 C244 294 132 318 70 392Z',
+      rim: 'M88 350 C162 296 254 286 348 316 C444 245 592 225 726 268 C850 246 992 260 1108 326',
+    },
+    september: {
+      top: 'M86 302 L204 244 L340 248 L452 204 L612 196 L728 228 L842 214 L1008 250 L1134 334 L1052 430 L858 466 L690 438 L530 492 L338 448 L182 456 L64 386Z',
+      side: 'M86 302 L204 244 L340 248 L452 204 L612 196 L728 228 L842 214 L1008 250 L1134 334 L1052 430 L858 466 L690 438 L530 492 L338 448 L182 456 L64 386Z M64 386 L64 426 L178 496 L336 490 L530 528 L690 476 L858 506 L1052 470 L1134 374 L1134 334 L1052 430 L858 466 L690 438 L530 492 L338 448 L182 456Z',
+      rim: 'M110 326 L218 272 L334 276 L454 232 L604 226 L724 258 L848 242 L984 276 L1102 344',
+    },
+    october: {
+      top: 'M78 374 L188 268 L340 242 L486 272 L610 210 L760 238 L910 206 L1118 330 L1068 436 L892 454 L730 420 L574 482 L402 458 L244 492 L78 432Z',
+      side: 'M78 374 L188 268 L340 242 L486 272 L610 210 L760 238 L910 206 L1118 330 L1068 436 L892 454 L730 420 L574 482 L402 458 L244 492 L78 432Z M78 432 L78 472 L244 532 L402 496 L574 522 L730 460 L892 494 L1068 476 L1118 370 L1118 330 L1068 436 L892 454 L730 420 L574 482 L402 458 L244 492Z',
+      rim: 'M108 384 L206 292 L340 270 L478 300 L610 240 L760 268 L906 238 L1084 344',
+    },
+    november: {
+      top: 'M74 332 L210 270 L354 280 L480 214 L626 240 L732 194 L880 240 L1132 320 L1064 438 L894 462 L728 418 L574 486 L388 446 L218 462 L74 392Z',
+      side: 'M74 332 L210 270 L354 280 L480 214 L626 240 L732 194 L880 240 L1132 320 L1064 438 L894 462 L728 418 L574 486 L388 446 L218 462 L74 392Z M74 392 L74 438 L218 502 L388 484 L574 524 L728 456 L894 504 L1064 480 L1132 362 L1132 320 L1064 438 L894 462 L728 418 L574 486 L388 446 L218 462Z',
+      rim: 'M106 344 L222 296 L354 306 L482 242 L626 270 L734 224 L878 268 L1094 336',
+    },
+    december: {
+      top: 'M70 374 C180 292 302 266 418 290 L552 222 L698 278 L826 214 L1012 262 L1138 354 C1090 424 998 458 862 456 L724 424 L574 476 L398 444 L236 472 C146 462 88 430 70 374Z',
+      side: 'M70 374 C180 292 302 266 418 290 L552 222 L698 278 L826 214 L1012 262 L1138 354 C1090 424 998 458 862 456 L724 424 L574 476 L398 444 L236 472 C146 462 88 430 70 374 L70 414 C116 474 194 510 326 514 L398 482 L574 514 L724 462 L862 496 C998 498 1090 464 1138 394 L1138 354 C1090 424 998 458 862 456 L724 424 L574 476 L398 444 L236 472 C146 462 88 430 70 374Z',
+      rim: 'M108 366 C198 312 306 292 414 318 L552 250 L696 306 L826 244 L994 288 L1104 358',
+    },
+  };
+  const shape = platformShapes[theme];
+  const props: Record<RewardMapTheme, PremiumMapObject[]> = {
+    august: [
+      mapObject('coast-palm', 90, 310, 0.66, -8),
+      mapObject('coast-starfish', 150, 460, 0.64, 9),
+      mapObject('coast-crab', 300, 500, 0.72, -4),
+      mapObject('coast-shell', 345, 110, 0.58, 6),
+      mapObject('coast-coral', 420, 420, 0.72, -10),
+      mapObject('coast-turtle', 1040, 520, 0.68, 4),
+      mapObject('coast-fish', 620, 105, 0.58, 6),
+      mapObject('coast-jelly', 1000, 130, 0.64, -5),
+      mapObject('coast-umbrella', 730, 360, 0.68, 8),
+      mapObject('coast-beach-ball', 780, 520, 0.6, -7),
+      mapObject('coast-bucket', 930, 520, 0.64, 6),
+      mapObject('coast-anchor', 980, 100, 0.62, -6),
+      mapObject('coast-bottle', 1120, 430, 0.58, 0),
+      mapObject('coast-clam', 1180, 370, 0.58, 7),
+      mapObject('coast-seaweed', 120, 220, 0.62, -9),
+      mapObject('coast-conch', 390, 170, 0.58, 5),
+      mapObject('coast-sandbar', 560, 330, 0.64, -6),
+      mapObject('coast-float', 240, 380, 0.58, 8),
+    ],
+    september: [
+      mapObject('campus-open-book', 120, 220, 0.66, -4),
+      mapObject('campus-pencil', 150, 460, 0.7, 7),
+      mapObject('campus-backpack', 240, 380, 0.66, -8),
+      mapObject('campus-bench', 345, 110, 0.6, 5),
+      mapObject('campus-round-tree', 390, 170, 0.72, -4),
+      mapObject('campus-maple-tree', 420, 420, 0.68, 8),
+      mapObject('campus-notebook', 500, 480, 0.66, -6),
+      mapObject('campus-ruler', 620, 105, 0.62, 6),
+      mapObject('campus-lamp', 660, 500, 0.68, -5),
+      mapObject('campus-apple', 760, 120, 0.62, 7),
+      mapObject('campus-bike', 830, 320, 0.66, -3),
+      mapObject('campus-trophy', 860, 500, 0.62, 8),
+      mapObject('campus-paper-plane', 900, 150, 0.62, -6),
+      mapObject('campus-magnifier', 1000, 130, 0.64, 5),
+      mapObject('campus-flowerbed', 1120, 430, 0.66, -4),
+      mapObject('campus-tablet', 1180, 370, 0.6, 6),
+      mapObject('campus-chair', 560, 330, 0.58, -7),
+      mapObject('campus-coffee', 320, 340, 0.58, 4),
+    ],
+    october: [
+      mapObject('festival-lantern', 90, 310, 0.66, -5),
+      mapObject('festival-pumpkin', 120, 220, 0.66, 8),
+      mapObject('festival-balloon', 180, 210, 0.62, -7),
+      mapObject('festival-candy', 260, 180, 0.62, 5),
+      mapObject('festival-mask', 345, 110, 0.62, -4),
+      mapObject('festival-drum', 390, 170, 0.64, 7),
+      mapObject('festival-firework', 540, 130, 0.66, -6),
+      mapObject('festival-sparkler', 620, 105, 0.58, 5),
+      mapObject('festival-garland', 620, 280, 0.58, -8),
+      mapObject('festival-popcorn', 660, 500, 0.6, 6),
+      mapObject('festival-cauldron', 760, 120, 0.66, -5),
+      mapObject('festival-star-lamp', 780, 520, 0.62, 8),
+      mapObject('festival-ticket', 860, 500, 0.62, -6),
+      mapObject('festival-flame', 980, 100, 0.62, 6),
+      mapObject('festival-ghost-light', 960, 512, 0.62, -5),
+      mapObject('festival-banner', 1150, 494, 0.6, 5),
+      mapObject('festival-confetti', 1180, 370, 0.58, -4),
+      mapObject('festival-cup', 430, 510, 0.58, 8),
+    ],
+    november: [
+      mapObject('lab-crystal-cluster', 120, 220, 0.66, -6),
+      mapObject('lab-beaker', 150, 460, 0.64, 8),
+      mapObject('lab-test-tube', 210, 90, 0.62, -8),
+      mapObject('lab-microscope', 240, 380, 0.66, 4),
+      mapObject('lab-atom', 320, 340, 0.68, -4),
+      mapObject('lab-circuit', 345, 110, 0.62, 7),
+      mapObject('lab-console', 500, 480, 0.66, -6),
+      mapObject('lab-data-cube', 610, 72, 0.62, 5),
+      mapObject('lab-satellite', 620, 105, 0.62, -8),
+      mapObject('lab-magnet', 660, 500, 0.64, 8),
+      mapObject('lab-flask', 690, 250, 0.6, -6),
+      mapObject('lab-orb', 780, 520, 0.62, 7),
+      mapObject('lab-laser', 830, 320, 0.58, -4),
+      mapObject('lab-geode', 860, 500, 0.66, 4),
+      mapObject('lab-chip', 970, 520, 0.62, -6),
+      mapObject('lab-drone', 1150, 500, 0.58, 6),
+      mapObject('lab-vial', 1180, 370, 0.58, -5),
+      mapObject('lab-telescope', 260, 180, 0.58, 8),
+    ],
+    december: [
+      mapObject('snow-pine', 90, 310, 0.66, -5),
+      mapObject('snow-snowman', 120, 220, 0.66, 8),
+      mapObject('snow-gift', 150, 460, 0.62, -7),
+      mapObject('snow-sled', 180, 210, 0.62, 5),
+      mapObject('snow-candy-cane', 260, 180, 0.62, -5),
+      mapObject('snow-crystal', 300, 500, 0.66, 7),
+      mapObject('snow-mitten', 390, 170, 0.62, -6),
+      mapObject('snow-skates', 420, 420, 0.62, 5),
+      mapObject('snow-lantern', 470, 360, 0.58, -8),
+      mapObject('snow-fence-piece', 540, 130, 0.62, 7),
+      mapObject('snow-berry-tree', 620, 105, 0.64, -5),
+      mapObject('snow-stump', 660, 500, 0.58, 8),
+      mapObject('snow-globe', 780, 520, 0.66, -6),
+      mapObject('snow-star', 860, 500, 0.64, 5),
+      mapObject('snow-wreath', 980, 100, 0.62, -4),
+      mapObject('snow-hot-cocoa', 960, 520, 0.62, 6),
+      mapObject('snow-bell', 1150, 500, 0.58, -5),
+      mapObject('snow-snowflake', 1180, 370, 0.58, 8),
+    ],
+  };
+  const themeLabel = theme === 'december' ? 'snow' : theme === 'august' ? 'coast' : theme === 'september' ? 'forest' : theme === 'october' ? 'festival' : 'crystal';
+  const renderObjectArt = (kind: string) => {
+    if (kind === 'coast-lighthouse') {
+      return (
+        <>
+          <path d="M-22 36 0-48 22 36Z" fill="#f8fafc" stroke="#e2e8f0" strokeWidth="4" />
+          <path d="M-14 -10H14V36H-14Z" fill="#f97316" opacity="0.72" />
+          <path d="M-28 -48H28L16-65H-16Z" fill="#0ea5e9" stroke="#e0f2fe" strokeWidth="4" />
+          <circle cx="0" cy="-42" r="9" fill="#fde68a" />
+          <path d="M-52 -42H-18M18 -42H52" stroke="#fde68a" strokeWidth="8" strokeLinecap="round" opacity="0.42" />
+        </>
+      );
+    }
+    if (kind === 'coast-sand-castle') {
+      return (
+        <>
+          <path d="M-42 32H42L30-24H-30Z" fill="#f8d889" stroke="#c58f35" strokeWidth="4" />
+          <path d="M-28-24V-48H-8V-24M8-24V-56H30V-24" fill="#f8d889" stroke="#c58f35" strokeWidth="4" />
+          <path d="M-34 0H34" stroke="#fff3c4" strokeWidth="5" strokeLinecap="round" />
+          <circle cx="0" cy="17" r="9" fill="#d69e3d" />
+        </>
+      );
+    }
+    if (kind === 'coast-pier') {
+      return (
+        <>
+          <path d="M-50 10 40-34 54-16-36 30Z" fill="#b7791f" stroke="#7c4a20" strokeWidth="5" />
+          <path d="M-28 0 22-24M-6 10 44-14M-46 16 4-8" stroke="#f7c873" strokeWidth="5" strokeLinecap="round" />
+          <path d="M-34 20V44M28-20V6" stroke="#7c4a20" strokeWidth="8" strokeLinecap="round" />
+        </>
+      );
+    }
+    if (kind === 'coast-sailboat') {
+      return (
+        <>
+          <path d="M-45 16 C-18 34 22 34 48 14 L34 36H-30Z" fill="#0f766e" />
+          <path d="M0 14V-48" stroke="#475569" strokeWidth="5" strokeLinecap="round" />
+          <path d="M4-45V10L46 8Z" fill="#f8fafc" stroke="#bfdbfe" strokeWidth="3" />
+          <path d="M-4-35V10L-38 10Z" fill="#f97316" stroke="#fed7aa" strokeWidth="3" />
+        </>
+      );
+    }
+    if (kind === 'coast-palm' || kind === 'campus-round-tree' || kind === 'campus-maple-tree' || kind === 'snow-pine' || kind === 'snow-berry-tree') {
+      const snowy = kind.startsWith('snow-');
+      const maple = kind === 'campus-maple-tree';
+      if (snowy) {
+        return (
+          <>
+            <path d="M0 36V-26" stroke="#8b5a2b" strokeWidth="9" strokeLinecap="round" />
+            <path d="M0-62-38 8h76Z" fill={kind === 'snow-berry-tree' ? '#166534' : '#1f7a59'} stroke="#e0f2fe" strokeWidth="4" />
+            <path d="M0-32-30 24h60Z" fill={kind === 'snow-berry-tree' ? '#15803d' : '#2f9e75'} stroke="#e0f2fe" strokeWidth="4" />
+            {kind === 'snow-berry-tree' ? <><circle cx="-12" cy="-12" r="5" fill="#ef4444" /><circle cx="16" cy="8" r="5" fill="#ef4444" /></> : null}
+          </>
+        );
+      }
+      if (kind === 'coast-palm') {
+        return (
+          <>
+            <path d="M-4 36 C10 4 8-24-4-44" stroke="#9a5f2f" strokeWidth="9" strokeLinecap="round" />
+            <path d="M-2-42 C-42-62-58-34-20-30Z" fill="#16a34a" />
+            <path d="M-2-42 C34-70 58-42 20-30Z" fill="#22c55e" />
+            <path d="M-2-42 C-22-18-12 0 4-24Z" fill="#15803d" />
+            <circle cx="3" cy="-38" r="8" fill="#b45309" />
+          </>
+        );
+      }
+      return (
+        <>
+          <path d="M0 34V-8" stroke="#8b5a2b" strokeWidth="9" strokeLinecap="round" />
+          <circle cx="-20" cy="-18" r="24" fill={maple ? '#f59e0b' : '#22c55e'} />
+          <circle cx="10" cy="-30" r="28" fill={maple ? '#ef4444' : '#16a34a'} />
+          <circle cx="28" cy="-10" r="22" fill={maple ? '#f97316' : '#4ade80'} />
+        </>
+      );
+    }
+    if (kind === 'coast-starfish') return <path d="M0-42 12-12 44-14 18 6 28 38 0 20-28 38-18 6-44-14-12-12Z" fill="#fb7185" stroke="#fecdd3" strokeWidth="4" />;
+    if (kind === 'coast-crab') return <><ellipse cx="0" cy="8" rx="28" ry="20" fill="#ef4444" /><circle cx="-12" cy="-14" r="5" fill="#0f172a" /><circle cx="12" cy="-14" r="5" fill="#0f172a" /><path d="M-28 4-52-12M28 4 52-12M-20 22-40 38M20 22 40 38" stroke="#ef4444" strokeWidth="8" strokeLinecap="round" /></>;
+    if (kind === 'coast-shell' || kind === 'coast-conch' || kind === 'coast-clam') return <><path d="M-38 24 C-30-28 30-28 38 24Z" fill={kind === 'coast-conch' ? '#fb923c' : '#f9a8d4'} stroke="#fff7ed" strokeWidth="4" /><path d="M-22 18 C-16-14-8-26 0-30M0 24V-30M22 18 C16-14 8-26 0-30" stroke="#be185d" strokeWidth="3" opacity="0.38" /></>;
+    if (kind === 'coast-coral' || kind === 'coast-seaweed') return <><path d="M0 38V-32M0-10-24-30M0 4 28-18M0 20-22 6" stroke={kind === 'coast-coral' ? '#fb7185' : '#16a34a'} strokeWidth="10" strokeLinecap="round" /><circle cx="0" cy="-32" r="9" fill={kind === 'coast-coral' ? '#fda4af' : '#4ade80'} /></>;
+    if (kind === 'coast-turtle') return <><ellipse cx="0" cy="8" rx="34" ry="24" fill="#22c55e" stroke="#bbf7d0" strokeWidth="4" /><circle cx="38" cy="4" r="12" fill="#4ade80" /><path d="M-12-8 12 24M14-8-10 24" stroke="#15803d" strokeWidth="4" /></>;
+    if (kind === 'coast-fish' || kind === 'coast-jelly') {
+      if (kind === 'coast-jelly') return <><path d="M-30 4 C-26-34 26-34 30 4 C24 22-24 22-30 4Z" fill="#a78bfa" stroke="#ddd6fe" strokeWidth="4" /><path d="M-18 20 C-24 34-10 38-16 50M0 22 C-8 34 8 38 0 50M18 20 C10 34 24 38 16 50" stroke="#c4b5fd" strokeWidth="5" strokeLinecap="round" /></>;
+      return <><path d="M-42 0 C-16-28 22-28 46 0 C22 28-16 28-42 0Z" fill="#38bdf8" stroke="#e0f2fe" strokeWidth="4" /><path d="M-42 0-58-20V20Z" fill="#0ea5e9" /><circle cx="20" cy="-6" r="5" fill="#0f172a" /></>;
+    }
+    if (kind === 'coast-umbrella') return <><path d="M-44 0 C-28-46 28-46 44 0Z" fill="#f97316" stroke="#fed7aa" strokeWidth="4" /><path d="M0 0V42" stroke="#7c4a20" strokeWidth="6" strokeLinecap="round" /><path d="M0-38V0" stroke="#fff7ed" strokeWidth="5" /></>;
+    if (kind === 'coast-beach-ball' || kind === 'coast-float') return <><circle cx="0" cy="0" r="30" fill="#f8fafc" stroke="#bae6fd" strokeWidth="4" /><path d="M0-30 A30 30 0 0 1 30 0H0Z" fill="#ef4444" /><path d="M0 30 A30 30 0 0 1-30 0H0Z" fill="#facc15" /></>;
+    if (kind === 'coast-bucket') return <><path d="M-28-14H28L20 34H-20Z" fill="#38bdf8" stroke="#e0f2fe" strokeWidth="4" /><path d="M-20-14 C-16-38 16-38 20-14" fill="none" stroke="#64748b" strokeWidth="5" /></>;
+    if (kind === 'coast-anchor') return <><path d="M0-44V28M-24-20H24M-34 8 C-24 44 24 44 34 8" fill="none" stroke="#475569" strokeWidth="9" strokeLinecap="round" /><circle cx="0" cy="-50" r="10" fill="none" stroke="#475569" strokeWidth="7" /></>;
+    if (kind === 'coast-bottle') return <><path d="M-13-40H13V-8L28 24C16 38-16 38-28 24L-13-8Z" fill="#a7f3d0" stroke="#0f766e" strokeWidth="4" /><path d="M-10-52H10V-38H-10Z" fill="#0f766e" /></>;
+    if (kind === 'coast-sandbar') return <path d="M-50 12 C-34-18 28-22 52 6 C30 30-30 34-50 12Z" fill="#fde68a" stroke="#facc15" strokeWidth="4" />;
+
+    if (kind.startsWith('campus-')) {
+      if (kind === 'campus-clocktower') return <><path d="M-28 34H28V-30H-28Z" fill="#f8fafc" stroke="#60a5fa" strokeWidth="4" /><path d="M-36-30H36L0-58Z" fill="#2563eb" /><circle cx="0" cy="-8" r="13" fill="#dbeafe" stroke="#1d4ed8" strokeWidth="4" /><path d="M0-8V-17M0-8 8-2" stroke="#1d4ed8" strokeWidth="4" strokeLinecap="round" /></>;
+      if (kind === 'campus-greenhouse') return <><path d="M-46 22V-8L0-42 46-8V22Z" fill="#bfdbfe" stroke="#2563eb" strokeWidth="4" opacity="0.86" /><path d="M-36 22H36V-2H-36Z" fill="#22c55e" /><path d="M0-42V22M-24 10 0-20 24 10" stroke="#e0f2fe" strokeWidth="4" /></>;
+      if (kind === 'campus-fountain') return <><ellipse cx="0" cy="22" rx="44" ry="16" fill="#93c5fd" stroke="#dbeafe" strokeWidth="4" /><path d="M-18 8 C-6-30 6-30 18 8" fill="none" stroke="#38bdf8" strokeWidth="6" strokeLinecap="round" /><circle cx="0" cy="4" r="12" fill="#60a5fa" /></>;
+      if (kind === 'campus-library-cart') return <><path d="M-42-8H38V26H-42Z" fill="#94a3b8" stroke="#f8fafc" strokeWidth="4" /><rect x="-34" y="-36" width="18" height="30" fill="#f87171" /><rect x="-12" y="-42" width="18" height="36" fill="#60a5fa" /><rect x="10" y="-30" width="18" height="24" fill="#facc15" /><circle cx="-24" cy="32" r="7" fill="#0f172a" /><circle cx="22" cy="32" r="7" fill="#0f172a" /></>;
+      if (kind.includes('book') || kind.includes('notebook')) return <><path d="M-42-28 C-20-36-6-26 0-16 C6-26 20-36 42-28V30C22 22 8 24 0 36C-8 24-22 22-42 30Z" fill="#ffffff" stroke="#60a5fa" strokeWidth="4" /><path d="M0-16V34" stroke="#2563eb" strokeWidth="4" /></>;
+      if (kind === 'campus-pencil' || kind === 'campus-ruler') return <><path d="M-48 12 28-34 44-12-32 34Z" fill={kind === 'campus-pencil' ? '#facc15' : '#fde68a'} stroke="#b45309" strokeWidth="4" /><path d="M28-34 50-46 44-12Z" fill="#fca5a5" /></>;
+      if (kind === 'campus-backpack') return <><path d="M-30-16 C-26-42 26-42 30-16V34H-30Z" fill="#3b82f6" stroke="#bfdbfe" strokeWidth="4" /><path d="M-16-18V18H16V-18" stroke="#1d4ed8" strokeWidth="5" /><path d="M-22-14 C-42 2-42 24-24 32M22-14 C42 2 42 24 24 32" stroke="#1e3a8a" strokeWidth="5" fill="none" /></>;
+      if (kind === 'campus-bench' || kind === 'campus-chair') return <><path d="M-42-12H42M-34 8H34" stroke="#92400e" strokeWidth="10" strokeLinecap="round" /><path d="M-30 8V34M30 8V34" stroke="#475569" strokeWidth="6" /></>;
+      if (kind === 'campus-lamp') return <><path d="M0 34V-30" stroke="#475569" strokeWidth="7" strokeLinecap="round" /><path d="M-24-30H24L14-48H-14Z" fill="#fde68a" stroke="#f59e0b" strokeWidth="4" /><circle cx="0" cy="-26" r="16" fill="#fef3c7" opacity="0.5" /></>;
+      if (kind === 'campus-apple') return <><circle cx="-8" cy="4" r="24" fill="#ef4444" /><circle cx="10" cy="4" r="24" fill="#dc2626" /><path d="M0-20 C0-42 16-42 24-54" stroke="#166534" strokeWidth="6" strokeLinecap="round" /><path d="M4-34 C20-44 34-34 24-22Z" fill="#22c55e" /></>;
+      if (kind === 'campus-bike') return <><circle cx="-30" cy="18" r="18" fill="none" stroke="#1e3a8a" strokeWidth="5" /><circle cx="30" cy="18" r="18" fill="none" stroke="#1e3a8a" strokeWidth="5" /><path d="M-30 18 0-10 30 18H-8L-30 18M0-10 10-28" stroke="#60a5fa" strokeWidth="5" fill="none" strokeLinecap="round" /></>;
+      if (kind === 'campus-trophy') return <><path d="M-24-28H24V-4C24 18 8 26 0 26S-24 18-24-4Z" fill="#facc15" stroke="#b45309" strokeWidth="4" /><path d="M-24-18H-44C-42 6-28 8-20 0M24-18H44C42 6 28 8 20 0" fill="none" stroke="#facc15" strokeWidth="7" /><path d="M0 26V42M-20 42H20" stroke="#b45309" strokeWidth="7" strokeLinecap="round" /></>;
+      if (kind === 'campus-paper-plane') return <path d="M-48-8 48-42 18 42 0 8Z" fill="#e0f2fe" stroke="#2563eb" strokeWidth="4" />;
+      if (kind === 'campus-magnifier') return <><circle cx="-8" cy="-8" r="26" fill="#dbeafe" stroke="#2563eb" strokeWidth="6" opacity="0.9" /><path d="M12 12 42 42" stroke="#1e3a8a" strokeWidth="9" strokeLinecap="round" /></>;
+      if (kind === 'campus-flowerbed') return <><path d="M-46 18H46L34 36H-34Z" fill="#92400e" /><circle cx="-24" cy="0" r="11" fill="#f472b6" /><circle cx="0" cy="-6" r="12" fill="#facc15" /><circle cx="24" cy="0" r="11" fill="#60a5fa" /></>;
+      if (kind === 'campus-tablet') return <><rect x="-34" y="-38" width="68" height="76" rx="8" fill="#0f172a" stroke="#e0f2fe" strokeWidth="4" /><rect x="-24" y="-26" width="48" height="50" rx="4" fill="#93c5fd" /></>;
+      if (kind === 'campus-coffee') return <><path d="M-26-18H22V30H-18Z" fill="#f8fafc" stroke="#94a3b8" strokeWidth="4" /><path d="M22-8H38C42 10 32 20 22 16" fill="none" stroke="#94a3b8" strokeWidth="5" /><path d="M-10-34 C-18-46-2-48-10-58M8-34 C0-46 18-48 8-58" stroke="#94a3b8" strokeWidth="4" strokeLinecap="round" /></>;
+    }
+
+    if (kind.startsWith('festival-')) {
+      if (kind === 'festival-tent') return <><path d="M-52 20 0-52 52 20Z" fill="#fb7185" stroke="#fed7aa" strokeWidth="5" /><path d="M0-52V20" stroke="#fff7ed" strokeWidth="5" /><path d="M-36 20H36V44H-36Z" fill="#7c2d12" /></>;
+      if (kind === 'festival-stage') return <><path d="M-50 18H50V42H-50Z" fill="#7c2d12" /><path d="M-42 18 C-22-22 22-22 42 18Z" fill="#facc15" stroke="#fed7aa" strokeWidth="4" /><circle cx="-22" cy="0" r="8" fill="#fb7185" /><circle cx="22" cy="0" r="8" fill="#fb7185" /></>;
+      if (kind === 'festival-arch') return <><path d="M-44 40V0C-44-52 44-52 44 0V40" fill="none" stroke="#f97316" strokeWidth="12" strokeLinecap="round" /><circle cx="-22" cy="-22" r="10" fill="#facc15" /><circle cx="22" cy="-22" r="10" fill="#fb7185" /></>;
+      if (kind === 'festival-moon-boat') return <><path d="M-44 4 C-18 42 26 42 48 0 C20 18-14 18-44 4Z" fill="#fde68a" stroke="#f59e0b" strokeWidth="4" /><path d="M-26 22 C-4 34 24 30 38 10" stroke="#7c2d12" strokeWidth="5" fill="none" /></>;
+      if (kind === 'festival-lantern' || kind === 'festival-star-lamp') return <><path d="M0-46V-28" stroke="#fde68a" strokeWidth="5" /><path d="M-24-28H24V22C8 38-8 38-24 22Z" fill={kind === 'festival-star-lamp' ? '#facc15' : '#fb7185'} stroke="#fed7aa" strokeWidth="4" /><path d="M0-16 7 0 24 1 10 11 15 28 0 18-15 28-10 11-24 1-7 0Z" fill="#fff7ed" opacity="0.76" /></>;
+      if (kind === 'festival-pumpkin') return <><ellipse cx="-16" cy="8" rx="20" ry="28" fill="#f97316" /><ellipse cx="16" cy="8" rx="20" ry="28" fill="#ea580c" /><ellipse cx="0" cy="8" rx="24" ry="31" fill="#fb923c" /><path d="M0-24 C4-42 22-34 16-50" stroke="#166534" strokeWidth="6" strokeLinecap="round" /></>;
+      if (kind === 'festival-balloon') return <><circle cx="-14" cy="-18" r="19" fill="#60a5fa" /><circle cx="18" cy="-26" r="19" fill="#fb7185" /><path d="M-14 2 C-28 20-20 34-28 46M18-6 C28 16 14 30 22 46" stroke="#fde68a" strokeWidth="4" fill="none" /></>;
+      if (kind === 'festival-candy') return <><path d="M-28-18H28V18H-28Z" rx="10" fill="#f8fafc" stroke="#fb7185" strokeWidth="4" /><path d="M-28 0-54-18V18ZM28 0 54-18V18Z" fill="#facc15" /><path d="M-12-18 12 18M8-18 28 14" stroke="#fb7185" strokeWidth="5" /></>;
+      if (kind === 'festival-mask') return <><path d="M-44-14 C-18-36 18-36 44-14 C32 22 12 34 0 16 C-12 34-32 22-44-14Z" fill="#a78bfa" stroke="#fde68a" strokeWidth="4" /><circle cx="-18" cy="-4" r="7" fill="#1e1b4b" /><circle cx="18" cy="-4" r="7" fill="#1e1b4b" /></>;
+      if (kind === 'festival-drum') return <><ellipse cx="0" cy="-22" rx="32" ry="12" fill="#fde68a" /><path d="M-32-22V22C-20 36 20 36 32 22V-22Z" fill="#dc2626" stroke="#fed7aa" strokeWidth="4" /><path d="M-42-42 42 28M42-42-42 28" stroke="#92400e" strokeWidth="5" strokeLinecap="round" /></>;
+      if (kind === 'festival-firework' || kind === 'festival-confetti' || kind === 'festival-sparkler') return <><path d="M0 38V-34M-34 4 34-4M-24-24 24 24M24-24-24 24" stroke="#facc15" strokeWidth="6" strokeLinecap="round" /><circle cx="0" cy="0" r="10" fill="#fb7185" /><circle cx="-32" cy="-28" r="5" fill="#60a5fa" /><circle cx="34" cy="-12" r="5" fill="#f97316" /></>;
+      if (kind === 'festival-garland' || kind === 'festival-banner') return <><path d="M-50-18 C-22 8 22 8 50-18" fill="none" stroke="#fde68a" strokeWidth="5" /><path d="M-32-10  -20 18 -8-10ZM-4 2 8 30 20 2ZM26-8 38 20 50-8Z" fill="#fb7185" /></>;
+      if (kind === 'festival-popcorn' || kind === 'festival-cup') return <><path d="M-28-20H28L18 36H-18Z" fill="#f8fafc" stroke="#fb7185" strokeWidth="4" /><path d="M-20-20V30M0-20V36M20-20V30" stroke="#ef4444" strokeWidth="5" /><circle cx="-18" cy="-34" r="10" fill="#fde68a" /><circle cx="0" cy="-40" r="11" fill="#fde68a" /><circle cx="18" cy="-34" r="10" fill="#fde68a" /></>;
+      if (kind === 'festival-cauldron') return <><path d="M-36-10H36C34 30 20 42 0 42S-34 30-36-10Z" fill="#1f2937" stroke="#94a3b8" strokeWidth="4" /><circle cx="-10" cy="-22" r="8" fill="#a3e635" /><circle cx="12" cy="-24" r="9" fill="#22d3ee" /><path d="M-22 42-34 54M22 42 34 54" stroke="#111827" strokeWidth="6" strokeLinecap="round" /></>;
+      if (kind === 'festival-flame' || kind === 'festival-ghost-light') return <><path d="M0-48 C32-12 16 38 0 44 C-24 28-26 0 0-48Z" fill={kind === 'festival-flame' ? '#f97316' : '#f8fafc'} stroke="#fde68a" strokeWidth="4" /><path d="M0-16 C10 6 4 26-8 32 C-18 18-14 0 0-16Z" fill="#facc15" /></>;
+      if (kind === 'festival-ticket') return <path d="M-48-24H48V24H-48Z" fill="#fde68a" stroke="#f97316" strokeWidth="4" strokeDasharray="8 6" />;
+    }
+
+    if (kind.startsWith('lab-')) {
+      if (kind === 'lab-observatory') return <><path d="M-44 30H44V-6H-44Z" fill="#312e81" stroke="#a5f3fc" strokeWidth="4" /><path d="M-34-6 C-20-48 20-48 34-6Z" fill="#67e8f9" opacity="0.84" /><circle cx="0" cy="-20" r="15" fill="#e0f2fe" /></>;
+      if (kind === 'lab-reactor') return <><circle cx="0" cy="0" r="42" fill="#312e81" stroke="#67e8f9" strokeWidth="7" /><circle cx="0" cy="0" r="18" fill="#22d3ee" /><path d="M0-52V-32M0 32V52M-52 0H-32M32 0H52" stroke="#a5f3fc" strokeWidth="6" strokeLinecap="round" /></>;
+      if (kind === 'lab-prism-tower' || kind === 'lab-crystal-gate') return <><path d="M0-58 42 18 0 48-42 18Z" fill="#67e8f9" stroke="#e0f2fe" strokeWidth="5" opacity="0.9" /><path d="M0-58V48M-42 18H42" stroke="#4f46e5" strokeWidth="4" opacity="0.46" /></>;
+      if (kind === 'lab-crystal-cluster' || kind === 'lab-geode') return <><path d="M-28 34-18-26 0-48 14-16 34 32Z" fill="#67e8f9" stroke="#e0f2fe" strokeWidth="4" /><path d="M-48 34-34-6-18-24-18 34Z" fill="#38bdf8" opacity="0.82" /><path d="M16 34 26-2 44 22 42 34Z" fill="#a78bfa" /></>;
+      if (kind === 'lab-beaker' || kind === 'lab-flask') return <><path d="M-18-46H18V-12L38 28C24 44-24 44-38 28L-18-12Z" fill="#e0f2fe" stroke="#38bdf8" strokeWidth="4" /><path d="M-28 22 C-8 12 8 30 28 18L36 34C20 44-20 44-36 34Z" fill="#22d3ee" opacity="0.68" /></>;
+      if (kind === 'lab-test-tube' || kind === 'lab-vial') return <><path d="M-16-46H16V28C16 42-16 42-16 28Z" fill="#e0f2fe" stroke="#818cf8" strokeWidth="4" /><path d="M-14 8H14V28C14 38-14 38-14 28Z" fill="#a78bfa" /><path d="M-24-46H24" stroke="#e0f2fe" strokeWidth="6" strokeLinecap="round" /></>;
+      if (kind === 'lab-microscope') return <><path d="M-28 40H34M-14 28 C28 18 36-18 8-32" stroke="#312e81" strokeWidth="9" strokeLinecap="round" fill="none" /><path d="M4-44 34-28" stroke="#67e8f9" strokeWidth="12" strokeLinecap="round" /><circle cx="-16" cy="20" r="14" fill="#818cf8" /></>;
+      if (kind === 'lab-atom') return <><ellipse cx="0" cy="0" rx="46" ry="16" fill="none" stroke="#67e8f9" strokeWidth="5" /><ellipse cx="0" cy="0" rx="46" ry="16" fill="none" stroke="#a78bfa" strokeWidth="5" transform="rotate(60)" /><ellipse cx="0" cy="0" rx="46" ry="16" fill="none" stroke="#60a5fa" strokeWidth="5" transform="rotate(-60)" /><circle cx="0" cy="0" r="9" fill="#f8fafc" /></>;
+      if (kind === 'lab-circuit' || kind === 'lab-chip') return <><rect x="-34" y="-34" width="68" height="68" rx="10" fill="#312e81" stroke="#67e8f9" strokeWidth="4" /><path d="M-18-8H18M-18 8H18M-8-18V18M8-18V18" stroke="#a5f3fc" strokeWidth="4" /><circle cx="-24" cy="-24" r="5" fill="#22d3ee" /><circle cx="24" cy="24" r="5" fill="#22d3ee" /></>;
+      if (kind === 'lab-console') return <><path d="M-44-20H44V28H-44Z" fill="#1e1b4b" stroke="#67e8f9" strokeWidth="4" /><rect x="-30" y="-8" width="22" height="18" fill="#22d3ee" /><circle cx="20" cy="0" r="8" fill="#a78bfa" /><circle cx="34" cy="10" r="6" fill="#facc15" /></>;
+      if (kind === 'lab-data-cube' || kind === 'lab-orb') return <><path d="M0-44 40-20 40 24 0 48-40 24-40-20Z" fill="#38bdf8" stroke="#e0f2fe" strokeWidth="4" opacity="0.86" /><path d="M0-44V48M-40-20 0 4 40-20" stroke="#312e81" strokeWidth="4" opacity="0.38" /></>;
+      if (kind === 'lab-satellite' || kind === 'lab-telescope') return <><path d="M-30-6 10-30 30 4-10 28Z" fill="#c7d2fe" stroke="#4f46e5" strokeWidth="4" /><path d="M-48-28-22-12M22 18 48 36M0 0 36-36" stroke="#67e8f9" strokeWidth="5" strokeLinecap="round" /></>;
+      if (kind === 'lab-magnet') return <><path d="M-36-32V4C-36 46 36 46 36 4V-32H14V4C14 22-14 22-14 4V-32Z" fill="#ef4444" stroke="#e0f2fe" strokeWidth="4" /><path d="M-36-32H-14M14-32H36" stroke="#67e8f9" strokeWidth="7" /></>;
+      if (kind === 'lab-laser') return <><rect x="-44" y="-14" width="54" height="28" rx="8" fill="#312e81" stroke="#67e8f9" strokeWidth="4" /><path d="M12 0H54" stroke="#f472b6" strokeWidth="8" strokeLinecap="round" /><circle cx="0" cy="0" r="8" fill="#f472b6" /></>;
+      if (kind === 'lab-drone') return <><rect x="-20" y="-14" width="40" height="28" rx="10" fill="#4f46e5" stroke="#a5f3fc" strokeWidth="4" /><circle cx="-44" cy="-20" r="12" fill="none" stroke="#67e8f9" strokeWidth="5" /><circle cx="44" cy="-20" r="12" fill="none" stroke="#67e8f9" strokeWidth="5" /><path d="M-20-10-34-18M20-10 34-18" stroke="#a5f3fc" strokeWidth="4" /></>;
+    }
+
+    if (kind.startsWith('snow-')) {
+      if (kind === 'snow-cabin' || kind === 'snow-lodge') return <><path d="M-44 34H44V-8H-44Z" fill="#b45309" stroke="#e0f2fe" strokeWidth="4" /><path d="M-54-8 0-50 54-8Z" fill="#f8fafc" stroke="#bfdbfe" strokeWidth="5" /><rect x="-12" y="8" width="24" height="26" fill="#7c2d12" /></>;
+      if (kind === 'snow-igloo') return <><path d="M-48 30 C-42-34 42-34 48 30Z" fill="#e0f2fe" stroke="#ffffff" strokeWidth="5" /><path d="M-32 0H32M-20-22H20M0-34V30M-36 16H36" stroke="#93c5fd" strokeWidth="4" /><path d="M-16 30V8C-16-6 16-6 16 8V30Z" fill="#60a5fa" /></>;
+      if (kind === 'snow-castle') return <><path d="M-42 34H42V-24H-42Z" fill="#bfdbfe" stroke="#ffffff" strokeWidth="4" /><path d="M-48-24V-48H-24V-24M24-24V-48H48V-24M-10-24V-58H10V-24" fill="#e0f2fe" stroke="#ffffff" strokeWidth="4" /></>;
+      if (kind === 'snow-snowman') return <><circle cx="0" cy="18" r="28" fill="#f8fafc" stroke="#bfdbfe" strokeWidth="4" /><circle cx="0" cy="-22" r="20" fill="#ffffff" stroke="#bfdbfe" strokeWidth="4" /><circle cx="-7" cy="-27" r="3" fill="#0f172a" /><circle cx="7" cy="-27" r="3" fill="#0f172a" /><path d="M0-20 16-16" stroke="#f97316" strokeWidth="5" strokeLinecap="round" /><path d="M-24 2H24" stroke="#ef4444" strokeWidth="6" strokeLinecap="round" /></>;
+      if (kind === 'snow-gift') return <><rect x="-34" y="-20" width="68" height="54" rx="6" fill="#ef4444" stroke="#fecaca" strokeWidth="4" /><path d="M0-20V34M-34 4H34" stroke="#fde68a" strokeWidth="8" /><path d="M0-22 C-30-50-38-10 0-22 C30-50 38-10 0-22Z" fill="#fde68a" /></>;
+      if (kind === 'snow-sled') return <><path d="M-44 10H32V28H-44Z" fill="#b45309" /><path d="M-52 34 C-22 48 30 48 54 32" fill="none" stroke="#7c2d12" strokeWidth="7" strokeLinecap="round" /><path d="M-28-12V28M18-12V28" stroke="#7c2d12" strokeWidth="6" /></>;
+      if (kind === 'snow-candy-cane') return <><path d="M-10 42V-28C-10-54 32-54 32-28C32-10 8-10 8-28" fill="none" stroke="#f8fafc" strokeWidth="16" strokeLinecap="round" /><path d="M-10 32 8 14M-10 4 8-14M10-48 28-32" stroke="#ef4444" strokeWidth="8" strokeLinecap="round" /></>;
+      if (kind === 'snow-crystal' || kind === 'snow-snowflake' || kind === 'snow-star') return <><path d="M0-46V46M-40-23 40 23M40-23-40 23" stroke="#60a5fa" strokeWidth="6" strokeLinecap="round" /><circle cx="0" cy="0" r="11" fill="#e0f2fe" stroke="#ffffff" strokeWidth="4" /></>;
+      if (kind === 'snow-mitten') return <><path d="M-26-12 C-26-42 18-42 20-10V28C10 42-22 40-30 22Z" fill="#f472b6" stroke="#fbcfe8" strokeWidth="4" /><path d="M20-6 C46-8 46 28 22 28" fill="#f472b6" stroke="#fbcfe8" strokeWidth="4" /></>;
+      if (kind === 'snow-skates') return <><path d="M-40-22H4V12H-30Z" fill="#f8fafc" stroke="#94a3b8" strokeWidth="4" /><path d="M8-22H44V12H16Z" fill="#bfdbfe" stroke="#94a3b8" strokeWidth="4" /><path d="M-36 24 C-16 34 22 34 46 24" stroke="#64748b" strokeWidth="5" fill="none" strokeLinecap="round" /></>;
+      if (kind === 'snow-lantern') return <><path d="M0-46V-24" stroke="#64748b" strokeWidth="5" /><rect x="-24" y="-24" width="48" height="54" rx="10" fill="#0f172a" stroke="#bfdbfe" strokeWidth="4" /><circle cx="0" cy="2" r="16" fill="#fde68a" opacity="0.86" /></>;
+      if (kind === 'snow-fence-piece') return <><path d="M-48-8H48M-48 16H48M-34-28V34M0-28V34M34-28V34" stroke="#e0f2fe" strokeWidth="8" strokeLinecap="round" /></>;
+      if (kind === 'snow-stump') return <><ellipse cx="0" cy="-8" rx="28" ry="15" fill="#d97706" stroke="#fde68a" strokeWidth="4" /><path d="M-28-8V30C-14 42 14 42 28 30V-8Z" fill="#92400e" /><path d="M-12-6 C-4-14 8-12 14-4" stroke="#7c2d12" strokeWidth="4" fill="none" /></>;
+      if (kind === 'snow-globe') return <><circle cx="0" cy="-8" r="32" fill="#dbeafe" stroke="#ffffff" strokeWidth="5" opacity="0.86" /><path d="M-34 28H34L24 44H-24Z" fill="#7c2d12" /><circle cx="0" cy="-8" r="6" fill="#60a5fa" /></>;
+      if (kind === 'snow-wreath') return <><circle cx="0" cy="0" r="31" fill="none" stroke="#15803d" strokeWidth="14" /><circle cx="-14" cy="-18" r="5" fill="#ef4444" /><circle cx="18" cy="-10" r="5" fill="#ef4444" /><path d="M-10 24 0 42 10 24" fill="#ef4444" /></>;
+      if (kind === 'snow-hot-cocoa') return <><path d="M-28-18H24V30H-20Z" fill="#f8fafc" stroke="#94a3b8" strokeWidth="4" /><path d="M24-8H40C44 10 34 22 24 16" fill="none" stroke="#94a3b8" strokeWidth="5" /><circle cx="-8" cy="-24" r="7" fill="#ffffff" /><circle cx="10" cy="-26" r="7" fill="#ffffff" /></>;
+      if (kind === 'snow-bell') return <><path d="M-30 22 C-24-18-14-42 0-42S24-18 30 22Z" fill="#facc15" stroke="#fef3c7" strokeWidth="4" /><path d="M-38 24H38" stroke="#b45309" strokeWidth="6" strokeLinecap="round" /><circle cx="0" cy="32" r="7" fill="#b45309" /></>;
+    }
+
+    return <circle cx="0" cy="0" r="28" fill="#e0f2fe" stroke="#ffffff" strokeWidth="4" />;
+  };
+  const renderThemeObject = (object: PremiumMapObject, index: number, feature = false) => {
+    const transform = `translate(${object.x} ${object.y}) rotate(${object.rotate ?? 0}) scale(${object.scale ?? 1})`;
+
+    return (
+      <g className={`theme-object ${feature ? 'feature-object' : 'prop-object'} object-${object.kind}`} key={object.id ?? `${object.kind}-${index}`} transform={transform}>
+        <ellipse className="theme-object-shadow" cx="0" cy="42" rx={feature ? 62 : 42} ry={feature ? 15 : 11} />
+        {renderObjectArt(object.kind)}
+      </g>
+    );
+  };
+
+  return (
+    <svg className={`reward-world reward-world-premium reward-world-${theme}`} viewBox="0 0 1200 560" preserveAspectRatio="none" aria-hidden="true">
+      <defs>
+        <linearGradient id={skyId} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor={config.skyTop} />
+          <stop offset="0.5" stopColor={config.skyMid} />
+          <stop offset="1" stopColor={config.skyBottom} />
+        </linearGradient>
+        <linearGradient id={terrainId} x1="0" x2="1" y1="0" y2="1">
+          <stop offset="0" stopColor={config.terrainA} />
+          <stop offset="0.5" stopColor={config.terrainB} />
+          <stop offset="1" stopColor={config.terrainC} />
+        </linearGradient>
+        <linearGradient id={sideId} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor={config.sideA} />
+          <stop offset="1" stopColor={config.sideB} />
+        </linearGradient>
+        <linearGradient id={waterId} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0" stopColor={theme === 'october' ? '#5b21b6' : theme === 'november' ? '#dbeafe' : theme === 'december' ? '#eef6ff' : '#6ee7ff'} />
+          <stop offset="1" stopColor={theme === 'october' ? '#1e1b4b' : theme === 'november' ? '#c4b5fd' : theme === 'december' ? '#c7ddf6' : '#22c7bd'} />
+        </linearGradient>
+        <radialGradient id={glowId} cx="50%" cy="35%" r="65%">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.64" />
+          <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+        </radialGradient>
+        <pattern id={textureId} width="44" height="44" patternUnits="userSpaceOnUse">
+          <path d="M0 44 44 0" stroke="#ffffff" strokeOpacity="0.15" strokeWidth="3" />
+          <path d="M-16 26 18-8" stroke="#0f172a" strokeOpacity="0.07" strokeWidth="2" />
+          <circle cx="10" cy="12" r="2.2" fill="#ffffff" fillOpacity="0.18" />
+          <circle cx="32" cy="30" r="1.8" fill="#0f172a" fillOpacity="0.08" />
+        </pattern>
+        <pattern id={gridId} width="88" height="52" patternUnits="userSpaceOnUse" patternTransform="skewX(-18)">
+          <path d="M0 0H88V52H0Z" fill="none" stroke="#ffffff" strokeOpacity="0.12" strokeWidth="2" />
+          <path d="M44 0V52 M0 26H88" stroke="#0f172a" strokeOpacity="0.06" strokeWidth="2" />
+        </pattern>
+      </defs>
+      <rect width="1200" height="560" fill={`url(#${skyId})`} />
+      <rect className="premium-horizon" y="304" width="1200" height="256" fill={`url(#${waterId})`} />
+      <rect width="1200" height="560" fill={`url(#${glowId})`} />
+
+      <g className={`premium-map-scene premium-map-${themeLabel}`}>
+        <path className="map-distant ridge-a" d="M0 316 C140 270 260 274 386 318 C520 254 674 252 814 318 C942 272 1058 276 1200 324 V560 H0Z" />
+        <path className="map-distant ridge-b" d="M0 386 C178 348 322 356 470 392 C618 336 782 336 936 388 C1038 354 1126 356 1200 382 V560 H0Z" />
+        <g className="map-clouds">
+          <path d="M142 142c0-25 21-45 47-45 8-28 35-47 66-43 26 3 46 22 53 47 27 0 50 20 50 46 0 29-24 49-55 49H188c-28 0-46-22-46-54Z" />
+          <path d="M702 96c0-21 17-37 39-37 7-23 29-39 55-36 22 3 38 19 44 39 23 1 42 18 42 40 0 24-21 41-46 41h-93c-24 0-41-18-41-47Z" />
+          <path d="M946 170c0-19 16-34 36-34 6-22 27-36 51-34 20 3 36 18 41 37 22 0 40 17 40 38 0 23-19 38-43 38h-87c-23 0-38-17-38-45Z" />
+        </g>
+
+        {theme === 'august' && (
+          <g className="map-theme-layer august-layer">
+            <path className="side-island" d="M74 236c35-42 110-54 154-19 34 27 19 74-34 91-66 21-154-6-158-47-1-9 9-18 38-25Z" />
+            <path className="side-island island-small" d="M1038 410c34-30 96-34 130-7 29 23 12 63-36 73-57 12-115-10-118-43-1-9 6-16 24-23Z" />
+            <path className="map-wave" d="M16 418 C120 438 220 438 326 418" />
+            <path className="map-wave" d="M846 420 C968 396 1074 398 1184 424" />
+            <path className="map-wave" d="M110 505 C300 482 504 488 700 510" />
+          </g>
+        )}
+
+        {theme === 'september' && (
+          <g className="map-theme-layer september-layer">
+            <path className="forest-canopy" d="M90 238c86-78 210-104 358-78 106 19 200 17 312-6 152-31 276 2 374 93-50-4-96 7-138 33-84-62-184-78-300-49-96 24-188 26-276 2-134-37-242-20-330 50-52-29-102-44-150-45Z" />
+            <path className="forest-shadow" d="M120 452c152 45 302 42 452-9 128 43 272 43 430 0" />
+          </g>
+        )}
+
+        {theme === 'october' && (
+          <g className="map-theme-layer october-layer">
+            <path className="festival-glow" d="M0 262 C172 205 314 222 458 280 C622 188 790 184 966 262 C1040 220 1118 220 1200 260 V560 H0Z" />
+            <path className="festival-lamp-line" d="M190 122 C394 170 646 150 962 116" />
+            <path className="festival-lamp-line lower" d="M260 468 C456 422 686 422 932 466" />
+            <circle className="festival-light" cx="258" cy="138" r="8" />
+            <circle className="festival-light" cx="464" cy="156" r="8" />
+            <circle className="festival-light" cx="674" cy="146" r="8" />
+            <circle className="festival-light" cx="896" cy="124" r="8" />
+          </g>
+        )}
+
+        {theme === 'november' && (
+          <g className="map-theme-layer november-layer">
+            <path className="lab-grid" d="M90 154 H1120 M108 214 H1162 M64 444 H1140 M210 106 V512 M438 82 V526 M674 92 V512 M916 110 V520" />
+            <path className="crystal-panel panel-a" d="M118 352 256 280 378 344 234 420Z" />
+            <path className="crystal-panel panel-b" d="M828 252 984 198 1104 286 950 358Z" />
+            <path className="crystal-panel panel-c" d="M496 422 646 356 772 422 620 494Z" />
+          </g>
+        )}
+
+        {theme === 'december' && (
+          <g className="map-theme-layer december-layer">
+            <path className="snow-hills" d="M0 322 C150 286 294 298 430 340 C598 268 782 274 956 344 C1052 300 1132 292 1200 316 V560 H0Z" />
+            <path className="snow-fence" d="M120 242 H232 M900 226 H1018 M222 430 H382 M930 448 H1090" />
+            <path className="ice-ridge" d="M178 386 C330 318 468 314 590 376 C740 316 904 314 1048 382" />
+            <path className="ice-ridge thin" d="M358 454 C526 430 696 430 878 454" />
+          </g>
+        )}
+
+        <ellipse className="premium-board-shadow" cx="604" cy="500" rx="520" ry="52" fill={config.shadow} />
+        <path className="premium-board-side" d={shape.side} fill={`url(#${sideId})`} />
+        <path className="premium-board-main" d={shape.top} fill={`url(#${terrainId})`} />
+        <path className="premium-board-texture" d={shape.top} fill={`url(#${textureId})`} />
+        <path className="premium-board-grid" d={shape.top} fill={`url(#${gridId})`} />
+        <path className="premium-board-rim" d={shape.rim} />
+
+        <g className="premium-terrain-layers">
+          <path className="terrain-layer layer-a" d="M146 360 C250 316 352 316 452 360 C542 302 662 286 782 320 C896 300 1006 320 1106 380 C986 426 842 430 716 390 C592 452 420 454 282 398 C224 378 178 366 146 360Z" />
+          <path className="terrain-layer layer-b" d="M234 430 C358 390 464 390 552 430 C658 386 798 390 944 440 C760 488 452 488 234 430Z" />
+          <path className="terrain-layer layer-c" d="M430 282 C522 238 632 236 752 276 C656 290 570 318 492 362 C476 326 454 300 430 282Z" />
+          <path className="terrain-layer layer-d" d="M114 386 C240 334 354 336 456 392 C570 330 696 318 822 358 C922 332 1038 352 1130 416 C984 392 856 394 744 424 C622 384 494 384 360 424 C264 388 182 376 114 386Z" />
+          <path className="terrain-crease" d="M158 404 C288 330 430 326 584 394 C732 326 904 330 1078 408" />
+          <path className="terrain-crease thin" d="M278 468 C440 428 622 432 824 470" />
+        </g>
+
+        <g className="map-props">
+          {props[theme].map((prop, index) => renderThemeObject(prop, index))}
+        </g>
+
+        <g className="premium-landmarks">
+          {config.landmarks.map((landmark, index) => renderThemeObject(landmark, index, true))}
+      </g>
+      </g>
+    </svg>
+  );
+}
+
 const weekDayLabels = ['월', '화', '수', '목', '금', '토', '일'];
 
 function isLikelyBrokenText(value: string) {
@@ -163,6 +900,25 @@ function displaySubject(subject: TimerTab | Subject, subjects: Subject[] = DEFAU
   const localIndex = subjects.indexOf(subject);
   if (isLikelyBrokenText(subject) && localIndex >= 0) return subjectFallbackLabels[localIndex] ?? '과목';
   return subject || '과목';
+}
+
+function normalizeStoredSubjects(subjects?: Subject[]) {
+  if (!Array.isArray(subjects) || subjects.length !== DEFAULT_SUBJECTS.length) return DEFAULT_SUBJECTS;
+  const previousNames = ['국어', '수학', '영어', '과학', '탐구', '수학논술', '의학논술'];
+  const looksLikePreset = subjects.every((subject, index) => (
+    isLikelyBrokenText(subject) || previousNames.includes(subject) || subject === DEFAULT_SUBJECTS[index]
+  ));
+  return looksLikePreset ? DEFAULT_SUBJECTS : subjects;
+}
+
+function migrateSubjectValue(subject: Subject, sourceSubjects: Subject[] = DEFAULT_SUBJECTS) {
+  const index = sourceSubjects.indexOf(subject);
+  if (index >= 0 && index < DEFAULT_SUBJECTS.length) return DEFAULT_SUBJECTS[index];
+  if (subject === '과학') return '탐구-1';
+  if (subject === '탐구') return '탐구-2';
+  if (subject === '수학논술' || subject === '의학논술') return '탐구-3';
+  if (subjectAlias[subject] === '탐구') return '탐구-1';
+  return subject;
 }
 
 function displayTaskTitle(task: Task) {
@@ -213,6 +969,153 @@ function formatClock(totalSeconds: number) {
   return `${pad(h)}:${pad(m)}:${pad(s)}`;
 }
 
+function timeToSeconds(time: string) {
+  const [hours, minutes] = time.split(':').map(Number);
+  return (Number.isFinite(hours) ? hours : 0) * 3600 + (Number.isFinite(minutes) ? minutes : 0) * 60;
+}
+
+function secondsSinceStartOfDay(date = new Date()) {
+  return date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+}
+
+const analogClockMarks = ['12', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'];
+
+function TimerFace({
+  seconds,
+  skin,
+  label,
+  subLabel,
+  fullscreen = false,
+}: {
+  seconds: number;
+  skin: TimerSkin;
+  label?: string;
+  subLabel?: string;
+  fullscreen?: boolean;
+}) {
+  const clock = formatClock(seconds);
+  const [displayHours, displayMinutes, displaySeconds] = clock.split(':');
+  const minuteDegrees = ((seconds / 60) % 60) * 6;
+  const hourDegrees = ((seconds / 3600) % 12) * 30 + ((seconds % 3600) / 3600) * 30;
+  const secondDegrees = (seconds % 60) * 6;
+
+  if (skin === 'studio') {
+    return (
+      <div className={`timer-face timer-face-classic ${fullscreen ? 'timer-face-fullscreen' : ''}`} aria-label={clock}>
+        <div className="classic-clock">
+          {analogClockMarks.map((mark, index) => {
+            const angle = index * 30;
+            return (
+              <span
+                className="classic-mark"
+                key={mark}
+                style={{ '--mark-angle': `${angle}deg`, '--mark-counter-angle': `${-angle}deg` } as React.CSSProperties}
+              >
+                {mark}
+              </span>
+            );
+          })}
+          <i className="classic-hand hour" style={{ transform: `translate(-50%, -100%) rotate(${hourDegrees}deg)` }} />
+          <i className="classic-hand minute" style={{ transform: `translate(-50%, -100%) rotate(${minuteDegrees}deg)` }} />
+          <i className="classic-hand second" style={{ transform: `translate(-50%, -100%) rotate(${secondDegrees}deg)` }} />
+          <b />
+        </div>
+      </div>
+    );
+  }
+
+  if (skin === 'halo') {
+    const progress = `${((seconds % 3600) / 3600) * 360}deg`;
+    return (
+      <div className={`timer-face timer-face-aurora ${fullscreen ? 'timer-face-fullscreen' : ''}`} style={{ '--face-progress': progress } as React.CSSProperties} aria-label={clock}>
+        <div className="aurora-orbit">
+          <div>
+            {label ? <span>{label}</span> : null}
+            <strong>{clock}</strong>
+            {subLabel ? <em>{subLabel}</em> : null}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={`timer-face timer-face-wood ${fullscreen ? 'timer-face-fullscreen' : ''}`} aria-label={clock}>
+      <div className="wood-clock-shell">
+        {label ? <span>{label}</span> : null}
+        <div className="wood-clock-digits">
+          <strong>{displayHours}</strong>
+          <i>:</i>
+          <strong>{displayMinutes}</strong>
+          <i>:</i>
+          <strong>{displaySeconds}</strong>
+        </div>
+        {subLabel ? <em>{subLabel}</em> : null}
+      </div>
+    </div>
+  );
+}
+
+const examDayPlan = [
+  { id: 'ready', label: '입실 및 준비', start: '08:10', end: '08:40', kind: 'break' },
+  { id: 'korean', label: '국어', start: '08:40', end: '10:00', kind: 'exam' },
+  { id: 'break-1', label: '쉬는시간', start: '10:00', end: '10:30', kind: 'break' },
+  { id: 'math', label: '수학', start: '10:30', end: '12:10', kind: 'exam' },
+  { id: 'lunch', label: '점심시간', start: '12:10', end: '13:00', kind: 'break' },
+  { id: 'english-ready', label: '영어 준비', start: '13:00', end: '13:10', kind: 'break' },
+  { id: 'english', label: '영어', start: '13:10', end: '14:20', kind: 'exam' },
+  { id: 'break-2', label: '쉬는시간', start: '14:20', end: '14:50', kind: 'break' },
+  { id: 'history', label: '한국사', start: '14:50', end: '15:20', kind: 'exam' },
+  { id: 'collect-1', label: '한국사 문답지 회수', start: '15:20', end: '15:35', kind: 'break' },
+  { id: 'inquiry-1', label: '탐구 1', start: '15:35', end: '16:05', kind: 'exam' },
+  { id: 'collect-2', label: '탐구 문답지 회수', start: '16:05', end: '16:07', kind: 'break' },
+  { id: 'inquiry-2', label: '탐구 2', start: '16:07', end: '16:37', kind: 'exam' },
+  { id: 'break-3', label: '쉬는시간', start: '16:37', end: '17:05', kind: 'break' },
+  { id: 'second-language', label: '제2외국어/한문', start: '17:05', end: '17:45', kind: 'exam' },
+] as const;
+
+const examCountdownOptions = [
+  { id: 'korean', label: '국어', seconds: 80 * 60 },
+  { id: 'math', label: '수학', seconds: 100 * 60 },
+  { id: 'english', label: '영어', seconds: 70 * 60 },
+  { id: 'history', label: '한국사', seconds: 30 * 60 },
+  { id: 'inquiry', label: '탐구', seconds: 30 * 60 },
+  { id: 'second-language', label: '제2외국어/한문', seconds: 40 * 60 },
+];
+
+function getLiveExamStatus(now = new Date()) {
+  const currentSeconds = secondsSinceStartOfDay(now);
+  const phases = examDayPlan.map((phase) => ({
+    ...phase,
+    startSeconds: timeToSeconds(phase.start),
+    endSeconds: timeToSeconds(phase.end),
+  }));
+  const active = phases.find((phase) => currentSeconds >= phase.startSeconds && currentSeconds < phase.endSeconds);
+  if (active) {
+    return {
+      label: active.label,
+      subLabel: active.kind === 'exam' ? `${active.start}-${active.end}` : `${active.start}-${active.end} 쉬는시간`,
+      remainingSeconds: Math.max(0, active.endSeconds - currentSeconds),
+      kind: active.kind,
+    };
+  }
+  const next = phases.find((phase) => currentSeconds < phase.startSeconds);
+  if (next) {
+    return {
+      label: `${next.label} 시작까지`,
+      subLabel: `${next.start} 시작`,
+      remainingSeconds: Math.max(0, next.startSeconds - currentSeconds),
+      kind: 'waiting',
+    };
+  }
+  return {
+    label: '수능 일정 종료',
+    subLabel: '오늘 실시간 일정이 끝났습니다.',
+    remainingSeconds: 0,
+    kind: 'done',
+  };
+}
+
 function formatMinuteText(minutes: number) {
   const safe = Math.max(0, Math.floor(minutes));
   const h = Math.floor(safe / 60);
@@ -228,23 +1131,40 @@ function getStoredData() {
     if (!raw) return defaultAppData();
     const parsed = JSON.parse(raw) as Partial<AppData>;
     const fallback = defaultAppData(parsed.studentName, parsed.studentId);
+    const storedSubjects = Array.isArray(parsed.subjectNames) && parsed.subjectNames.length ? parsed.subjectNames : DEFAULT_SUBJECTS;
+    const subjectNames = normalizeStoredSubjects(storedSubjects);
+    const shouldMigrateSubjects = subjectNames === DEFAULT_SUBJECTS;
     const studyBlocks = Array.isArray(parsed.studyBlocks)
-      ? parsed.studyBlocks.filter((block) => !['block-1', 'block-2', 'block-3', 'block-4'].includes(block.id))
+      ? parsed.studyBlocks
+        .filter((block) => !['block-1', 'block-2', 'block-3', 'block-4'].includes(block.id))
+        .map((block) => ({
+          ...block,
+          subject: shouldMigrateSubjects ? migrateSubjectValue(block.subject, storedSubjects) : block.subject,
+        }))
       : [];
+    const tasks = Array.isArray(parsed.tasks)
+      ? parsed.tasks.map((task) => ({
+        ...task,
+        subject: shouldMigrateSubjects ? migrateSubjectValue(task.subject, storedSubjects) : task.subject,
+      }))
+      : fallback.tasks;
     return {
       ...fallback,
       ...parsed,
-      subjectNames: Array.isArray(parsed.subjectNames) && parsed.subjectNames.length ? parsed.subjectNames : DEFAULT_SUBJECTS,
-      tasks: Array.isArray(parsed.tasks) ? parsed.tasks : fallback.tasks,
+      points: 0,
+      subjectNames,
+      tasks,
       studyBlocks,
       attendanceDates: Array.isArray(parsed.attendanceDates) ? parsed.attendanceDates : [],
       claimedAttendanceRewards: Array.isArray(parsed.claimedAttendanceRewards) ? parsed.claimedAttendanceRewards : [],
+      claimedStageRewards: Array.isArray(parsed.claimedStageRewards) ? parsed.claimedStageRewards : [],
       rewardPurchases: Array.isArray(parsed.rewardPurchases) ? parsed.rewardPurchases : [],
       rewardSettings: normalizeRewardSettings(parsed.rewardSettings),
+      rewardMapVisibility: normalizeRewardMapVisibility(parsed.rewardMapVisibility),
       adminMessages: Array.isArray(parsed.adminMessages) ? parsed.adminMessages : [],
       dismissedMessageIds: Array.isArray(parsed.dismissedMessageIds) ? parsed.dismissedMessageIds : [],
       hiddenTaskIds: Array.isArray(parsed.hiddenTaskIds) ? parsed.hiddenTaskIds : [],
-      timerSkin: parsed.timerSkin === 'glass' || parsed.timerSkin === 'studio' || parsed.timerSkin === 'halo' || parsed.timerSkin === 'line' || parsed.timerSkin === 'pure' ? parsed.timerSkin : 'pure',
+      timerSkin: parsed.timerSkin === 'studio' || parsed.timerSkin === 'halo' || parsed.timerSkin === 'pure' ? parsed.timerSkin : 'pure',
     };
   } catch {
     return defaultAppData();
@@ -275,29 +1195,41 @@ function monthDateKeys(date = new Date()) {
   return Array.from({ length: days }, (_, index) => todayKey(new Date(y, m, index + 1)));
 }
 
-function normalizeRewardSettings(settings?: Partial<RewardSettings>): RewardSettings {
+type LegacyRewardSettings = Partial<RewardSettings> & {
+  pointsPerMinute?: number;
+  minutesPerFruit?: number;
+  attendanceTenFruits?: number;
+  attendanceTwentyFruits?: number;
+  attendanceFullFruits?: number;
+};
+
+function normalizeRewardSettings(settings?: LegacyRewardSettings): RewardSettings {
   const numberOr = (value: unknown, fallback: number) => {
     const next = Number(value);
     return Number.isFinite(next) ? next : fallback;
   };
+  const stageMinutes = Math.max(30, numberOr(settings?.stageMinutes ?? settings?.minutesPerFruit, defaultRewardSettings.stageMinutes));
+  const attendanceTenStars = Math.max(0, numberOr(settings?.attendanceTenStars ?? settings?.attendanceTenFruits, defaultRewardSettings.attendanceTenStars));
+  const attendanceTwentyStars = Math.max(0, numberOr(settings?.attendanceTwentyStars ?? settings?.attendanceTwentyFruits, defaultRewardSettings.attendanceTwentyStars));
+  const attendanceFullStars = Math.max(0, numberOr(settings?.attendanceFullStars ?? settings?.attendanceFullFruits, defaultRewardSettings.attendanceFullStars));
   return {
-    pointsPerMinute: Math.max(1, numberOr(settings?.pointsPerMinute, defaultRewardSettings.pointsPerMinute)),
-    minutesPerFruit: Math.max(1, numberOr(settings?.minutesPerFruit, defaultRewardSettings.minutesPerFruit)),
-    attendanceTenFruits: Math.max(0, numberOr(settings?.attendanceTenFruits, defaultRewardSettings.attendanceTenFruits)),
-    attendanceTwentyFruits: Math.max(0, numberOr(settings?.attendanceTwentyFruits, defaultRewardSettings.attendanceTwentyFruits)),
-    attendanceFullFruits: Math.max(0, numberOr(settings?.attendanceFullFruits, defaultRewardSettings.attendanceFullFruits)),
+    stageMinutes,
+    stageRewardStars: Math.max(1, numberOr(settings?.stageRewardStars, defaultRewardSettings.stageRewardStars)),
+    attendanceTenStars,
+    attendanceTwentyStars,
+    attendanceFullStars,
   };
 }
 
 function fruitPointThreshold(settings: RewardSettings) {
-  return Math.max(1, settings.pointsPerMinute * settings.minutesPerFruit);
+  return Math.max(1, normalizeRewardSettings(settings).stageMinutes);
 }
 
 function attendanceRewardSteps(fullMonthDays: number, settings: RewardSettings = defaultRewardSettings) {
   return [
-    { threshold: 10, fruits: settings.attendanceTenFruits, label: '10일' },
-    { threshold: 20, fruits: settings.attendanceTwentyFruits, label: '20일' },
-    { threshold: fullMonthDays, fruits: settings.attendanceFullFruits, label: '한 달 전체' },
+    { threshold: 10, fruits: settings.attendanceTenStars, label: '10일' },
+    { threshold: 20, fruits: settings.attendanceTwentyStars, label: '20일' },
+    { threshold: fullMonthDays, fruits: settings.attendanceFullStars, label: '한 달 전체' },
   ];
 }
 
@@ -312,6 +1244,46 @@ function applyAttendanceReward(data: AppData): AppData {
     ...data,
     fruits: data.fruits + newlyAchieved.reduce((sum, step) => sum + step.fruits, 0),
     claimedAttendanceRewards: [...data.claimedAttendanceRewards, ...newlyAchieved.map((step) => step.threshold)],
+  };
+}
+
+function monthKeyFromDateKey(dateKey: string) {
+  return dateKey.slice(0, 7);
+}
+
+function monthlyStudyMinutes(blocks: StudyBlock[], monthKey: string) {
+  return blocks
+    .filter((block) => monthKeyFromDateKey(block.date) === monthKey)
+    .reduce((sum, block) => sum + blockDurationSeconds(block) / 60, 0);
+}
+
+function rewardStageCount(monthMinutes: number, settings: RewardSettings) {
+  return Math.min(rewardStageTotal, Math.floor(monthMinutes / Math.max(1, settings.stageMinutes)));
+}
+
+function applyStageRewards(data: AppData): AppData {
+  const settings = normalizeRewardSettings(data.rewardSettings);
+  const claimed = new Set(data.claimedStageRewards ?? []);
+  const nextClaimed = [...claimed];
+  let earnedStars = 0;
+
+  rewardMapMonths.forEach((month) => {
+    const completedStages = rewardStageCount(monthlyStudyMinutes(data.studyBlocks, month.key), settings);
+    for (let stage = 1; stage <= completedStages; stage += 1) {
+      const rewardId = `${month.key}-${stage}`;
+      if (!claimed.has(rewardId)) {
+        claimed.add(rewardId);
+        nextClaimed.push(rewardId);
+        earnedStars += settings.stageRewardStars;
+      }
+    }
+  });
+
+  if (!earnedStars) return data;
+  return {
+    ...data,
+    fruits: data.fruits + earnedStars,
+    claimedStageRewards: nextClaimed,
   };
 }
 
@@ -690,7 +1662,7 @@ function HomePage({
             className={`main-timer-card timer-${timerSkin} ${selectedTab === 'main' ? 'main-mode' : 'subject-mode'}`}
             style={{ '--timer-progress': timerProgress, '--timer-progress-fill': timerProgressFill } as React.CSSProperties}
           >
-            <button className="icon-float" type="button" onClick={onTimerFullscreen} aria-label="타이머 전체보기" disabled={!runningSession}>
+            <button className="icon-float" type="button" onClick={onTimerFullscreen} aria-label="타이머 전체보기">
               <Expand size={25} />
             </button>
             <div className="timer-style-switch" aria-label="타이머 디자인 선택">
@@ -971,7 +1943,7 @@ function GardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppData; on
 
   return (
     <div className="page garden-page">
-      <PageTitle label="Rewards" title="포인트 가든" right={<div className="fruit-wallet"><img src={fruitUrl} alt="" />{data.fruits}개</div>} />
+      <PageTitle label="Rewards" title="별 보상" right={<div className="fruit-wallet"><img src={fruitUrl} alt="" />{data.fruits}개</div>} />
       <div className="section-tabs">
         <button className={tab === 'garden' ? 'active' : ''} onClick={() => setTab('garden')} type="button">정원</button>
         <button className={tab === 'rewards' ? 'active' : ''} onClick={() => setTab('rewards')} type="button">보상 상점</button>
@@ -987,12 +1959,12 @@ function GardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppData; on
             })}
           </div>
           <div className="wallet-panel">
-            <div><span>보유 포인트</span><strong>{data.points.toLocaleString('ko-KR')}P</strong></div>
-            <div><span>보유 열매</span><strong>{data.fruits}개</strong></div>
+            <div><span>보유 별</span><strong>{data.fruits}개</strong></div>
+            <div><span>다음 별</span><strong>{threshold - pointProgress}분</strong></div>
             <div className="point-rule">
-              <span>공부 1분 = {rewardSettings.pointsPerMinute}포인트</span>
+              <span>스테이지 도착 시 별 지급</span>
               <div className="progress-track"><i style={{ width: `${(pointProgress / threshold) * 100}%` }} /></div>
-              <em>{threshold - pointProgress}P 후 열매 1개</em>
+              <em>{threshold - pointProgress}분 후 별 1개</em>
             </div>
           </div>
         </section>
@@ -1004,7 +1976,7 @@ function GardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppData; on
               <img src={fruitUrl} alt="" />
               <span>{item.stock}</span>
               <h3>{item.name}</h3>
-              <strong>열매 {item.cost}개</strong>
+              <strong>별 {item.cost}개</strong>
               <button type="button" onClick={() => onBuyReward({ id: item.id, name: item.name, cost: item.cost })} disabled={data.fruits < item.cost}>교환</button>
             </article>
           ))}
@@ -1015,7 +1987,7 @@ function GardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppData; on
           <button className="attendance-open" type="button" onClick={onOpenAttendance}>
             <Stamp size={34} />
             <strong>이번 달 출석 {monthCount}일</strong>
-            <span>10일 {rewardSettings.attendanceTenFruits}개 · 20일 {rewardSettings.attendanceTwentyFruits}개 · 전체 {rewardSettings.attendanceFullFruits}개</span>
+            <span>10일 {rewardSettings.attendanceTenStars}개 · 20일 {rewardSettings.attendanceTwentyStars}개 · 전체 {rewardSettings.attendanceFullStars}개</span>
           </button>
           <div className="purchase-list">
             {data.rewardPurchases.slice(0, 4).map((purchase) => (
@@ -1153,7 +2125,6 @@ function ModernHomePage({
   runningSession,
   totalElapsedSeconds,
   subjectElapsedSeconds,
-  latestMessages,
   onStart,
   onPause,
   onStop,
@@ -1162,6 +2133,7 @@ function ModernHomePage({
   onRenameSubject,
   onTimerSkinChange,
   onTimerFullscreen,
+  onMockTimerOpen,
   onWeekOpen,
 }: {
   data: AppData;
@@ -1173,7 +2145,6 @@ function ModernHomePage({
   runningSession: RunningSession | null;
   totalElapsedSeconds: number;
   subjectElapsedSeconds: number;
-  latestMessages: AdminMessage[];
   onStart: () => void;
   onPause: () => void;
   onStop: () => void;
@@ -1182,6 +2153,7 @@ function ModernHomePage({
   onRenameSubject: (index: number, name: string) => void;
   onTimerSkinChange: (skin: TimerSkin) => void;
   onTimerFullscreen: () => void;
+  onMockTimerOpen: () => void;
   onWeekOpen: () => void;
 }) {
   const todayIndex = currentWeekDayIndex();
@@ -1191,17 +2163,15 @@ function ModernHomePage({
   const subjectTotals = subjectSeconds(todays, subjects);
   const activeSubject = runningSession?.subject;
   const totalTodaySeconds = totalSecondsFromBlocks(todays) + (runningSession ? subjectElapsedSeconds : 0);
+  const selectedTimerSubject = selectedTab === 'main' ? selectedSubject : selectedTab;
   const visibleSubjectSeconds =
-    selectedTab !== 'main'
-      ? (subjectTotals[selectedTab] ?? 0) + (activeSubject === selectedTab ? subjectElapsedSeconds : 0)
-      : totalTodaySeconds;
+    (subjectTotals[selectedTimerSubject] ?? 0) + (activeSubject === selectedTimerSubject ? subjectElapsedSeconds : 0);
   const timerClock = formatClock(visibleSubjectSeconds);
-  const [displayHours, displayMinutes, displaySeconds] = timerClock.split(':');
   const completion = completionRate(data.tasks);
   const completed = data.tasks.filter((task) => task.completed).length;
   const timerProgress = `${((visibleSubjectSeconds % 3600) / 3600) * 360}deg`;
   const timerProgressFill = `${((visibleSubjectSeconds % 3600) / 3600) * 100}%`;
-  const selectedLabel = selectedTab === 'main' ? displaySubject(selectedSubject, subjects) : displaySubject(selectedTab, subjects);
+  const selectedLabel = displaySubject(selectedTimerSubject, subjects);
   const sessionLabel = runningSession?.paused ? '일시정지' : runningSession ? '집중 중' : '대기 중';
   const [editingSubjectIndex, setEditingSubjectIndex] = useState<number | null>(null);
   const [subjectDraft, setSubjectDraft] = useState('');
@@ -1224,19 +2194,62 @@ function ModernHomePage({
         title={`${displayStudentName(data.studentName)}님의 오늘`}
         description="타이머, 과제, 일정, 보상을 한 화면에서 이어서 관리합니다."
         right={
-          <div className={`modern-live-chip ${runningSession && !runningSession.paused ? 'live' : ''}`}>
-            <span>{sessionLabel}</span>
-            <strong>{runningSession ? displaySubject(runningSession.subject, subjects) : `${weekDayLabels[todayIndex]}요일`}</strong>
+          <div className="modern-header-actions">
+            <button className="modern-header-button" type="button" onClick={onWeekOpen}>
+              <CalendarDays size={18} />
+              <span>이번주 일정</span>
+            </button>
+            <button className="modern-header-button" type="button" onClick={onMockTimerOpen}>
+              <Timer size={18} />
+              <span>모의고사 타이머</span>
+            </button>
+            <div className={`modern-live-chip ${runningSession && !runningSession.paused ? 'live' : ''}`}>
+              <span>{sessionLabel}</span>
+              <strong>{runningSession ? displaySubject(runningSession.subject, subjects) : `${weekDayLabels[todayIndex]}요일`}</strong>
+            </div>
           </div>
         }
       />
       <section className="modern-home-grid">
         <section className="modern-timer-panel">
+          <div className={`modern-timer-stage timer-${timerSkin}`} style={{ '--timer-progress': timerProgress, '--timer-progress-fill': timerProgressFill } as React.CSSProperties}>
+            <div className="modern-timer-toolbar">
+              <div>
+                <span>현재 과목</span>
+                <strong>{selectedLabel}</strong>
+              </div>
+              <div className="modern-skin-switch" aria-label="타이머 스타일">
+                {modernTimerSkinOptions.map((option) => (
+                  <button className={timerSkin === option.key ? 'active' : ''} key={option.key} type="button" onClick={() => onTimerSkinChange(option.key)}>
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <button className="modern-icon-button" type="button" onClick={onTimerFullscreen} aria-label="전체 화면">
+                <Expand size={20} />
+              </button>
+            </div>
+            <TimerFace
+              seconds={visibleSubjectSeconds}
+              skin={timerSkin}
+              label={selectedLabel}
+              subLabel={runningSession?.subject === selectedTimerSubject && !runningSession.paused ? '진행 중' : '대기 중'}
+            />
+            <div className="modern-timer-corner-total">
+              <span>공부 합계</span>
+              <strong>{formatStudyMinutes(totalTodaySeconds / 60)}</strong>
+            </div>
+          </div>
+
           <div className="modern-subject-strip">
+            <div className="modern-subject-strip-head">
+              <span>과목별 누적</span>
+              <strong>오늘</strong>
+            </div>
             {subjects.map((subject, index) => {
               const seconds = (subjectTotals[subject] ?? 0) + (activeSubject === subject ? subjectElapsedSeconds : 0);
               return (
-                <div className={`modern-subject-chip ${selectedTab === subject ? 'active' : ''}`} key={`${subject}-${index}`} style={{ '--subject-color': subjectColor(subject, subjects) } as React.CSSProperties}>
+                <div className={`modern-subject-chip ${selectedTimerSubject === subject ? 'active' : ''}`} key={`${subject}-${index}`} style={{ '--subject-color': subjectColor(subject, subjects) } as React.CSSProperties}>
                   {editingSubjectIndex === index ? (
                     <input
                       value={subjectDraft}
@@ -1260,41 +2273,6 @@ function ModernHomePage({
                 </div>
               );
             })}
-            <button className={`modern-total-chip ${selectedTab === 'main' ? 'active' : ''}`} type="button" onClick={onMainSelect}>
-              <span>전체</span>
-              <strong>{formatClock(totalTodaySeconds)}</strong>
-            </button>
-          </div>
-
-          <div className={`modern-timer-stage timer-${timerSkin}`} style={{ '--timer-progress': timerProgress, '--timer-progress-fill': timerProgressFill } as React.CSSProperties}>
-            <div className="modern-timer-toolbar">
-              <div>
-                <span>현재 포커스</span>
-                <strong>{selectedLabel}</strong>
-              </div>
-              <div className="modern-skin-switch" aria-label="타이머 스타일">
-                {modernTimerSkinOptions.map((option) => (
-                  <button className={timerSkin === option.key ? 'active' : ''} key={option.key} type="button" onClick={() => onTimerSkinChange(option.key)}>
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <button className="modern-icon-button" type="button" onClick={onTimerFullscreen} disabled={!runningSession} aria-label="전체 화면">
-                <Expand size={20} />
-              </button>
-            </div>
-            <div className="modern-timer-display" aria-label={timerClock}>
-              <strong>{displayHours}</strong>
-              <i>:</i>
-              <strong>{displayMinutes}</strong>
-              <i>:</i>
-              <strong>{displaySeconds}</strong>
-            </div>
-            <div className="modern-timer-meta">
-              <span>오늘 누적 {formatStudyMinutes(totalTodaySeconds / 60)}</span>
-              <span>과제 완료 {completed}/{data.tasks.length}</span>
-              <span>완료율 {completion}%</span>
-            </div>
           </div>
 
           <div className="modern-focus-actions">
@@ -1313,66 +2291,6 @@ function ModernHomePage({
           </div>
         </section>
 
-        <aside className="modern-home-side">
-          <button className="modern-schedule-panel" type="button" onClick={onWeekOpen}>
-            <div className="modern-panel-title">
-              <CalendarDays size={22} />
-              <div>
-                <span>오늘 일정</span>
-                <strong>{weekDayLabels[todayIndex]}요일 플랜</strong>
-              </div>
-            </div>
-            <div className="modern-schedule-list">
-              {todaySchedule.length ? (
-                todaySchedule.map((item) => (
-                  <p key={item.id}>
-                    <span>{item.start}-{item.end}</span>
-                    <strong>{displayScheduleTitle(item)}</strong>
-                  </p>
-                ))
-              ) : (
-                <p>
-                  <span>오늘</span>
-                  <strong>등록된 일정 없음</strong>
-                </p>
-              )}
-            </div>
-          </button>
-
-          <section className="modern-stat-grid">
-            <div>
-              <span>오늘 공부</span>
-              <strong>{formatStudyMinutes(totalTodaySeconds / 60)}</strong>
-            </div>
-            <div>
-              <span>완료율</span>
-              <strong>{completion}%</strong>
-            </div>
-            <div>
-              <span>보유 열매</span>
-              <strong>{data.fruits}개</strong>
-            </div>
-            <div>
-              <span>포인트</span>
-              <strong>{data.points.toLocaleString('ko-KR')}P</strong>
-            </div>
-          </section>
-
-          <section className="modern-message-panel">
-            <div className="modern-panel-title">
-              <Bell size={21} />
-              <div>
-                <span>알림</span>
-                <strong>{latestMessages.length ? `${latestMessages.length}개 도착` : '새 알림 없음'}</strong>
-              </div>
-            </div>
-            {latestMessages.length ? (
-              latestMessages.slice(0, 2).map((message) => <p key={message.id}>{message.body}</p>)
-            ) : (
-              <p>오늘은 새로 전달된 관리 메시지가 없습니다.</p>
-            )}
-          </section>
-        </aside>
       </section>
     </div>
   );
@@ -1421,7 +2339,6 @@ function ModernTaskCard({
 function ModernTasksPage({
   subjects,
   tasks,
-  taskSource,
   onCompleteTask,
   onStopTask,
   onDeleteTask,
@@ -1430,38 +2347,25 @@ function ModernTasksPage({
 }: {
   subjects: Subject[];
   tasks: Task[];
-  taskSource: string;
   onCompleteTask: (task: Task) => void;
   onStopTask: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
   onEditTask: (task: Task) => void;
   onNewTask: (subject: Subject) => void;
 }) {
-  const rate = completionRate(tasks);
-  const remaining = tasks.filter((task) => !task.completed).length;
   return (
     <div className="page modern-page modern-tasks-page">
       <ModernPageHeader
         eyebrow="Assignments"
         title="과목별 과제 보드"
         description="해야 할 일과 완료 상태를 빠르게 정리합니다."
-        right={<div className="modern-progress-chip"><strong>{rate}%</strong><span>완료</span></div>}
       />
       <section className="modern-task-layout">
-        <aside className="modern-task-summary">
-          <div>
-            <span>남은 과제</span>
-            <strong>{remaining}개</strong>
-          </div>
-          <div>
-            <span>전체 과제</span>
-            <strong>{tasks.length}개</strong>
-          </div>
-          <p>{taskSource && !isLikelyBrokenText(taskSource) ? taskSource : '멘토링 과제와 로컬 과제를 함께 표시합니다.'}</p>
-        </aside>
         <div className="modern-task-columns">
           {subjects.slice(0, 6).map((subject) => {
             const subjectTasks = tasks.filter((task) => task.subject === subject);
+            const visibleTasks = subjectTasks.slice(0, 3);
+            const hiddenCount = subjectTasks.length - visibleTasks.length;
             return (
               <section className="modern-task-column" key={subject}>
                 <div className="modern-column-head">
@@ -1473,7 +2377,7 @@ function ModernTasksPage({
                   </button>
                 </div>
                 <div className="modern-task-list">
-                  {subjectTasks.map((task) => (
+                  {visibleTasks.map((task) => (
                     <ModernTaskCard
                       key={task.id}
                       task={task}
@@ -1484,6 +2388,7 @@ function ModernTasksPage({
                       onDelete={() => onDeleteTask(task)}
                     />
                   ))}
+                  {hiddenCount > 0 ? <div className="modern-task-more">+{hiddenCount}개 더 있음</div> : null}
                   {!subjectTasks.length ? <div className="modern-empty-state">과제가 없습니다</div> : null}
                 </div>
               </section>
@@ -1495,13 +2400,30 @@ function ModernTasksPage({
   );
 }
 
-function ModernAnalysisPage({ subjects, blocks, tasks, onEditBlock }: { subjects: Subject[]; blocks: StudyBlock[]; tasks: Task[]; onEditBlock: (block: StudyBlock) => void }) {
+function ModernAnalysisPage({
+  subjects,
+  blocks,
+  tasks,
+  penaltyPoints,
+  penaltySource,
+  onEditBlock,
+}: {
+  subjects: Subject[];
+  blocks: StudyBlock[];
+  tasks: Task[];
+  penaltyPoints: number;
+  penaltySource: string;
+  onEditBlock: (block: StudyBlock) => void;
+}) {
   const todays = todayBlocks(blocks);
   const minutesBySubject = subjectMinutes(todays, subjects);
   const total = totalMinutesFromBlocks(todays);
   const topSubject = subjects.length ? subjects.reduce((best, subject) => (minutesBySubject[subject] > minutesBySubject[best] ? subject : best), subjects[0]) : '';
   const longest = todays.reduce((best, block) => (blockDurationSeconds(block) > blockDurationSeconds(best) ? block : best), todays[0] ?? null);
   const avg = todays.length ? Math.round(total / todays.length) : 0;
+  const durationStartMinute = 8 * 60;
+  const durationHours = Array.from({ length: 19 }, (_, index) => durationStartMinute + index * 60);
+  const durationMarkers = [10, 20, 30, 40, 50, 60];
   const completedTasks = tasks.filter((task) => task.completed).length;
   const remainingTasks = Math.max(0, tasks.length - completedTasks);
   const activeSubjectCount = subjects.filter((subject) => (minutesBySubject[subject] ?? 0) > 0).length;
@@ -1529,6 +2451,19 @@ function ModernAnalysisPage({ subjects, blocks, tasks, onEditBlock }: { subjects
     const start = block.startMinute;
     const end = start + Math.round(blockDurationSeconds(block) / 60);
     return `${minuteLabel(start)}-${minuteLabel(end)}`;
+  }
+
+  function blockForSlot(minute: number) {
+    return todays.find((block) => {
+      const blockStart = minute >= 24 * 60 && block.startMinute < durationStartMinute ? block.startMinute + 24 * 60 : block.startMinute;
+      return minute >= blockStart && minute < blockStart + blockDurationSeconds(block) / 60;
+    });
+  }
+
+  function durationHourLabel(minute: number) {
+    const hour = Math.floor((minute / 60) % 24);
+    if (hour === 0) return '12';
+    return String(hour > 12 ? hour - 12 : hour);
   }
 
   return (
@@ -1566,6 +2501,45 @@ function ModernAnalysisPage({ subjects, blocks, tasks, onEditBlock }: { subjects
           <div><span>평균 세션</span><strong>{formatStudyMinutes(avg)}</strong></div>
           <div><span>최장 세션</span><strong>{longest ? formatStudyMinutes(blockDurationSeconds(longest) / 60) : '0분'}</strong></div>
           <div><span>활동 과목</span><strong>{activeSubjectCount}개</strong></div>
+        </section>
+
+        <section className="modern-report-card modern-report-duration">
+          <div className="modern-panel-title">
+            <Activity size={22} />
+            <div>
+              <span>10분 단위</span>
+              <strong>공부 기록표</strong>
+            </div>
+          </div>
+          <div className="modern-duration-grid">
+            <div className="modern-duration-cell head">T</div>
+            {durationMarkers.map((marker) => (
+              <div className="modern-duration-cell head" key={marker}>{marker}</div>
+            ))}
+            {durationHours.map((hourMinute) => (
+              <Fragment key={hourMinute}>
+                <div className="modern-duration-cell hour">{durationHourLabel(hourMinute)}</div>
+                {durationMarkers.map((marker, markerIndex) => {
+                  const slotMinute = hourMinute + markerIndex * 10;
+                  const block = blockForSlot(slotMinute);
+                  return (
+                    <button
+                      key={`${hourMinute}-${marker}`}
+                      className={`modern-duration-cell slot ${block ? 'filled' : ''}`}
+                      style={{ '--block-color': block ? subjectColor(block.subject, subjects) : undefined } as React.CSSProperties}
+                      type="button"
+                      onClick={() => block && onEditBlock(block)}
+                      title={block ? `${displaySubject(block.subject, subjects)} · ${block.taskTitle ?? '공부 기록'}` : '빈 10분 기록'}
+                    >
+                      <span>{block ? displaySubject(block.subject, subjects).slice(0, 2) : ''}</span>
+                    </button>
+                  );
+                })}
+              </Fragment>
+            ))}
+            <div className="modern-duration-cell total-label">TOTAL</div>
+            <div className="modern-duration-cell total">{formatStudyMinutes(total)}</div>
+          </div>
         </section>
 
         <section className="modern-report-card modern-report-subjects">
@@ -1631,98 +2605,274 @@ function ModernAnalysisPage({ subjects, blocks, tasks, onEditBlock }: { subjects
             <div><span>남음</span><strong>{remainingTasks}개</strong></div>
           </div>
         </section>
+
+        <section className="modern-report-card modern-report-penalty">
+          <div className="modern-panel-title">
+            <ShieldCheck size={22} />
+            <div>
+              <span>medipenalty</span>
+              <strong>학생별 벌점</strong>
+            </div>
+          </div>
+          <div className="modern-penalty-score">
+            <span>누적 벌점</span>
+            <strong>{penaltyPoints.toLocaleString('ko-KR')}점</strong>
+            <em>{penaltySource}</em>
+          </div>
+        </section>
       </section>
     </div>
   );
 }
 
 function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppData; onBuyReward: (item: { id: string; name: string; cost: number }) => void; onOpenAttendance: () => void }) {
-  const [tab, setTab] = useState<'garden' | 'rewards' | 'attendance'>('garden');
-  const monthCount = data.attendanceDates.filter((key) => monthDateKeys().includes(key)).length;
+  const [selectedMonthKey, setSelectedMonthKey] = useState(rewardMapMonths[0].key);
+  const [stageTab, setStageTab] = useState<'map' | 'rewards'>('map');
+  const [customStageLayouts, setCustomStageLayouts] = useState<Record<string, RewardStageNode[]>>(loadRewardMapLayouts);
+  const [mapEditing, setMapEditing] = useState(false);
+  const [draftStageNodes, setDraftStageNodes] = useState<RewardStageNode[]>(() => cloneRewardStageNodes(rewardStageLayouts[rewardMapMonths[0].theme]));
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const selectedMonth = rewardMapMonths.find((month) => month.key === selectedMonthKey) ?? rewardMapMonths[0];
+  const rewardMapVisibility = normalizeRewardMapVisibility(data.rewardMapVisibility);
+  const selectedMapOpen = rewardMapVisibility[selectedMonth.key] !== false;
+  const savedStageNodes = customStageLayouts[selectedMonth.key] ?? rewardStageLayouts[selectedMonth.theme];
+  const stageNodes = mapEditing ? draftStageNodes : savedStageNodes;
   const rewardSettings = normalizeRewardSettings(data.rewardSettings);
-  const threshold = fruitPointThreshold(rewardSettings);
-  const pointProgress = data.points % threshold;
+  const monthMinutes = monthlyStudyMinutes(data.studyBlocks, selectedMonth.key);
+  const completedStages = rewardStageCount(monthMinutes, rewardSettings);
+  const currentNodeIndex = Math.min(completedStages, stageNodes.length - 1);
+  const currentNode = stageNodes[currentNodeIndex];
+  const nextTargetMinutes = Math.min(stageNodes.length - 1, completedStages + 1) * rewardSettings.stageMinutes;
+  const nextMinutes = completedStages >= stageNodes.length - 1 ? 0 : Math.max(0, nextTargetMinutes - monthMinutes);
+  const monthProgress = Math.min(100, Math.round((completedStages / (stageNodes.length - 1)) * 100));
+  const monthCount = data.attendanceDates.filter((key) => key.startsWith(selectedMonth.key)).length;
+
+  useEffect(() => {
+    const month = rewardMapMonths.find((item) => item.key === selectedMonthKey) ?? rewardMapMonths[0];
+    setMapEditing(false);
+    setDraftStageNodes(cloneRewardStageNodes(customStageLayouts[month.key] ?? rewardStageLayouts[month.theme]));
+  }, [selectedMonthKey, customStageLayouts]);
+
+  const startMapEdit = () => {
+    setDraftStageNodes(cloneRewardStageNodes(savedStageNodes));
+    setMapEditing(true);
+  };
+
+  const cancelMapEdit = () => {
+    setDraftStageNodes(cloneRewardStageNodes(savedStageNodes));
+    setMapEditing(false);
+  };
+
+  const resetMapEdit = () => {
+    setDraftStageNodes(cloneRewardStageNodes(rewardStageLayouts[selectedMonth.theme]));
+  };
+
+  const saveMapEdit = () => {
+    const nextLayouts = {
+      ...customStageLayouts,
+      [selectedMonth.key]: cloneRewardStageNodes(draftStageNodes),
+    };
+    setCustomStageLayouts(nextLayouts);
+    saveRewardMapLayouts(nextLayouts);
+    setMapEditing(false);
+  };
+
+  const updateDraftNodeFromPointer = (index: number, clientX: number, clientY: number) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const rect = map.getBoundingClientRect();
+    if (!rect.width || !rect.height) return;
+    const nextNode = {
+      x: clampRewardMapPercent(((clientX - rect.left) / rect.width) * 100),
+      y: clampRewardMapPercent(((clientY - rect.top) / rect.height) * 100),
+    };
+    setDraftStageNodes((nodes) => nodes.map((node, nodeIndex) => (
+      nodeIndex === index ? { ...node, ...nextNode } : node
+    )));
+  };
+
+  const beginMapNodeDrag = (index: number, event: React.PointerEvent<HTMLDivElement>) => {
+    if (!mapEditing) return;
+    event.preventDefault();
+    event.stopPropagation();
+    updateDraftNodeFromPointer(index, event.clientX, event.clientY);
+    const handleMove = (moveEvent: PointerEvent) => {
+      updateDraftNodeFromPointer(index, moveEvent.clientX, moveEvent.clientY);
+    };
+    const handleUp = () => {
+      window.removeEventListener('pointermove', handleMove);
+      window.removeEventListener('pointerup', handleUp);
+    };
+    window.addEventListener('pointermove', handleMove);
+    window.addEventListener('pointerup', handleUp);
+  };
 
   return (
     <div className="page modern-page modern-garden-page">
       <ModernPageHeader
-        eyebrow="Rewards"
-        title="성장 보상"
-        description="공부 시간이 포인트와 열매로 쌓입니다."
-        right={<div className="modern-wallet-chip"><Sparkles size={18} /><strong>{data.fruits}개</strong><span>열매</span></div>}
+        eyebrow="Quest Map"
+        title="스테이지 보상"
+        description="공부 시간이 쌓이면 캐릭터가 다음 스테이지로 이동하고 별 보상을 받습니다."
+        right={<div className="modern-wallet-chip"><Star size={18} /><strong>{data.fruits}개</strong><span>별</span></div>}
       />
-      <div className="modern-tabs">
-        <button className={tab === 'garden' ? 'active' : ''} onClick={() => setTab('garden')} type="button">정원</button>
-        <button className={tab === 'rewards' ? 'active' : ''} onClick={() => setTab('rewards')} type="button">상점</button>
-        <button className={tab === 'attendance' ? 'active' : ''} onClick={() => setTab('attendance')} type="button">출석</button>
-      </div>
-      {tab === 'garden' ? (
-        <section className="modern-garden-layout">
-          <div className="modern-growth-panel">
-            <div className="modern-growth-progress">
-              <div>
-                <span>열매 진행률</span>
-                <strong>{Math.round((pointProgress / threshold) * 100)}%</strong>
-              </div>
-              <i><b style={{ width: `${(pointProgress / threshold) * 100}%` }} /></i>
-            </div>
-            <div className="modern-tree-panel modern-growth-tree">
-              <img src={treeSceneUrl} alt="" />
-            </div>
-          </div>
-          <aside className="modern-wallet-panel">
-            <div className="modern-growth-stats">
-              <div><span>포인트</span><strong>{data.points.toLocaleString('ko-KR')}P</strong></div>
-              <div><span>다음 열매</span><strong>{threshold - pointProgress}P</strong></div>
-              <div><span>이번 달 출석</span><strong>{monthCount}일</strong></div>
-            </div>
-            <div><span>보유 열매</span><strong>{data.fruits}개</strong></div>
-            <div className="modern-point-rule">
-              <span>공부 1분 = {rewardSettings.pointsPerMinute}P</span>
-              <div><i style={{ width: `${(pointProgress / threshold) * 100}%` }} /></div>
-              <em>{threshold - pointProgress}P 더 모으면 열매 1개</em>
-            </div>
-          </aside>
-        </section>
-      ) : null}
-      {tab === 'rewards' ? (
-        <section className="modern-reward-grid">
-          {modernRewardItems.map((item) => (
-            <article className="modern-reward-card" key={item.id}>
-              <div className="modern-reward-icon"><Gift size={25} /></div>
-              <span>{item.stock && !isLikelyBrokenText(item.stock) ? item.stock : '교환 가능'}</span>
-              <h3>{displayRewardName(item)}</h3>
-              <strong>열매 {item.cost}개</strong>
-              <button type="button" onClick={() => onBuyReward({ id: item.id, name: displayRewardName(item), cost: item.cost })} disabled={data.fruits < item.cost}>교환</button>
-            </article>
-          ))}
-        </section>
-      ) : null}
-      {tab === 'attendance' ? (
-        <section className="modern-attendance-panel">
-          <button className="modern-attendance-open" type="button" onClick={onOpenAttendance}>
-            <Stamp size={30} />
-            <strong>이번 달 출석 {monthCount}일</strong>
-            <span>10일 {rewardSettings.attendanceTenFruits}개 · 20일 {rewardSettings.attendanceTwentyFruits}개 · 전체 {rewardSettings.attendanceFullFruits}개</span>
+      <div className="modern-month-tabs" aria-label="월별 맵 선택">
+        {rewardMapMonths.map((month) => (
+          <button className={selectedMonth.key === month.key ? 'active' : ''} key={month.key} type="button" onClick={() => setSelectedMonthKey(month.key)}>
+            <span>{month.label}</span>
+            <strong>{month.title}</strong>
           </button>
-          <div className="modern-purchase-list">
-            {data.rewardPurchases.slice(0, 4).map((purchase) => (
-              <div key={purchase.id}><span>{purchase.itemName}</span><strong>-{purchase.fruitCost}개</strong></div>
-            ))}
-            {!data.rewardPurchases.length ? <div className="modern-empty-state">교환 내역이 없습니다</div> : null}
+        ))}
+      </div>
+      <div className="modern-stage-mode-tabs" aria-label="스테이지 보상 화면">
+        <button className={stageTab === 'map' ? 'active' : ''} type="button" onClick={() => setStageTab('map')}>월드맵</button>
+        <button className={stageTab === 'rewards' ? 'active' : ''} type="button" onClick={() => setStageTab('rewards')}>별 교환</button>
+      </div>
+      {stageTab === 'map' ? (
+        <section className="modern-stage-layout map-only">
+          <div ref={mapRef} className={`modern-stage-map reward-map-zero theme-${selectedMonth.theme} ${mapEditing ? 'editing-map-layout' : ''} ${selectedMapOpen ? '' : 'map-closed'}`}>
+            <img
+              className="reward-map-art"
+              src={rewardMapImages[selectedMonth.theme]}
+              alt=""
+              draggable={false}
+            />
+            <div className="modern-map-title">
+              <span>{selectedMonth.subtitle}</span>
+              <strong>{selectedMonth.title}</strong>
+            </div>
+            <div className="stage-map-hud">
+              <div><span>{selectedMonth.label} 진행률</span><strong>{monthProgress}%</strong></div>
+              <div><span>현재</span><strong>{currentNodeIndex}/{stageNodes.length - 1}</strong></div>
+              <div><span>다음 이동</span><strong>{nextMinutes ? formatStudyMinutes(nextMinutes) : '완주'}</strong></div>
+            </div>
+            {selectedMapOpen ? <div className="stage-map-edit-toolbar">
+              {mapEditing ? (
+                <>
+                  <button type="button" onClick={resetMapEdit}>기본값</button>
+                  <button type="button" onClick={cancelMapEdit}>취소</button>
+                  <button className="primary" type="button" onClick={saveMapEdit}>저장</button>
+                </>
+              ) : (
+                <button className="primary" type="button" onClick={startMapEdit}>길 위치 편집</button>
+              )}
+            </div> : null}
+            <svg className="modern-map-path" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+              <path
+                className="path-shadow"
+                d={buildRewardMapPath(stageNodes)}
+              />
+              <path
+                className="path-base"
+                d={buildRewardMapPath(stageNodes)}
+              />
+              <path
+                className="path-done"
+                d={buildRewardMapPath(stageNodes.slice(0, currentNodeIndex + 1))}
+              />
+            </svg>
+            {stageNodes.map((node, index) => {
+              const reached = index <= currentNodeIndex;
+              const current = index === currentNodeIndex;
+              const rewardId = `${selectedMonth.key}-${index}`;
+              const claimed = data.claimedStageRewards.includes(rewardId);
+              const lastStage = index === stageNodes.length - 1;
+              const stageCaption = index === 0 ? 'START' : current ? formatStudyMinutes(index * rewardSettings.stageMinutes) : reached && !lastStage ? '완료' : '';
+              return (
+                <div
+                  className={`stage-node ${reached ? 'reached' : ''} ${current ? 'current' : ''} ${mapEditing ? 'editable' : ''}`}
+                  key={`${node.label}-${index}`}
+                  onPointerDown={(event) => beginMapNodeDrag(index, event)}
+                  style={{ left: `${node.x}%`, top: `${node.y}%` }}
+                >
+                <button type="button" aria-label={`${node.label} 스테이지`}>
+                  {index === 0 ? <Flag size={18} /> : reached ? <Star size={18} /> : node.label}
+                </button>
+                  {stageCaption ? <span>{claimed && !current && !lastStage ? `별 ${rewardSettings.stageRewardStars}개` : stageCaption}</span> : null}
+              </div>
+              );
+            })}
+            <div className="stage-runner" style={{ left: `${currentNode.x}%`, top: `${currentNode.y}%` }}>
+              <div><span /></div>
+            </div>
+            {!selectedMapOpen ? (
+              <div className="reward-map-closed-layer">
+                <ShieldCheck size={24} />
+                <strong>닫힌 맵</strong>
+                <span>관리자 설정에서 열 수 있습니다.</span>
+              </div>
+            ) : null}
           </div>
         </section>
-      ) : null}
+      ) : (
+        <section className="modern-stage-layout rewards-only">
+          <section className="stage-rewards-board">
+            <div className="stage-rewards-top">
+              <div className="stage-summary-card">
+                <span>{selectedMonth.label} 진행률</span>
+                <strong>{monthProgress}%</strong>
+                <i><b style={{ width: `${monthProgress}%` }} /></i>
+                <em>{formatStudyMinutes(monthMinutes)} 누적</em>
+              </div>
+              <div className="stage-summary-grid">
+                <div><span>현재 스테이지</span><strong>{currentNodeIndex}/{stageNodes.length - 1}</strong></div>
+                <div><span>다음 이동</span><strong>{nextMinutes ? formatStudyMinutes(nextMinutes) : '완주'}</strong></div>
+                <div><span>스테이지 기준</span><strong>{formatStudyMinutes(rewardSettings.stageMinutes)}</strong></div>
+                <div><span>도착 보상</span><strong>별 {rewardSettings.stageRewardStars}개</strong></div>
+              </div>
+              <button className="stage-attendance-button" type="button" onClick={onOpenAttendance}>
+                <Stamp size={20} />
+                <span>이번 달 출석 {monthCount}일</span>
+              </button>
+            </div>
+            <div className="stage-exchange-area">
+            <div className="stage-shop-panel">
+              <div className="modern-panel-title">
+                <Gift size={20} />
+                <div>
+                  <span>별 교환</span>
+                  <strong>상품 보상</strong>
+                </div>
+              </div>
+              <div className="stage-shop-list">
+                {modernRewardItems.map((item) => (
+                  <article key={item.id}>
+                    <div><Star size={14} /><strong>{item.cost}</strong></div>
+                    <span>{displayRewardName(item)}</span>
+                    <button type="button" onClick={() => onBuyReward({ id: item.id, name: displayRewardName(item), cost: item.cost })} disabled={data.fruits < item.cost}>교환</button>
+                  </article>
+                ))}
+              </div>
+            </div>
+            <div className="stage-history-panel">
+              <div className="modern-panel-title compact">
+                <Star size={18} />
+                <div>
+                  <span>최근 교환</span>
+                  <strong>교환한 상품</strong>
+                </div>
+              </div>
+              <div className="modern-purchase-list compact">
+                {data.rewardPurchases.slice(0, 4).map((purchase) => (
+                  <div key={purchase.id}><span>{purchase.itemName}</span><strong>-{purchase.fruitCost}개</strong></div>
+                ))}
+                {!data.rewardPurchases.length ? <div className="modern-empty-state">교환 내역이 없습니다</div> : null}
+              </div>
+            </div>
+            </div>
+          </section>
+        </section>
+      )}
     </div>
   );
 }
 
 function ModernCenterPage({ students, subjects }: { students: StudentStatus[]; subjects: Subject[] }) {
   const sorted = [...students].sort((a, b) => b.todayMinutes - a.todayMinutes);
+  const fruitCount = (student: StudentStatus) => Math.max(0, Math.floor(student.todayMinutes / 60));
+  const fruitLeaders = [...students].sort((a, b) => fruitCount(b) - fruitCount(a) || b.todayMinutes - a.todayMinutes);
   const studying = students.filter((student) => student.status === 'studying').length;
   const resting = students.filter((student) => student.status === 'break').length;
   const offline = students.filter((student) => student.status === 'offline').length;
-  const avg = Math.round(students.reduce((sum, student) => sum + student.todayMinutes, 0) / Math.max(1, students.length));
   const statusLabel: Record<StudentStatus['status'], string> = {
     studying: '공부 중',
     break: '휴식 중',
@@ -1742,12 +2892,11 @@ function ModernCenterPage({ students, subjects }: { students: StudentStatus[]; s
           <div className="studying"><span>공부 중</span><strong>{studying}명</strong></div>
           <div className="resting"><span>휴식 중</span><strong>{resting}명</strong></div>
           <div className="offline"><span>오프라인</span><strong>{offline}명</strong></div>
-          <div><span>평균 시간</span><strong>{formatStudyMinutes(avg)}</strong></div>
         </div>
         <div className="modern-student-grid">
           {students.map((student) => (
             <article className={`modern-student-card ${student.status}`} key={student.id} style={{ '--student-color': subjectColor(student.subject, subjects) } as React.CSSProperties}>
-              <div>{statusLabel[student.status]}</div>
+              <div className="modern-student-state">{statusLabel[student.status]}</div>
               <h3>{student.id}</h3>
               <strong>{formatStudyMinutes(student.todayMinutes)}</strong>
               <span>{student.status === 'studying' ? `${displaySubject(student.subject, subjects)} 공부 중` : student.status === 'break' ? '잠시 휴식 중' : '접속 대기'}</span>
@@ -1755,20 +2904,38 @@ function ModernCenterPage({ students, subjects }: { students: StudentStatus[]; s
           ))}
         </div>
         <aside className="modern-leader-panel">
-          <div className="modern-panel-title">
-            <Trophy size={22} />
-            <div>
-              <span>오늘 TOP 5</span>
-              <strong>누적 시간 순위</strong>
+          <div className="modern-leader-section">
+            <div className="modern-panel-title">
+              <Trophy size={22} />
+              <div>
+                <span>오늘 TOP 5</span>
+                <strong>누적 시간 순위</strong>
+              </div>
             </div>
+            {sorted.slice(0, 5).map((student, index) => (
+              <div className="modern-leader-row" key={student.id}>
+                <strong>{index + 1}</strong>
+                <span>{student.id}</span>
+                <em>{formatStudyMinutes(student.todayMinutes)}</em>
+              </div>
+            ))}
           </div>
-          {sorted.slice(0, 5).map((student, index) => (
-            <div className="modern-leader-row" key={student.id}>
-              <strong>{index + 1}</strong>
-              <span>{student.id}</span>
-              <em>{formatStudyMinutes(student.todayMinutes)}</em>
+          <div className="modern-leader-section fruits">
+            <div className="modern-panel-title">
+              <Star size={22} />
+              <div>
+                <span>TOP 3</span>
+                <strong>누적 열매 개수</strong>
+              </div>
             </div>
-          ))}
+            {fruitLeaders.slice(0, 3).map((student, index) => (
+              <div className="modern-fruit-row" key={`${student.id}-fruit`}>
+                <strong>{index + 1}</strong>
+                <span>{student.id}</span>
+                <em>{fruitCount(student)}개</em>
+              </div>
+            ))}
+          </div>
         </aside>
       </section>
     </div>
@@ -1780,7 +2947,7 @@ function ModernWeekScheduleModal({ schedule, source, onClose }: { schedule: Sche
     <div className="modern-modal-layer">
       <section className="modern-modal-panel modern-week-modal">
         <div className="modern-modal-head">
-          <div><h2>주간 일정</h2><span>{source && !isLikelyBrokenText(source) ? source : '센터 일정과 개인 일정을 함께 표시합니다.'}</span></div>
+          <div><h2>이번주 일정</h2><span>{source && !isLikelyBrokenText(source) ? source : 'student-schedule-app-full 학생별 일정과 연동됩니다.'}</span></div>
           <button onClick={onClose} type="button" aria-label="닫기"><X size={26} /></button>
         </div>
         <div className="modern-week-grid">
@@ -1793,6 +2960,7 @@ function ModernWeekScheduleModal({ schedule, source, onClose }: { schedule: Sche
                   <em>{displayScheduleTitle(item)}</em>
                 </div>
               ))}
+              {schedule.some((item) => item.day === day) ? null : <div className="modern-week-empty">일정 없음</div>}
             </div>
           ))}
         </div>
@@ -1818,19 +2986,130 @@ function ModernTimerFullscreenModal({
   onStop: () => void;
   paused: boolean;
 }) {
-  const [displayHours, displayMinutes, displaySeconds] = formatClock(elapsedSeconds).split(':');
   return (
     <div className="modern-modal-layer">
       <section className={`modern-fullscreen-timer timer-${timerSkin}`}>
         <button className="modern-modal-close" onClick={onClose} type="button" aria-label="닫기"><X size={28} /></button>
         <span>{paused ? '일시정지' : '공부 중'} · {displaySubject(subject)}</span>
-        <div className="modern-fullscreen-display" aria-label={formatClock(elapsedSeconds)}>
-          <strong>{displayHours}</strong><i>:</i><strong>{displayMinutes}</strong><i>:</i><strong>{displaySeconds}</strong>
-        </div>
+        <TimerFace seconds={elapsedSeconds} skin={timerSkin} label={displaySubject(subject)} subLabel={paused ? '일시정지' : '진행 중'} fullscreen />
         <div className="modern-fullscreen-actions">
           <button onClick={onPause} type="button"><Pause size={30} />{paused ? '다시 시작' : '일시정지'}</button>
           <button onClick={onStop} type="button"><Square size={29} />종료</button>
         </div>
+      </section>
+    </div>
+  );
+}
+
+function ModernMockExamTimerModal({ timerSkin, onClose }: { timerSkin: TimerSkin; onClose: () => void }) {
+  const [tab, setTab] = useState<'live' | 'countdown'>('live');
+  const [nowMs, setNowMs] = useState(Date.now());
+  const [mockFullscreen, setMockFullscreen] = useState(false);
+  const [selectedCountdownId, setSelectedCountdownId] = useState(examCountdownOptions[2].id);
+  const selectedCountdown = examCountdownOptions.find((option) => option.id === selectedCountdownId) ?? examCountdownOptions[2];
+  const [remainingSeconds, setRemainingSeconds] = useState(selectedCountdown.seconds);
+  const [countdownRunning, setCountdownRunning] = useState(false);
+  const [countdownPaused, setCountdownPaused] = useState(false);
+  const liveStatus = getLiveExamStatus(new Date(nowMs));
+
+  useEffect(() => {
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!countdownRunning || countdownPaused || tab !== 'countdown') return;
+    const id = window.setInterval(() => {
+      setRemainingSeconds((prev) => {
+        const next = Math.max(0, prev - 1);
+        if (next === 0) {
+          setCountdownRunning(false);
+          setCountdownPaused(false);
+        }
+        return next;
+      });
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [countdownPaused, countdownRunning, tab]);
+
+  function selectCountdown(id: string) {
+    const next = examCountdownOptions.find((option) => option.id === id) ?? examCountdownOptions[0];
+    setSelectedCountdownId(next.id);
+    setRemainingSeconds(next.seconds);
+    setCountdownRunning(false);
+    setCountdownPaused(false);
+  }
+
+  function startCountdown() {
+    if (remainingSeconds <= 0) setRemainingSeconds(selectedCountdown.seconds);
+    setCountdownRunning(true);
+    setCountdownPaused(false);
+  }
+
+  function stopCountdown() {
+    setCountdownRunning(false);
+    setCountdownPaused(false);
+    setRemainingSeconds(selectedCountdown.seconds);
+  }
+
+  return (
+    <div className="modern-modal-layer">
+      <section className={`modern-modal-panel modern-mock-modal ${mockFullscreen ? 'mock-fullscreen' : ''}`}>
+        <div className="modern-modal-head">
+          <div><h2>모의고사 타이머</h2><span>실시간 수능 일정과 과목별 제한시간을 같은 시계 디자인으로 표시합니다.</span></div>
+          <div className="modern-modal-head-actions">
+            <button onClick={() => setMockFullscreen((prev) => !prev)} type="button" aria-label="전체화면"><Expand size={24} /></button>
+            <button onClick={onClose} type="button" aria-label="닫기"><X size={26} /></button>
+          </div>
+        </div>
+        <div className="modern-mock-tabs">
+          <button className={tab === 'live' ? 'active' : ''} type="button" onClick={() => setTab('live')}>실시간 수능 타이머</button>
+          <button className={tab === 'countdown' ? 'active' : ''} type="button" onClick={() => setTab('countdown')}>과목별 카운트다운</button>
+        </div>
+        {tab === 'live' ? (
+          <div className={`modern-mock-stage timer-${timerSkin}`}>
+            <div className={`modern-mock-state ${liveStatus.kind}`}>
+              <span>{liveStatus.kind === 'exam' ? '시험 진행' : liveStatus.kind === 'break' ? '쉬는시간' : '대기'}</span>
+              <strong>{liveStatus.label}</strong>
+            </div>
+            <TimerFace seconds={liveStatus.remainingSeconds} skin={timerSkin} label={liveStatus.label} subLabel={liveStatus.subLabel} />
+            <div className="modern-mock-actions single">
+              <button className="danger" onClick={onClose} type="button"><Square size={22} />종료</button>
+            </div>
+          </div>
+        ) : (
+          <div className={`modern-mock-stage timer-${timerSkin}`}>
+            <div className="modern-countdown-subjects">
+              {examCountdownOptions.map((option, index) => (
+                <button
+                  key={option.id}
+                  className={selectedCountdownId === option.id ? 'active' : ''}
+                  type="button"
+                  onClick={() => selectCountdown(option.id)}
+                  style={{ '--subject-color': subjectColor(DEFAULT_SUBJECTS[index] ?? DEFAULT_SUBJECTS[0]) } as React.CSSProperties}
+                >
+                  <span>{option.label}</span>
+                  <strong>{Math.round(option.seconds / 60)}분</strong>
+                </button>
+              ))}
+            </div>
+            <TimerFace
+              seconds={remainingSeconds}
+              skin={timerSkin}
+              label={selectedCountdown.label}
+              subLabel={countdownRunning && !countdownPaused ? '카운트다운 진행 중' : countdownPaused ? '일시정지' : '대기 중'}
+            />
+            <div className="modern-mock-actions">
+              <button className="primary" onClick={startCountdown} type="button" disabled={countdownRunning && !countdownPaused}>
+                <Play size={22} />{countdownPaused ? '다시 시작' : '시작'}
+              </button>
+              <button onClick={() => setCountdownPaused((prev) => !prev)} type="button" disabled={!countdownRunning}>
+                <Pause size={22} />{countdownPaused ? '해제' : '일시정지'}
+              </button>
+              <button className="danger" onClick={stopCountdown} type="button"><Square size={21} />종료</button>
+            </div>
+          </div>
+        )}
       </section>
     </div>
   );
@@ -1879,7 +3158,7 @@ function ModernAttendanceModal({
           <div className="modern-attendance-progress">
             <div>
               <span>출석 보상</span>
-              <strong>{nextReward ? `${nextReward.threshold - count}일 더 출석하면 열매 ${nextReward.fruits}개` : '이번 달 출석 보상 완료'}</strong>
+              <strong>{nextReward ? `${nextReward.threshold - count}일 더 출석하면 별 ${nextReward.fruits}개` : '이번 달 출석 보상 완료'}</strong>
             </div>
             <em>{count}/{full}일</em>
           </div>
@@ -1891,7 +3170,7 @@ function ModernAttendanceModal({
               return (
                 <div className={`${achieved ? 'achieved' : ''} ${claimed ? 'claimed' : ''}`} key={step.threshold}>
                   <span>{step.threshold}일</span>
-                  <strong>열매 {step.fruits}개</strong>
+                  <strong>별 {step.fruits}개</strong>
                   <em>{claimed ? '지급 완료' : achieved ? '달성' : `${step.threshold - count}일 남음`}</em>
                 </div>
               );
@@ -1988,6 +3267,7 @@ function AdminPage({
   onSendMessage,
   onTaskChange,
   onRewardSettingsChange,
+  onRewardMapVisibilityChange,
   onFruitChange,
 }: {
   data: AppData;
@@ -1997,6 +3277,7 @@ function AdminPage({
   onSendMessage: (student: StudentStatus, body: string) => void;
   onTaskChange: (task: Task) => void;
   onRewardSettingsChange: (settings: RewardSettings) => void;
+  onRewardMapVisibilityChange: (visibility: Record<string, boolean>) => void;
   onFruitChange: (delta: number) => void;
 }) {
   const [tab, setTab] = useState<'overview' | 'students' | 'learning' | 'rewards' | 'settings' | 'messages'>('overview');
@@ -2009,6 +3290,8 @@ function AdminPage({
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleItem[]>(schedule);
   const [selectedScheduleSource, setSelectedScheduleSource] = useState('medischedule.kr');
   const rewardSettings = normalizeRewardSettings(data.rewardSettings);
+  const rewardMapVisibility = normalizeRewardMapVisibility(data.rewardMapVisibility);
+  const openRewardMapCount = rewardMapMonths.filter((month) => rewardMapVisibility[month.key] !== false).length;
   const sorted = [...students].sort((a, b) => b.todayMinutes - a.todayMinutes);
   const adminStudents = useMemo(() => sortStudents(students, studentSort), [students, studentSort]);
   const selectedStudent = students.find((student) => student.id === selectedStudentId) ?? students[0];
@@ -2058,7 +3341,7 @@ function AdminPage({
       setSelectedScheduleSource(scheduleResult.source);
     }
     void refreshSelectedStudentData();
-    const id = window.setInterval(refreshSelectedStudentData, 60000);
+    const id = window.setInterval(refreshSelectedStudentData, 30000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -2067,6 +3350,10 @@ function AdminPage({
 
   function updateRewardSetting(key: keyof RewardSettings, value: number) {
     onRewardSettingsChange(normalizeRewardSettings({ ...rewardSettings, [key]: value }));
+  }
+
+  function updateRewardMapVisibility(key: string, open: boolean) {
+    onRewardMapVisibilityChange(normalizeRewardMapVisibility({ ...rewardMapVisibility, [key]: open }));
   }
 
   function renderStudentPicker(label: string) {
@@ -2132,8 +3419,9 @@ function AdminPage({
                 <div className="admin-control-grid">
                   <div><CalendarDays size={22} /><span>오늘 일정</span><strong>{selectedTodaySchedule.length}건</strong></div>
                   <div><ClipboardList size={22} /><span>과제 완료</span><strong>{completed}/{visibleTasks.length}</strong></div>
-                  <div><CircleDollarSign size={22} /><span>포인트</span><strong>{data.points.toLocaleString('ko-KR')}P</strong></div>
-                  <div><Gift size={22} /><span>열매</span><strong>{data.fruits}개</strong></div>
+                  <div><Star size={22} /><span>보유 별</span><strong>{data.fruits}개</strong></div>
+                  <div><Trophy size={22} /><span>맵 보상</span><strong>{rewardSettings.stageRewardStars}개</strong></div>
+                  <div><Flag size={22} /><span>오픈 맵</span><strong>{openRewardMapCount}/{rewardMapMonths.length}</strong></div>
                   <div><Stamp size={22} /><span>월 출석</span><strong>{monthAttendance}일</strong></div>
                   <div><MessageSquare size={22} /><span>메시지</span><strong>{data.adminMessages.length}건</strong></div>
                 </div>
@@ -2240,20 +3528,20 @@ function AdminPage({
               <div className="admin-panel-head"><h2>{selectedStudent?.name ?? '학생'} 보상</h2><span>학생 페이지 연동</span></div>
               {renderStudentPicker('보상 학생 선택')}
               <div className="admin-detail-grid">
-                <div><span>포인트</span><strong>{data.points.toLocaleString('ko-KR')}P</strong></div>
-                <div><span>열매</span><strong>{data.fruits}개</strong></div>
+                <div><span>보유 별</span><strong>{data.fruits}개</strong></div>
+                <div><span>스테이지 기준</span><strong>{formatStudyMinutes(rewardSettings.stageMinutes)}</strong></div>
                 <div><span>월 출석</span><strong>{monthAttendance}/{fullMonth}일</strong></div>
                 <div><span>구매 이력</span><strong>{data.rewardPurchases.length}건</strong></div>
               </div>
               <div className="admin-fruit-actions">
-                <button type="button" onClick={() => onFruitChange(-1)} disabled={data.fruits <= 0}>열매 -1</button>
-                <img src={fruitUrl} alt="" />
-                <button type="button" onClick={() => onFruitChange(1)}>열매 +1</button>
+                <button type="button" onClick={() => onFruitChange(-1)} disabled={data.fruits <= 0}>별 -1</button>
+                <Star size={34} />
+                <button type="button" onClick={() => onFruitChange(1)}>별 +1</button>
               </div>
               <div className="admin-reward-rules">
-                <div><span>포인트 규칙</span><strong>1분 = {rewardSettings.pointsPerMinute}P</strong></div>
-                <div><span>열매 규칙</span><strong>{rewardSettings.minutesPerFruit}분마다 1개</strong></div>
-                <div><span>출석 보상</span><strong>{rewardSettings.attendanceTenFruits}/{rewardSettings.attendanceTwentyFruits}/{rewardSettings.attendanceFullFruits}개</strong></div>
+                <div><span>스테이지 규칙</span><strong>{formatStudyMinutes(rewardSettings.stageMinutes)}마다 이동</strong></div>
+                <div><span>도착 보상</span><strong>별 {rewardSettings.stageRewardStars}개</strong></div>
+                <div><span>출석 보상</span><strong>{rewardSettings.attendanceTenStars}/{rewardSettings.attendanceTwentyStars}/{rewardSettings.attendanceFullStars}개</strong></div>
               </div>
             </div>
             <div className="admin-panel admin-reward-status-panel">
@@ -2264,7 +3552,7 @@ function AdminPage({
                   return (
                     <div key={step.threshold}>
                       <span>{step.label}</span>
-                      <strong>{data.claimedAttendanceRewards.includes(step.threshold) ? `열매 ${step.fruits}개 지급 완료` : `${Math.max(0, step.threshold - monthAttendance)}일 남음`}</strong>
+                      <strong>{data.claimedAttendanceRewards.includes(step.threshold) ? `별 ${step.fruits}개 지급 완료` : `${Math.max(0, step.threshold - monthAttendance)}일 남음`}</strong>
                       <i><b style={{ width: `${percent}%` }} /></i>
                     </div>
                   );
@@ -2285,25 +3573,43 @@ function AdminPage({
           </div>
         ) : null}
         {tab === 'settings' ? (
-          <div className="admin-two-col">
+          <div className="admin-two-col admin-settings-grid">
             <div className="admin-panel admin-reward-settings">
-              <div className="admin-panel-head"><h2>포인트·열매 규칙</h2><span>전체 학생 적용</span></div>
+              <div className="admin-panel-head"><h2>스테이지·별 규칙</h2><span>전체 학생 적용</span></div>
               <div className="admin-setting-grid">
-                <label>공부 1분당 포인트<input type="number" min={1} value={rewardSettings.pointsPerMinute} onChange={(event) => updateRewardSetting('pointsPerMinute', Number(event.target.value))} /></label>
-                <label>열매 1개 지급 기준(분)<input type="number" min={1} value={rewardSettings.minutesPerFruit} onChange={(event) => updateRewardSetting('minutesPerFruit', Number(event.target.value))} /></label>
-                <label>10일 출석 열매<input type="number" min={0} value={rewardSettings.attendanceTenFruits} onChange={(event) => updateRewardSetting('attendanceTenFruits', Number(event.target.value))} /></label>
-                <label>20일 출석 열매<input type="number" min={0} value={rewardSettings.attendanceTwentyFruits} onChange={(event) => updateRewardSetting('attendanceTwentyFruits', Number(event.target.value))} /></label>
-                <label>전체 출석 열매<input type="number" min={0} value={rewardSettings.attendanceFullFruits} onChange={(event) => updateRewardSetting('attendanceFullFruits', Number(event.target.value))} /></label>
+                <label>스테이지 이동 기준(분)<input type="number" min={30} step={10} value={rewardSettings.stageMinutes} onChange={(event) => updateRewardSetting('stageMinutes', Number(event.target.value))} /></label>
+                <label>스테이지 도착 별<input type="number" min={1} value={rewardSettings.stageRewardStars} onChange={(event) => updateRewardSetting('stageRewardStars', Number(event.target.value))} /></label>
+                <label>10일 출석 별<input type="number" min={0} value={rewardSettings.attendanceTenStars} onChange={(event) => updateRewardSetting('attendanceTenStars', Number(event.target.value))} /></label>
+                <label>20일 출석 별<input type="number" min={0} value={rewardSettings.attendanceTwentyStars} onChange={(event) => updateRewardSetting('attendanceTwentyStars', Number(event.target.value))} /></label>
+                <label>전체 출석 별<input type="number" min={0} value={rewardSettings.attendanceFullStars} onChange={(event) => updateRewardSetting('attendanceFullStars', Number(event.target.value))} /></label>
               </div>
             </div>
             <div className="admin-panel">
               <div className="admin-panel-head"><h2>현재 적용값</h2><span>학생 앱 보상 계산</span></div>
               <div className="admin-compact-list">
-                <div><span>포인트</span><strong>1분 = {rewardSettings.pointsPerMinute}P</strong></div>
-                <div><span>열매</span><strong>{rewardSettings.minutesPerFruit}분마다 1개</strong></div>
-                <div><span>출석 10일</span><strong>열매 {rewardSettings.attendanceTenFruits}개</strong></div>
-                <div><span>출석 20일</span><strong>열매 {rewardSettings.attendanceTwentyFruits}개</strong></div>
-                <div><span>전체 출석</span><strong>열매 {rewardSettings.attendanceFullFruits}개</strong></div>
+                <div><span>스테이지 이동</span><strong>{formatStudyMinutes(rewardSettings.stageMinutes)}마다</strong></div>
+                <div><span>스테이지 보상</span><strong>별 {rewardSettings.stageRewardStars}개</strong></div>
+                <div><span>출석 10일</span><strong>별 {rewardSettings.attendanceTenStars}개</strong></div>
+                <div><span>출석 20일</span><strong>별 {rewardSettings.attendanceTwentyStars}개</strong></div>
+                <div><span>전체 출석</span><strong>별 {rewardSettings.attendanceFullStars}개</strong></div>
+                <div><span>열린 월드맵</span><strong>{openRewardMapCount}/{rewardMapMonths.length}</strong></div>
+              </div>
+            </div>
+            <div className="admin-panel admin-map-settings">
+              <div className="admin-panel-head"><h2>월드맵 공개 설정</h2><span>닫힌 맵은 흐림 처리</span></div>
+              <div className="admin-map-toggle-list">
+                {rewardMapMonths.map((month) => {
+                  const open = rewardMapVisibility[month.key] !== false;
+                  return (
+                    <button className={open ? 'open' : 'closed'} key={month.key} type="button" onClick={() => updateRewardMapVisibility(month.key, !open)}>
+                      <div>
+                        <span>{month.label}</span>
+                        <strong>{month.title}</strong>
+                      </div>
+                      <em>{open ? '열림' : '닫힘'}</em>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -2461,7 +3767,7 @@ function AttendanceModal({
           <div className="attendance-progress-head">
             <div>
               <span>출석 보상</span>
-              <strong>{nextReward ? `${nextReward.threshold - count}일 더 출석하면 열매 ${nextReward.fruits}개` : '이번 달 출석 보상 완료'}</strong>
+              <strong>{nextReward ? `${nextReward.threshold - count}일 더 출석하면 별 ${nextReward.fruits}개` : '이번 달 출석 보상 완료'}</strong>
             </div>
             <em>{count}/{full}일</em>
           </div>
@@ -2475,7 +3781,7 @@ function AttendanceModal({
               return (
                 <div className={`${achieved ? 'achieved' : ''} ${claimed ? 'claimed' : ''}`} key={step.threshold}>
                   <span><img src={fruitUrl} alt="" />{step.label}</span>
-                  <strong>열매 {step.fruits}개</strong>
+                  <strong>별 {step.fruits}개</strong>
                   <em>{claimed ? '지급 완료' : achieved ? '달성' : `${step.threshold - count}일 남음`}</em>
                 </div>
               );
@@ -2571,18 +3877,21 @@ export default function App() {
   const [schedule, setSchedule] = useState<ScheduleItem[]>(demoSchedule);
   const [scheduleSource, setScheduleSource] = useState('데모 일정');
   const [taskSource, setTaskSource] = useState('데모 멘토링');
-  const subjects = data.subjectNames.length ? data.subjectNames : DEFAULT_SUBJECTS;
+  const subjects = normalizeStoredSubjects(data.subjectNames);
   const [selectedSubject, setSelectedSubject] = useState<Subject>(subjects[1] ?? '수학');
   const [timerTab, setTimerTab] = useState<TimerTab>('main');
   const [runningSession, setRunningSession] = useState<RunningSession | null>(null);
   const [nowMs, setNowMs] = useState(Date.now());
   const [weekOpen, setWeekOpen] = useState(false);
   const [timerOpen, setTimerOpen] = useState(false);
+  const [mockTimerOpen, setMockTimerOpen] = useState(false);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
   const [animatedAttendanceDate, setAnimatedAttendanceDate] = useState<string | null>(null);
   const [taskEditor, setTaskEditor] = useState<{ task: Task | null; subject: Subject } | null>(null);
   const [blockEditor, setBlockEditor] = useState<StudyBlock | null>(null);
   const [medischeduleStudents, setMedischeduleStudents] = useState<StudentStatus[]>([]);
+  const [penaltySummaries, setPenaltySummaries] = useState<PenaltySummary[]>([]);
+  const [penaltySource, setPenaltySource] = useState('medipenalty 연결 전');
   const totalElapsedSeconds = sessionSeconds(runningSession, nowMs);
   const subjectElapsedSeconds = subjectSessionSeconds(runningSession, nowMs);
   const actualTodayMinutes = Math.floor((totalSecondsFromBlocks(todayBlocks(data.studyBlocks)) + (runningSession ? subjectElapsedSeconds : 0)) / 60);
@@ -2602,18 +3911,22 @@ export default function App() {
   }, [data]);
 
   useEffect(() => {
+    setData((prev) => applyStageRewards({ ...prev, points: 0 }));
+  }, []);
+
+  useEffect(() => {
     if (role) localStorage.setItem(ROLE_KEY, role);
   }, [role]);
 
   useEffect(() => {
-    if (role !== 'admin') return;
+    if (!role) return;
     let cancelled = false;
     async function refreshStudents() {
       const students = await loadMedischeduleStudents();
       if (!cancelled && students.length) setMedischeduleStudents(students);
     }
     void refreshStudents();
-    const id = window.setInterval(refreshStudents, 60000);
+    const id = window.setInterval(refreshStudents, 30000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -2660,12 +3973,29 @@ export default function App() {
       });
     }
     void refreshLinkedData();
-    const id = window.setInterval(refreshLinkedData, 60000);
+    const id = window.setInterval(refreshLinkedData, 30000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
   }, [role, data.studentId]);
+
+  useEffect(() => {
+    if (!role) return;
+    let cancelled = false;
+    async function refreshPenaltySummary() {
+      const result = await loadPenaltySummary();
+      if (cancelled) return;
+      setPenaltySummaries(result.items);
+      setPenaltySource(result.source);
+    }
+    void refreshPenaltySummary();
+    const id = window.setInterval(refreshPenaltySummary, 30000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [role]);
 
   function markAttendance() {
     const today = todayKey();
@@ -2777,15 +4107,9 @@ export default function App() {
     if (!prev) return;
     const totalSeconds = sessionSeconds(prev, now);
     const currentSubjectSeconds = subjectSessionSeconds(prev, now);
-    const totalMinutes = Math.floor(totalSeconds / 60);
     setData((current) => {
-      const rewardSettings = normalizeRewardSettings(current.rewardSettings);
       const segmented = commitSegmentToData(current, prev, currentSubjectSeconds, completeTask);
-      const earnedPoints = totalMinutes * rewardSettings.pointsPerMinute;
-      const nextPoints = segmented.points + earnedPoints;
-      const threshold = fruitPointThreshold(rewardSettings);
-      const newFruits = Math.floor(nextPoints / threshold) - Math.floor(segmented.points / threshold);
-      return { ...segmented, points: nextPoints, fruits: segmented.fruits + Math.max(0, newFruits) };
+      return applyStageRewards({ ...segmented, points: 0 });
     });
     setTimerOpen(false);
     setRunningSession(null);
@@ -2857,7 +4181,7 @@ export default function App() {
   }
 
   function saveBlock(block: StudyBlock) {
-    setData((prev) => ({ ...prev, studyBlocks: prev.studyBlocks.map((item) => (item.id === block.id ? block : item)) }));
+    setData((prev) => applyStageRewards({ ...prev, studyBlocks: prev.studyBlocks.map((item) => (item.id === block.id ? block : item)), points: 0 }));
     setBlockEditor(null);
   }
 
@@ -2915,6 +4239,10 @@ export default function App() {
     setData((prev) => ({ ...prev, rewardSettings: normalizeRewardSettings(rewardSettings) }));
   }
 
+  function saveRewardMapVisibility(rewardMapVisibility: Record<string, boolean>) {
+    setData((prev) => ({ ...prev, rewardMapVisibility: normalizeRewardMapVisibility(rewardMapVisibility) }));
+  }
+
   function changeFruits(delta: number) {
     setData((prev) => ({ ...prev, fruits: Math.max(0, prev.fruits + delta) }));
   }
@@ -2957,6 +4285,13 @@ export default function App() {
     [actualTodayMinutes, data.studentId, data.studentName, medischeduleStudents, runningSession],
   );
 
+  const currentPenalty = useMemo(() => {
+    const studentId = data.studentId.trim();
+    const studentName = data.studentName.trim();
+    return penaltySummaries.find((row) => row.id === studentId)
+      ?? penaltySummaries.find((row) => row.name.trim() === studentName);
+  }, [data.studentId, data.studentName, penaltySummaries]);
+
   let content: React.ReactNode = null;
   if (!role) {
     content = <LoginScreen onLogin={handleLogin} />;
@@ -2970,6 +4305,7 @@ export default function App() {
         onSendMessage={sendAdminMessage}
         onTaskChange={saveAdminTask}
         onRewardSettingsChange={saveRewardSettings}
+        onRewardMapVisibilityChange={saveRewardMapVisibility}
         onFruitChange={changeFruits}
       />
     );
@@ -2985,7 +4321,6 @@ export default function App() {
         runningSession={runningSession}
         totalElapsedSeconds={totalElapsedSeconds}
         subjectElapsedSeconds={subjectElapsedSeconds}
-        latestMessages={studentMessages}
         onStart={() => startSession(timerTab === 'main' ? selectedSubject : timerTab)}
         onPause={pauseSession}
         onStop={() => stopSession(false)}
@@ -2994,6 +4329,7 @@ export default function App() {
         onRenameSubject={renameSubject}
         onTimerSkinChange={setTimerSkin}
         onTimerFullscreen={() => setTimerOpen(true)}
+        onMockTimerOpen={() => setMockTimerOpen(true)}
         onWeekOpen={() => setWeekOpen(true)}
       />
     );
@@ -3002,7 +4338,6 @@ export default function App() {
       <ModernTasksPage
         subjects={subjects}
         tasks={data.tasks}
-        taskSource={taskSource}
         onCompleteTask={completeTask}
         onStopTask={stopTask}
         onDeleteTask={deleteTask}
@@ -3011,7 +4346,16 @@ export default function App() {
       />
     );
   } else if (page === 'analysis') {
-    content = <ModernAnalysisPage subjects={subjects} blocks={data.studyBlocks} tasks={data.tasks} onEditBlock={setBlockEditor} />;
+    content = (
+      <ModernAnalysisPage
+        subjects={subjects}
+        blocks={data.studyBlocks}
+        tasks={data.tasks}
+        penaltyPoints={currentPenalty?.points ?? 0}
+        penaltySource={penaltySource}
+        onEditBlock={setBlockEditor}
+      />
+    );
   } else if (page === 'garden') {
     content = <ModernGardenPage data={data} onBuyReward={buyReward} onOpenAttendance={openAttendanceModal} />;
   } else {
@@ -3028,6 +4372,7 @@ export default function App() {
         ) : null}
         <main className={role ? 'app-main' : 'login-main'}>{content}</main>
         {weekOpen ? <ModernWeekScheduleModal schedule={schedule} source={scheduleSource} onClose={() => setWeekOpen(false)} /> : null}
+        {mockTimerOpen ? <ModernMockExamTimerModal timerSkin={data.timerSkin} onClose={() => setMockTimerOpen(false)} /> : null}
         {timerOpen && runningSession ? (
           <ModernTimerFullscreenModal
             elapsedSeconds={totalElapsedSeconds}

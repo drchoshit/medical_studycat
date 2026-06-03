@@ -1,5 +1,5 @@
 import { DEFAULT_SUBJECTS, demoSchedule, todayKey } from './demoData';
-import type { ScheduleItem, StudentStatus, Subject, Task } from './types';
+import type { PenaltySummary, ScheduleItem, StudentStatus, Subject, Task } from './types';
 
 export const weekDays = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -9,6 +9,7 @@ const medischeduleBase =
   '/medischedule-api';
 
 const mentoringBase = import.meta.env.VITE_MENTORING_API_BASE || '/mentoring-api';
+const penaltyBase = import.meta.env.VITE_MEDIPENALTY_API_BASE || '/penalty-api';
 
 function thisWeekStart(date = new Date()) {
   const d = new Date(date);
@@ -199,6 +200,42 @@ export async function loadMedischeduleStudents(): Promise<StudentStatus[]> {
   return [];
 }
 
+type RemotePenaltySummaryRow = {
+  id?: string | number;
+  student_id?: string | number;
+  studentId?: string | number;
+  name?: string;
+  studentName?: string;
+  points?: string | number;
+  total_points?: string | number;
+  totalPoints?: string | number;
+};
+
+function normalizePenaltySummary(rows: unknown[]): PenaltySummary[] {
+  return rows
+    .map((raw, index) => {
+      const row = raw && typeof raw === 'object' ? (raw as RemotePenaltySummaryRow) : {};
+      const id = String(row.id ?? row.student_id ?? row.studentId ?? `penalty-${index + 1}`).trim();
+      const name = String(row.name ?? row.studentName ?? id).trim();
+      const points = Number(row.points ?? row.total_points ?? row.totalPoints ?? 0);
+      return {
+        id,
+        name,
+        points: Number.isFinite(points) ? points : 0,
+      };
+    })
+    .filter((row) => row.id);
+}
+
+export async function loadPenaltySummary(): Promise<{ items: PenaltySummary[]; source: string }> {
+  try {
+    const payload = await fetchJson<unknown>(`${penaltyBase}/summary/cumulative?_t=${Date.now()}`, undefined, 5000);
+    return { items: normalizePenaltySummary(extractRows(payload)), source: 'medipenalty 실시간' };
+  } catch {
+    return { items: [], source: 'medipenalty 연결 필요' };
+  }
+}
+
 export async function loadSchedule(studentId: string): Promise<{ items: ScheduleItem[]; source: string }> {
   const weekStart = thisWeekStart();
   const headers = authHeaders('medischedule');
@@ -209,7 +246,7 @@ export async function loadSchedule(studentId: string): Promise<{ items: Schedule
       { headers },
       5000,
     );
-    return { items: normalizeSchedule(extractRows(payload), studentId), source: 'medischedule.kr 실시간' };
+    return { items: normalizeSchedule(extractRows(payload), studentId), source: 'student-schedule-app-full 실시간' };
   } catch {
     // Try the admin schedule feed next. This works when an admin token is available.
   }
@@ -220,9 +257,9 @@ export async function loadSchedule(studentId: string): Promise<{ items: Schedule
       { headers },
       5000,
     );
-    return { items: normalizeSchedule(extractRows(payload), studentId), source: 'medischedule.kr 관리자 일정' };
+    return { items: normalizeSchedule(extractRows(payload), studentId), source: 'student-schedule-app-full 관리자 일정' };
   } catch {
-    return { items: demoSchedule, source: '데모 일정 - medischedule 인증 필요' };
+    return { items: demoSchedule, source: '데모 일정 - student-schedule-app-full 인증 필요' };
   }
 }
 

@@ -18,6 +18,12 @@ export default defineConfig({
         secure: true,
         rewrite: (path) => path.replace(/^\/mentoring-api/, ''),
       },
+      '/penalty-api': {
+        target: 'https://medipenalty.kr/api',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/penalty-api/, ''),
+      },
     },
   },
 });

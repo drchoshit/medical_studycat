@@ -50,6 +50,12 @@ export type StudentStatus = {
   subject: Subject;
 };
 
+export type PenaltySummary = {
+  id: string;
+  name: string;
+  points: number;
+};
+
 export type RewardPurchase = {
   id: string;
   itemName: string;
@@ -58,11 +64,11 @@ export type RewardPurchase = {
 };
 
 export type RewardSettings = {
-  pointsPerMinute: number;
-  minutesPerFruit: number;
-  attendanceTenFruits: number;
-  attendanceTwentyFruits: number;
-  attendanceFullFruits: number;
+  stageMinutes: number;
+  stageRewardStars: number;
+  attendanceTenStars: number;
+  attendanceTwentyStars: number;
+  attendanceFullStars: number;
 };
 
 export type AdminMessage = {
@@ -83,8 +89,10 @@ export type AppData = {
   studyBlocks: StudyBlock[];
   attendanceDates: string[];
   claimedAttendanceRewards: number[];
+  claimedStageRewards: string[];
   rewardPurchases: RewardPurchase[];
   rewardSettings: RewardSettings;
+  rewardMapVisibility: Record<string, boolean>;
   adminMessages: AdminMessage[];
   dismissedMessageIds: string[];
   hiddenTaskIds: string[];

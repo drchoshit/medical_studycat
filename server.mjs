@@ -9,6 +9,7 @@ const port = Number(process.env.PORT || 3000);
 const proxyTargets = {
   '/medischedule-api': process.env.MEDISCHEDULE_API_BASE || 'https://medischedule.kr/api',
   '/mentoring-api': process.env.MENTORING_API_BASE || 'https://mentoring-api-6l1a.onrender.com',
+  '/penalty-api': process.env.MEDIPENALTY_API_BASE || 'https://medipenalty.kr/api',
 };
 
 const mimeTypes = {

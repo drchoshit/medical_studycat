@@ -1,6 +1,6 @@
 import type { AppData, RewardSettings, ScheduleItem, StudentStatus, Subject, Task } from './types';
 
-export const DEFAULT_SUBJECTS: Subject[] = ['국어', '수학', '영어', '과학', '탐구', '의학논술'];
+export const DEFAULT_SUBJECTS: Subject[] = ['국어', '수학', '영어', '탐구-1', '탐구-2', '탐구-3'];
 
 export const subjectPalette = ['#5C6AD9', '#138060', '#C49A4A', '#8C6DD7', '#D86A57', '#2A8CAD', '#CE6E9E', '#6A8A42'];
 
@@ -14,9 +14,9 @@ export const demoTasks: Task[] = [
   { id: 'task-2', subject: '수학', title: '확률과 통계 개념 복습', completed: true, elapsedSeconds: 3120, portalStatus: 'synced' },
   { id: 'task-3', subject: '영어', title: '빈칸 추론 20문항', completed: false, elapsedSeconds: 0, portalStatus: 'synced' },
   { id: 'task-4', subject: '국어', title: '비문학 지문 4세트', completed: false, elapsedSeconds: 0, portalStatus: 'local' },
-  { id: 'task-5', subject: '과학', title: '생명과학 유전 파트', completed: false, elapsedSeconds: 0, portalStatus: 'pending' },
-  { id: 'task-6', subject: '탐구', title: '기출 선지 정리', completed: true, elapsedSeconds: 2460, portalStatus: 'synced' },
-  { id: 'task-7', subject: '의학논술', title: '면접 질문 답변 정리', completed: false, elapsedSeconds: 0, portalStatus: 'local' },
+  { id: 'task-5', subject: '탐구-1', title: '생명과학 유전 파트', completed: false, elapsedSeconds: 0, portalStatus: 'pending' },
+  { id: 'task-6', subject: '탐구-2', title: '기출 선지 정리', completed: true, elapsedSeconds: 2460, portalStatus: 'synced' },
+  { id: 'task-7', subject: '탐구-3', title: '면접 질문 답변 정리', completed: false, elapsedSeconds: 0, portalStatus: 'local' },
 ];
 
 export const demoSchedule: ScheduleItem[] = [
@@ -52,11 +52,11 @@ export const demoStudents: StudentStatus[] = Array.from({ length: 30 }, (_, inde
 });
 
 export const defaultRewardSettings: RewardSettings = {
-  pointsPerMinute: 1,
-  minutesPerFruit: 500,
-  attendanceTenFruits: 1,
-  attendanceTwentyFruits: 2,
-  attendanceFullFruits: 4,
+  stageMinutes: 600,
+  stageRewardStars: 1,
+  attendanceTenStars: 1,
+  attendanceTwentyStars: 2,
+  attendanceFullStars: 4,
 };
 
 export function todayKey(date = new Date()) {
@@ -71,15 +71,23 @@ export function defaultAppData(name = '학생', id = 'student-demo'): AppData {
   return {
     studentId: id,
     studentName: name,
-    points: 1280,
+    points: 0,
     fruits: 3,
     subjectNames: DEFAULT_SUBJECTS,
     tasks: demoTasks,
     studyBlocks: [],
     attendanceDates: [today],
     claimedAttendanceRewards: [],
+    claimedStageRewards: [],
     rewardPurchases: [],
     rewardSettings: defaultRewardSettings,
+    rewardMapVisibility: {
+      '2026-08': true,
+      '2026-09': true,
+      '2026-10': true,
+      '2026-11': true,
+      '2026-12': true,
+    },
     adminMessages: [],
     dismissedMessageIds: [],
     hiddenTaskIds: [],
