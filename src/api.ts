@@ -1,5 +1,5 @@
 import { DEFAULT_SUBJECTS, demoSchedule, todayKey } from './demoData';
-import type { AdminMessage, LiveStudentStatus, PenaltySummary, RealtimeSnapshot, RewardSettings, ScheduleItem, StudentStatus, Subject, Task } from './types';
+import type { AdminMessage, FamilySyncReport, LiveStudentStatus, PenaltySummary, RealtimeSnapshot, RewardSettings, ScheduleItem, StudentStatus, Subject, Task } from './types';
 
 export const weekDays = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -138,6 +138,23 @@ export async function publishStudentStatus(student: StudentStatus & { running?: 
     return payload.student ?? null;
   } catch {
     return null;
+  }
+}
+
+export async function publishFamilySync(report: FamilySyncReport): Promise<boolean> {
+  try {
+    await fetchJson(
+      appApiUrl('/family/report'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(report),
+      },
+      7000,
+    );
+    return true;
+  } catch {
+    return false;
   }
 }
 

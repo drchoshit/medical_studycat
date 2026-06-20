@@ -10,6 +10,7 @@ const dataDir = resolve(process.env.APP_DATA_DIR || 'data');
 const appStatePath = join(dataDir, 'app-state.json');
 const staleStudentMs = Number(process.env.STUDENT_STALE_MS || 90_000);
 const appAdminToken = process.env.APP_ADMIN_TOKEN || '';
+const appParentToken = process.env.APP_PARENT_TOKEN || '';
 
 const proxyTargets = {
   '/medischedule-api': process.env.MEDISCHEDULE_API_BASE || 'https://medischedule.kr/api',
@@ -32,6 +33,7 @@ const mimeTypes = {
 
 let appState = {
   students: {},
+  familyReports: {},
   messages: [],
   settings: {},
   pushTokens: {},
@@ -40,6 +42,7 @@ let appState = {
 let writeInFlight = false;
 let writeQueued = false;
 const realtimeClients = new Set();
+const familyClients = new Set();
 
 function corsHeaders(headers = {}) {
   return {
@@ -73,6 +76,20 @@ function requireAdmin(req, res, url) {
   return false;
 }
 
+function isParentAuthorized(req, url) {
+  if (!appParentToken) return true;
+  const authorization = req.headers.authorization || '';
+  const headerToken = Array.isArray(authorization) ? authorization[0] : authorization;
+  const queryToken = url.searchParams.get('parentToken') || '';
+  return headerToken === `Bearer ${appParentToken}` || queryToken === appParentToken;
+}
+
+function requireParent(req, res, url) {
+  if (isParentAuthorized(req, url)) return true;
+  sendJson(res, 401, { error: 'Parent token required' });
+  return false;
+}
+
 async function loadAppState() {
   try {
     await mkdir(dataDir, { recursive: true });
@@ -80,6 +97,7 @@ async function loadAppState() {
     const parsed = JSON.parse(raw);
     appState = {
       students: parsed.students && typeof parsed.students === 'object' ? parsed.students : {},
+      familyReports: parsed.familyReports && typeof parsed.familyReports === 'object' ? parsed.familyReports : {},
       messages: Array.isArray(parsed.messages) ? parsed.messages : [],
       settings: parsed.settings && typeof parsed.settings === 'object' ? parsed.settings : {},
       pushTokens: parsed.pushTokens && typeof parsed.pushTokens === 'object' ? parsed.pushTokens : {},
@@ -169,6 +187,108 @@ function snapshotFor(client = {}) {
   };
 }
 
+function jsonSafe(value, fallback) {
+  if (value === undefined || value === null) return fallback;
+  try {
+    return JSON.parse(JSON.stringify(value));
+  } catch {
+    return fallback;
+  }
+}
+
+function limitedArray(value, max) {
+  return Array.isArray(value) ? value.slice(-max).map((item) => jsonSafe(item, null)).filter(Boolean) : [];
+}
+
+function numberValue(value, fallback = 0) {
+  const next = Number(value);
+  return Number.isFinite(next) ? next : fallback;
+}
+
+function normalizeFamilyReport(body, id, previous = {}) {
+  const profile = body.profile && typeof body.profile === 'object' ? body.profile : {};
+  const studySummary = body.studySummary && typeof body.studySummary === 'object' ? body.studySummary : {};
+  const attendance = body.attendance && typeof body.attendance === 'object' ? body.attendance : {};
+  const rewards = body.rewards && typeof body.rewards === 'object' ? body.rewards : {};
+  const analysis = body.analysis && typeof body.analysis === 'object' ? body.analysis : {};
+  const penalty = body.penalty && typeof body.penalty === 'object' ? jsonSafe(body.penalty, undefined) : undefined;
+  const now = new Date().toISOString();
+
+  return {
+    studentId: id,
+    studentName: normalizeText(body.studentName || profile.studentName, previous.studentName || id),
+    profile: {
+      studentId: id,
+      studentName: normalizeText(profile.studentName || body.studentName, previous.studentName || id),
+      studentPhone: normalizeText(profile.studentPhone, previous.profile?.studentPhone),
+      parentPhone: normalizeText(profile.parentPhone, previous.profile?.parentPhone),
+    },
+    studySummary: {
+      today: Math.max(0, Math.floor(numberValue(studySummary.today, previous.studySummary?.today))),
+      week: Math.max(0, Math.floor(numberValue(studySummary.week, previous.studySummary?.week))),
+      month: Math.max(0, Math.floor(numberValue(studySummary.month, previous.studySummary?.month))),
+      custom: Math.max(0, Math.floor(numberValue(studySummary.custom, previous.studySummary?.custom))),
+      streak: Math.max(0, Math.floor(numberValue(studySummary.streak, previous.studySummary?.streak))),
+      goal: Math.max(0, Math.floor(numberValue(studySummary.goal, previous.studySummary?.goal ?? 720))),
+    },
+    subjectStudy: limitedArray(body.subjectStudy, 40),
+    weeklyLearning: limitedArray(body.weeklyLearning, 21),
+    schedules: limitedArray(body.schedules, 150),
+    tasks: limitedArray(body.tasks, 300),
+    studyBlocks: limitedArray(body.studyBlocks, 1000),
+    attendance: {
+      status: normalizeText(attendance.status, previous.attendance?.status || 'offline'),
+      checkIn: normalizeText(attendance.checkIn, previous.attendance?.checkIn || '-'),
+      checkOut: normalizeText(attendance.checkOut, previous.attendance?.checkOut || '-'),
+      seat: normalizeText(attendance.seat, previous.attendance?.seat),
+      timeline: limitedArray(attendance.timeline, 100),
+    },
+    rewards: {
+      fruits: Math.max(0, Math.floor(numberValue(rewards.fruits, previous.rewards?.fruits))),
+      rewardPurchases: limitedArray(rewards.rewardPurchases, 200),
+      attendanceDates: limitedArray(rewards.attendanceDates, 500),
+      claimedAttendanceRewards: limitedArray(rewards.claimedAttendanceRewards, 100),
+      claimedStageRewards: limitedArray(rewards.claimedStageRewards, 500),
+      rewardSettings: jsonSafe(rewards.rewardSettings, previous.rewards?.rewardSettings),
+      rewardMapVisibility: jsonSafe(rewards.rewardMapVisibility, previous.rewards?.rewardMapVisibility),
+    },
+    ...(penalty ? { penalty } : previous.penalty ? { penalty: previous.penalty } : {}),
+    analysis: {
+      completionRate: Math.max(0, Math.min(100, Math.floor(numberValue(analysis.completionRate, previous.analysis?.completionRate)))),
+      completedTasks: Math.max(0, Math.floor(numberValue(analysis.completedTasks, previous.analysis?.completedTasks))),
+      totalTasks: Math.max(0, Math.floor(numberValue(analysis.totalTasks, previous.analysis?.totalTasks))),
+      focusScore: Math.max(0, Math.min(100, Math.floor(numberValue(analysis.focusScore, previous.analysis?.focusScore)))),
+      activeSubjectCount: Math.max(0, Math.floor(numberValue(analysis.activeSubjectCount, previous.analysis?.activeSubjectCount))),
+    },
+    updatedAt: normalizeText(body.updatedAt, now),
+    receivedAt: now,
+  };
+}
+
+function publicFamilyReport(report) {
+  if (!report) return null;
+  return jsonSafe(report, null);
+}
+
+function familyReportsFor(studentId) {
+  const reports = Object.values(appState.familyReports).map(publicFamilyReport).filter(Boolean);
+  if (!studentId) return reports.sort((a, b) => String(b.updatedAt || '').localeCompare(String(a.updatedAt || '')));
+  return reports.filter((report) => report.studentId === studentId);
+}
+
+function familySnapshotFor(client = {}) {
+  const studentId = normalizeText(client.studentId);
+  const reports = familyReportsFor(studentId);
+  return {
+    serverTime: new Date().toISOString(),
+    students: studentId ? publicStudents().filter((student) => student.id === studentId) : publicStudents(),
+    reports,
+    report: reports[0] ?? null,
+    rewardSettings: appState.settings.rewardSettings,
+    rewardMapVisibility: appState.settings.rewardMapVisibility,
+  };
+}
+
 function sendSse(client, payload) {
   try {
     client.res.write(`data: ${JSON.stringify(payload)}\n\n`);
@@ -179,6 +299,15 @@ function sendSse(client, payload) {
 
 function broadcastRealtime() {
   for (const client of realtimeClients) sendSse(client, snapshotFor(client));
+}
+
+function broadcastFamily() {
+  for (const client of familyClients) sendSse(client, familySnapshotFor(client));
+}
+
+function broadcastAll() {
+  broadcastRealtime();
+  broadcastFamily();
 }
 
 async function readJsonBody(req, limitBytes = 1_000_000) {
@@ -228,6 +357,35 @@ function handleRealtimeEvents(req, res, url) {
   });
 }
 
+function handleFamilyEvents(req, res, url) {
+  const client = {
+    res,
+    studentId: normalizeText(url.searchParams.get('studentId')),
+  };
+  res.writeHead(200, corsHeaders({
+    'content-type': 'text/event-stream; charset=utf-8',
+    'cache-control': 'no-cache, no-transform',
+    connection: 'keep-alive',
+  }));
+  res.write(': connected\n\n');
+  familyClients.add(client);
+  sendSse(client, familySnapshotFor(client));
+
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(': heartbeat\n\n');
+    } catch {
+      clearInterval(heartbeat);
+      familyClients.delete(client);
+    }
+  }, 25_000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    familyClients.delete(client);
+  });
+}
+
 async function handleAppApi(req, res, url) {
   if (req.method === 'OPTIONS') {
     send(res, 204, '', corsHeaders());
@@ -251,6 +409,51 @@ async function handleAppApi(req, res, url) {
       role: url.searchParams.get('role') === 'admin' ? 'admin' : 'user',
       studentId: normalizeText(url.searchParams.get('studentId')),
     }));
+    return;
+  }
+
+  if (url.pathname === '/app-api/family/events' && req.method === 'GET') {
+    if (!requireParent(req, res, url)) return;
+    handleFamilyEvents(req, res, url);
+    return;
+  }
+
+  if (url.pathname === '/app-api/family/snapshot' && req.method === 'GET') {
+    if (!requireParent(req, res, url)) return;
+    sendJson(res, 200, familySnapshotFor({
+      studentId: normalizeText(url.searchParams.get('studentId')),
+    }));
+    return;
+  }
+
+  if (url.pathname === '/app-api/family/report' && req.method === 'POST') {
+    const body = await readJsonBody(req);
+    const id = normalizeText(body.studentId || body.profile?.studentId || body.id);
+    if (!id) {
+      sendJson(res, 400, { error: 'studentId is required' });
+      return;
+    }
+    const previous = appState.familyReports[id] || {};
+    const report = normalizeFamilyReport(body, id, previous);
+    appState.familyReports[id] = report;
+
+    const existingStudent = appState.students[id] || {};
+    appState.students[id] = {
+      ...existingStudent,
+      id,
+      name: report.studentName,
+      studentPhone: report.profile.studentPhone || existingStudent.studentPhone,
+      parentPhone: report.profile.parentPhone || existingStudent.parentPhone,
+      todayMinutes: report.studySummary.today,
+      subject: report.subjectStudy[0]?.subject || existingStudent.subject || '',
+      status: existingStudent.status || 'offline',
+      updatedAt: report.updatedAt,
+      lastSeenAt: existingStudent.lastSeenAt || report.updatedAt,
+    };
+
+    touchState();
+    broadcastAll();
+    sendJson(res, 200, { report: publicFamilyReport(report), serverTime: new Date().toISOString() });
     return;
   }
 
@@ -283,7 +486,7 @@ async function handleAppApi(req, res, url) {
     };
     appState.students[id] = next;
     touchState();
-    broadcastRealtime();
+    broadcastAll();
     sendJson(res, 200, { student: publicStudent(next) });
     return;
   }
@@ -314,7 +517,7 @@ async function handleAppApi(req, res, url) {
     };
     appState.messages = [message, ...appState.messages].slice(0, 500);
     touchState();
-    broadcastRealtime();
+    broadcastAll();
     sendJson(res, 201, { message: publicMessage(message) });
     return;
   }
@@ -335,7 +538,7 @@ async function handleAppApi(req, res, url) {
       message.dismissedBy = [...dismissedBy];
     }
     touchState();
-    broadcastRealtime();
+    broadcastAll();
     sendJson(res, 200, { message: publicMessage(message) });
     return;
   }
@@ -355,7 +558,7 @@ async function handleAppApi(req, res, url) {
       updatedAt: new Date().toISOString(),
     };
     touchState();
-    broadcastRealtime();
+    broadcastAll();
     sendJson(res, 200, appState.settings);
     return;
   }

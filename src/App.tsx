@@ -40,6 +40,7 @@ import {
   loadPenaltySummary,
   loadRealtimeSnapshot,
   loadSchedule,
+  publishFamilySync,
   publishStudentStatus,
   saveRealtimeSettings,
   sendRealtimeAdminMessage,
@@ -50,7 +51,7 @@ import {
 import { DEFAULT_SUBJECTS, defaultAppData, defaultRewardSettings, demoSchedule, demoStudents, rewardItems, subjectColor, todayKey } from './demoData';
 import fruitUrl from './assets/tree-fruit.png';
 import treeSceneUrl from './assets/reward-tree-modern.png';
-import type { AdminMessage, AppData, AppTheme, LiveStudentStatus, PageKey, PenaltySummary, RealtimeSnapshot, RewardPurchase, RewardSettings, Role, RunningSession, ScheduleItem, StudentStatus, StudyBlock, Subject, Task, TimerSkin } from './types';
+import type { AdminMessage, AppData, AppTheme, FamilySyncReport, LiveStudentStatus, PageKey, PenaltySummary, RealtimeSnapshot, RewardPurchase, RewardSettings, Role, RunningSession, ScheduleItem, StudentStatus, StudyBlock, Subject, Task, TimerSkin } from './types';
 
 const DESKTOP_FRAME_WIDTH = 1440;
 const DESKTOP_FRAME_HEIGHT = 900;
@@ -1434,6 +1435,150 @@ function subjectMinutes(blocks: StudyBlock[], subjects: Subject[]) {
     result[block.subject] = (result[block.subject] ?? 0) + blockDurationSeconds(block) / 60;
   });
   return result;
+}
+
+function weekDateKeys(dateKey = todayKey()) {
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(year, (month || 1) - 1, day || 1);
+  const dayIndex = date.getDay();
+  const diff = dayIndex === 0 ? -6 : 1 - dayIndex;
+  date.setDate(date.getDate() + diff);
+  return Array.from({ length: 7 }, (_, index) => {
+    const next = new Date(date);
+    next.setDate(date.getDate() + index);
+    return todayKey(next);
+  });
+}
+
+function studyStreak(attendanceDates: string[], baseDate = todayKey()) {
+  const dates = new Set(attendanceDates);
+  let current = new Date(`${baseDate}T00:00:00`);
+  let count = 0;
+  while (dates.has(todayKey(current))) {
+    count += 1;
+    current.setDate(current.getDate() - 1);
+  }
+  return count;
+}
+
+function timeFromMinute(minute?: number) {
+  if (!Number.isFinite(Number(minute))) return '-';
+  const safeMinute = Math.max(0, Math.floor(Number(minute)));
+  const hour = Math.floor(safeMinute / 60) % 24;
+  const minutes = safeMinute % 60;
+  return `${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+}
+
+function blocksWithRunningSession(blocks: StudyBlock[], runningSession: RunningSession | null, subjectElapsedSeconds: number) {
+  if (!runningSession || subjectElapsedSeconds <= 0) return blocks;
+  return [
+    ...blocks,
+    {
+      id: 'running-session',
+      date: todayKey(),
+      startMinute: startMinuteOfDay(new Date(runningSession.subjectStartedAtMs)),
+      durationMinutes: subjectElapsedSeconds / 60,
+      durationSeconds: subjectElapsedSeconds,
+      subject: runningSession.subject,
+    },
+  ];
+}
+
+function buildFamilySyncReport(params: {
+  data: AppData;
+  subjects: Subject[];
+  schedule: ScheduleItem[];
+  runningSession: RunningSession | null;
+  subjectElapsedSeconds: number;
+  actualTodayMinutes: number;
+  selectedSubject: Subject;
+  penalty?: PenaltySummary;
+}): FamilySyncReport {
+  const { data, subjects, schedule, runningSession, subjectElapsedSeconds, actualTodayMinutes, selectedSubject, penalty } = params;
+  const now = new Date();
+  const today = todayKey(now);
+  const allBlocks = blocksWithRunningSession(data.studyBlocks, runningSession, subjectElapsedSeconds);
+  const todays = allBlocks.filter((block) => block.date === today);
+  const weekKeys = weekDateKeys(today);
+  const weekMinutes = weekKeys.reduce((sum, date) => sum + totalSecondsFromBlocks(allBlocks.filter((block) => block.date === date)) / 60, 0);
+  const monthMinutes = monthlyStudyMinutes(allBlocks, today.slice(0, 7));
+  const minutesBySubject = subjectMinutes(todays, subjects);
+  const activeSubjectCount = Object.values(minutesBySubject).filter((minutes) => minutes > 0).length;
+  const completeRate = completionRate(data.tasks);
+  const focusProgress = Math.min(100, Math.round((actualTodayMinutes / 720) * 100));
+  const focusScore = Math.min(100, Math.round((completeRate * 0.45) + (focusProgress * 0.4) + (activeSubjectCount ? 15 : 0)));
+  const completedTasks = data.tasks.filter((task) => task.completed).length;
+  const firstBlock = [...todays].sort((a, b) => a.startMinute - b.startMinute)[0];
+  const lastBlock = [...todays].sort((a, b) => (a.startMinute + blockDurationSeconds(a) / 60) - (b.startMinute + blockDurationSeconds(b) / 60)).at(-1);
+  const checkOutMinute = lastBlock ? lastBlock.startMinute + Math.round(blockDurationSeconds(lastBlock) / 60) : undefined;
+  const tasks = data.tasks.map((task) => (
+    runningSession?.taskId === task.id
+      ? { ...task, elapsedSeconds: task.elapsedSeconds + subjectElapsedSeconds }
+      : task
+  ));
+
+  return {
+    studentId: data.studentId,
+    studentName: data.studentName,
+    profile: {
+      studentId: data.studentId,
+      studentName: data.studentName,
+    },
+    studySummary: {
+      today: actualTodayMinutes,
+      week: Math.floor(weekMinutes),
+      month: Math.floor(monthMinutes),
+      custom: Math.floor(weekMinutes),
+      streak: studyStreak(data.attendanceDates, today),
+      goal: 720,
+    },
+    subjectStudy: subjects.map((subject) => ({
+      subject,
+      minutes: Math.floor(minutesBySubject[subject] ?? 0),
+      color: subjectColor(subject, subjects),
+      note: subject === (runningSession?.subject ?? selectedSubject) ? '현재 선택 과목' : undefined,
+    })),
+    weeklyLearning: weekKeys.map((date, index) => {
+      const minutes = Math.floor(totalSecondsFromBlocks(allBlocks.filter((block) => block.date === date)) / 60);
+      return {
+        day: weekDayLabels[index] ?? date.slice(5),
+        date,
+        minutes,
+        completion: minutes > 0 ? completeRate : 0,
+      };
+    }),
+    schedules: schedule,
+    tasks,
+    studyBlocks: allBlocks,
+    attendance: {
+      status: runningSession ? (runningSession.paused ? '휴식 중' : '공부 중') : actualTodayMinutes > 0 ? '학습 기록 있음' : '대기',
+      checkIn: timeFromMinute(firstBlock?.startMinute),
+      checkOut: runningSession ? '-' : timeFromMinute(checkOutMinute),
+      timeline: todays.slice(-20).map((block) => ({
+        time: timeFromMinute(block.startMinute),
+        label: `${block.subject} ${Math.max(1, Math.round(blockDurationSeconds(block) / 60))}분`,
+        tone: 'good',
+      })),
+    },
+    rewards: {
+      fruits: data.fruits,
+      rewardPurchases: data.rewardPurchases,
+      attendanceDates: data.attendanceDates,
+      claimedAttendanceRewards: data.claimedAttendanceRewards,
+      claimedStageRewards: data.claimedStageRewards,
+      rewardSettings: data.rewardSettings,
+      rewardMapVisibility: data.rewardMapVisibility,
+    },
+    ...(penalty ? { penalty } : {}),
+    analysis: {
+      completionRate: completeRate,
+      completedTasks,
+      totalTasks: data.tasks.length,
+      focusScore,
+      activeSubjectCount,
+    },
+    updatedAt: now.toISOString(),
+  };
 }
 
 function studentPhoneText(student?: StudentStatus) {
@@ -4174,6 +4319,12 @@ export default function App() {
   const unreadMessage = role === 'user'
     ? studentMessages.find((message) => !data.dismissedMessageIds.includes(message.id) && !(message.dismissedBy ?? []).includes(data.studentId))
     : undefined;
+  const currentPenalty = useMemo(() => {
+    const studentId = data.studentId.trim();
+    const studentName = data.studentName.trim();
+    return penaltySummaries.find((row) => row.id === studentId)
+      ?? penaltySummaries.find((row) => row.name.trim() === studentName);
+  }, [data.studentId, data.studentName, penaltySummaries]);
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
@@ -4312,11 +4463,21 @@ export default function App() {
         subject: runningSession?.subject ?? selectedSubject,
         running: Boolean(runningSession),
       });
+      void publishFamilySync(buildFamilySyncReport({
+        data,
+        subjects,
+        schedule,
+        runningSession,
+        subjectElapsedSeconds,
+        actualTodayMinutes,
+        selectedSubject,
+        penalty: currentPenalty,
+      }));
     };
     publish();
     const id = window.setInterval(publish, 10000);
     return () => window.clearInterval(id);
-  }, [actualTodayMinutes, data.studentId, data.studentName, role, runningSession, selectedSubject]);
+  }, [actualTodayMinutes, currentPenalty, data, role, runningSession, schedule, selectedSubject, subjectElapsedSeconds, subjects]);
 
   function markAttendance() {
     const today = todayKey();
@@ -4656,13 +4817,6 @@ export default function App() {
     },
     [actualTodayMinutes, data.studentId, data.studentName, liveStudents, medischeduleStudents, role, runningSession, selectedSubject],
   );
-
-  const currentPenalty = useMemo(() => {
-    const studentId = data.studentId.trim();
-    const studentName = data.studentName.trim();
-    return penaltySummaries.find((row) => row.id === studentId)
-      ?? penaltySummaries.find((row) => row.name.trim() === studentName);
-  }, [data.studentId, data.studentName, penaltySummaries]);
 
   let content: React.ReactNode = null;
   if (!role) {

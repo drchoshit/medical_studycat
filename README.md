@@ -36,3 +36,5 @@ This repo includes `render.yaml`.
 - App realtime: `VITE_APP_API_BASE` points to the Node server `/app-api`. It stores live student status, admin messages, reward settings, and streams updates with SSE.
 - Native Android builds need `VITE_APP_API_BASE` to be a deployed HTTPS URL, for example `https://medical-studycat.onrender.com/app-api`.
 - Optional admin protection: set `APP_ADMIN_TOKEN` on the server, then enter the same value in the admin login `app realtime token` field.
+- Family app sync: Studycat publishes student study reports to `/app-api/family/report`; parent apps read `/app-api/family/snapshot` and `/app-api/family/events`.
+- Optional parent protection: set `APP_PARENT_TOKEN` on the server and `VITE_STUDYCAT_PARENT_TOKEN` in the parent app.

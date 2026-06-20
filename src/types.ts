@@ -96,6 +96,69 @@ export type RealtimeSnapshot = {
   rewardMapVisibility?: Record<string, boolean>;
 };
 
+export type FamilySyncReport = {
+  studentId: string;
+  studentName: string;
+  profile: {
+    studentId: string;
+    studentName: string;
+    studentPhone?: string;
+    parentPhone?: string;
+  };
+  studySummary: {
+    today: number;
+    week: number;
+    month: number;
+    custom: number;
+    streak: number;
+    goal: number;
+  };
+  subjectStudy: Array<{
+    subject: string;
+    minutes: number;
+    color: string;
+    note?: string;
+  }>;
+  weeklyLearning: Array<{
+    day: string;
+    date: string;
+    minutes: number;
+    completion: number;
+  }>;
+  schedules: ScheduleItem[];
+  tasks: Task[];
+  studyBlocks: StudyBlock[];
+  attendance: {
+    status: string;
+    checkIn: string;
+    checkOut: string;
+    seat?: string;
+    timeline: Array<{
+      time: string;
+      label: string;
+      tone: 'good' | 'neutral' | 'warn';
+    }>;
+  };
+  rewards: {
+    fruits: number;
+    rewardPurchases: RewardPurchase[];
+    attendanceDates: string[];
+    claimedAttendanceRewards: number[];
+    claimedStageRewards: string[];
+    rewardSettings: RewardSettings;
+    rewardMapVisibility: Record<string, boolean>;
+  };
+  penalty?: PenaltySummary;
+  analysis: {
+    completionRate: number;
+    completedTasks: number;
+    totalTasks: number;
+    focusScore: number;
+    activeSubjectCount: number;
+  };
+  updatedAt: string;
+};
+
 export type AppData = {
   studentId: string;
   studentName: string;
