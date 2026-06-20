@@ -1,10 +1,17 @@
 node_modules/
 dist/
+data/
+.idea/
+android/.idea/
 *.tsbuildinfo
 *.log
 tmp-*.log
 .env
 .env.*
 !.env.example
+!.env.production
+*.jks
+*.keystore
+android/key.properties
 vite.config.js
 vite.config.d.ts

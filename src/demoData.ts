@@ -52,7 +52,7 @@ export const demoStudents: StudentStatus[] = Array.from({ length: 30 }, (_, inde
 });
 
 export const defaultRewardSettings: RewardSettings = {
-  stageMinutes: 600,
+  stageMinutes: 1200,
   stageRewardStars: 1,
   attendanceTenStars: 1,
   attendanceTwentyStars: 2,
@@ -92,6 +92,7 @@ export function defaultAppData(name = '학생', id = 'student-demo'): AppData {
     dismissedMessageIds: [],
     hiddenTaskIds: [],
     timerSkin: 'pure',
+    appTheme: 'modern',
   };
 }
 

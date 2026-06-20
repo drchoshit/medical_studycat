@@ -4,7 +4,9 @@ export type PageKey = 'home' | 'tasks' | 'analysis' | 'garden' | 'center';
 
 export type Subject = string;
 
-export type TimerSkin = 'pure' | 'glass' | 'studio' | 'halo' | 'line';
+export type TimerSkin = 'pure' | 'glass' | 'studio' | 'halo' | 'line' | 'pulse';
+
+export type AppTheme = 'modern' | 'midnight' | 'botanic';
 
 export type Task = {
   id: string;
@@ -50,6 +52,12 @@ export type StudentStatus = {
   subject: Subject;
 };
 
+export type LiveStudentStatus = StudentStatus & {
+  lastSeenAt?: string;
+  updatedAt?: string;
+  stale?: boolean;
+};
+
 export type PenaltySummary = {
   id: string;
   name: string;
@@ -77,6 +85,15 @@ export type AdminMessage = {
   recipientName: string;
   body: string;
   createdAt: string;
+  dismissedBy?: string[];
+};
+
+export type RealtimeSnapshot = {
+  serverTime: string;
+  students: LiveStudentStatus[];
+  messages: AdminMessage[];
+  rewardSettings?: RewardSettings;
+  rewardMapVisibility?: Record<string, boolean>;
 };
 
 export type AppData = {
@@ -97,6 +114,7 @@ export type AppData = {
   dismissedMessageIds: string[];
   hiddenTaskIds: string[];
   timerSkin: TimerSkin;
+  appTheme: AppTheme;
 };
 
 export type RunningSession = {

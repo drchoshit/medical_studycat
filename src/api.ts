@@ -1,5 +1,5 @@
 import { DEFAULT_SUBJECTS, demoSchedule, todayKey } from './demoData';
-import type { PenaltySummary, ScheduleItem, StudentStatus, Subject, Task } from './types';
+import type { AdminMessage, LiveStudentStatus, PenaltySummary, RealtimeSnapshot, RewardSettings, ScheduleItem, StudentStatus, Subject, Task } from './types';
 
 export const weekDays = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -10,6 +10,7 @@ const medischeduleBase =
 
 const mentoringBase = import.meta.env.VITE_MENTORING_API_BASE || '/mentoring-api';
 const penaltyBase = import.meta.env.VITE_MEDIPENALTY_API_BASE || '/penalty-api';
+const appApiBase = import.meta.env.VITE_APP_API_BASE || '/app-api';
 
 function thisWeekStart(date = new Date()) {
   const d = new Date(date);
@@ -67,6 +68,149 @@ async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 4500): 
   } finally {
     window.clearTimeout(timer);
   }
+}
+
+function appApiUrl(path: string, params: Record<string, string | undefined> = {}) {
+  const base = appApiBase.replace(/\/$/, '');
+  const origin = typeof window === 'undefined' ? 'http://localhost' : window.location.origin;
+  const url = new URL(`${base}${path}`, origin);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value) url.searchParams.set(key, value);
+  });
+  return base.startsWith('http') ? url.toString() : `${url.pathname}${url.search}`;
+}
+
+function getAppAdminToken() {
+  return getStoredToken(['medical-study-app-admin-token', 'adminToken', 'token'], import.meta.env.VITE_APP_ADMIN_TOKEN);
+}
+
+function appApiHeaders(contentType = false): HeadersInit {
+  const token = getAppAdminToken();
+  return {
+    ...(contentType ? { 'Content-Type': 'application/json' } : {}),
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
+
+function normalizeSnapshot(payload: Partial<RealtimeSnapshot> | null | undefined): RealtimeSnapshot {
+  return {
+    serverTime: payload?.serverTime || new Date().toISOString(),
+    students: Array.isArray(payload?.students) ? payload.students : [],
+    messages: Array.isArray(payload?.messages) ? payload.messages : [],
+    rewardSettings: payload?.rewardSettings,
+    rewardMapVisibility: payload?.rewardMapVisibility,
+  };
+}
+
+export async function loadRealtimeSnapshot(role: 'admin' | 'user', studentId?: string): Promise<RealtimeSnapshot> {
+  try {
+    const payload = await fetchJson<Partial<RealtimeSnapshot>>(
+      appApiUrl('/snapshot', { role, studentId }),
+      { headers: role === 'admin' ? appApiHeaders() : undefined },
+      5000,
+    );
+    return normalizeSnapshot(payload);
+  } catch {
+    return normalizeSnapshot(null);
+  }
+}
+
+export async function publishStudentStatus(student: StudentStatus & { running?: boolean }): Promise<LiveStudentStatus | null> {
+  try {
+    const payload = await fetchJson<{ student?: LiveStudentStatus }>(
+      appApiUrl('/students/status'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentId: student.id,
+          studentName: student.name,
+          studentPhone: student.studentPhone,
+          parentPhone: student.parentPhone,
+          status: student.status,
+          todayMinutes: student.todayMinutes,
+          subject: student.subject,
+          running: student.running,
+        }),
+      },
+      5000,
+    );
+    return payload.student ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function sendRealtimeAdminMessage(student: StudentStatus, body: string): Promise<AdminMessage | null> {
+  try {
+    const payload = await fetchJson<{ message?: AdminMessage }>(
+      appApiUrl('/messages'),
+      {
+        method: 'POST',
+        headers: appApiHeaders(true),
+        body: JSON.stringify({
+          recipientId: student.id,
+          recipientName: student.name,
+          body,
+        }),
+      },
+      5000,
+    );
+    return payload.message ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function dismissRealtimeAdminMessage(messageId: string, studentId: string): Promise<boolean> {
+  try {
+    await fetchJson(
+      appApiUrl(`/messages/${encodeURIComponent(messageId)}/dismiss`),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ studentId }),
+      },
+      5000,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function saveRealtimeSettings(settings: { rewardSettings?: RewardSettings; rewardMapVisibility?: Record<string, boolean> }): Promise<boolean> {
+  try {
+    await fetchJson(
+      appApiUrl('/settings'),
+      {
+        method: 'PUT',
+        headers: appApiHeaders(true),
+        body: JSON.stringify(settings),
+      },
+      5000,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function subscribeRealtimeSnapshot(
+  role: 'admin' | 'user',
+  studentId: string | undefined,
+  onSnapshot: (snapshot: RealtimeSnapshot) => void,
+) {
+  if (typeof EventSource === 'undefined') return () => {};
+  const source = new EventSource(appApiUrl('/events', { role, studentId, adminToken: role === 'admin' ? getAppAdminToken() : undefined }));
+  source.onmessage = (event) => {
+    try {
+      onSnapshot(normalizeSnapshot(JSON.parse(event.data)));
+    } catch {
+      // Ignore malformed realtime frames and keep the polling fallback alive.
+    }
+  };
+  return () => source.close();
 }
 
 function extractRows(payload: unknown): unknown[] {

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Medical Studycat</string>
+    <string name="title_activity_main">Medical Studycat</string>
+    <string name="package_name">kr.medicalstudycat.app</string>
+    <string name="custom_url_scheme">kr.medicalstudycat.app</string>
+</resources>

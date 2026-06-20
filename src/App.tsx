@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import {
   Activity,
   BarChart3,
@@ -33,16 +33,63 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import { loadMedischeduleStudents, loadMentoringTasks, loadPenaltySummary, loadSchedule, syncMentoringTaskCompletion, weekDays } from './api';
+import {
+  dismissRealtimeAdminMessage,
+  loadMedischeduleStudents,
+  loadMentoringTasks,
+  loadPenaltySummary,
+  loadRealtimeSnapshot,
+  loadSchedule,
+  publishStudentStatus,
+  saveRealtimeSettings,
+  sendRealtimeAdminMessage,
+  subscribeRealtimeSnapshot,
+  syncMentoringTaskCompletion,
+  weekDays,
+} from './api';
 import { DEFAULT_SUBJECTS, defaultAppData, defaultRewardSettings, demoSchedule, demoStudents, rewardItems, subjectColor, todayKey } from './demoData';
 import fruitUrl from './assets/tree-fruit.png';
 import treeSceneUrl from './assets/reward-tree-modern.png';
-import type { AdminMessage, AppData, PageKey, PenaltySummary, RewardPurchase, RewardSettings, Role, RunningSession, ScheduleItem, StudentStatus, StudyBlock, Subject, Task, TimerSkin } from './types';
+import type { AdminMessage, AppData, AppTheme, LiveStudentStatus, PageKey, PenaltySummary, RealtimeSnapshot, RewardPurchase, RewardSettings, Role, RunningSession, ScheduleItem, StudentStatus, StudyBlock, Subject, Task, TimerSkin } from './types';
+
+const DESKTOP_FRAME_WIDTH = 1440;
+const DESKTOP_FRAME_HEIGHT = 900;
+
+function useDesktopFrameScale() {
+  const [viewport, setViewport] = useState(() => ({
+    width: typeof window === 'undefined' ? DESKTOP_FRAME_WIDTH : window.innerWidth,
+    height: typeof window === 'undefined' ? DESKTOP_FRAME_HEIGHT : window.innerHeight,
+  }));
+
+  useEffect(() => {
+    const updateViewport = () => {
+      const visualViewport = window.visualViewport;
+      setViewport({
+        width: visualViewport?.width ?? window.innerWidth,
+        height: visualViewport?.height ?? window.innerHeight,
+      });
+    };
+
+    updateViewport();
+    window.addEventListener('resize', updateViewport);
+    window.addEventListener('orientationchange', updateViewport);
+    window.visualViewport?.addEventListener('resize', updateViewport);
+
+    return () => {
+      window.removeEventListener('resize', updateViewport);
+      window.removeEventListener('orientationchange', updateViewport);
+      window.visualViewport?.removeEventListener('resize', updateViewport);
+    };
+  }, []);
+
+  const widthScale = Math.max(320, viewport.width) / DESKTOP_FRAME_WIDTH;
+  const heightScale = Math.max(320, viewport.height) / DESKTOP_FRAME_HEIGHT;
+  return Math.min(widthScale, heightScale);
+}
 
 const STORAGE_KEY = 'medical-roadmap-study-v3';
 const ROLE_KEY = 'medical-roadmap-role-v1';
 const ATTENDANCE_HIDE_KEY = 'medical-roadmap-attendance-hide-date-v1';
-const REWARD_MAP_LAYOUT_KEY = 'medical-roadmap-reward-map-layouts-v1';
 type TimerTab = 'main' | Subject;
 type StudentSortKey = 'name' | 'phone';
 
@@ -87,8 +134,14 @@ const modernNavItems: Array<{ key: PageKey; label: string; Icon: typeof Home }> 
 
 const modernTimerSkinOptions: Array<{ key: TimerSkin; label: string }> = [
   { key: 'pure', label: '모던' },
-  { key: 'studio', label: '아날로그' },
-  { key: 'halo', label: '오로라' },
+  { key: 'halo', label: '플레이트' },
+  { key: 'pulse', label: '펄스' },
+];
+
+const appThemeOptions: Array<{ key: AppTheme; label: string }> = [
+  { key: 'modern', label: '클린' },
+  { key: 'midnight', label: '미드나잇' },
+  { key: 'botanic', label: '보타닉' },
 ];
 
 const subjectFallbackLabels = ['국어', '수학', '영어', '탐구', '탐구', '탐구'];
@@ -153,7 +206,15 @@ const modernRewardItems = [
 
 type RewardMapTheme = 'august' | 'september' | 'october' | 'november' | 'december';
 type RewardStageNode = { x: number; y: number; label: string };
-const rewardStageTotal = 11;
+const rewardStageStepCount = 20;
+const rewardStageTotal = rewardStageStepCount;
+const rewardStageStarsPerStage = 5;
+const rewardStageStarMinutes = 4 * 60;
+const rewardStageDefaultMinutes = rewardStageStarsPerStage * rewardStageStarMinutes;
+
+const rewardStageLabel = (index: number) => {
+  return String(index + 1);
+};
 
 const rewardMapMonths: Array<{ key: string; label: string; title: string; subtitle: string; theme: RewardMapTheme }> = [
   { key: '2026-08', label: '8월', title: 'Blue Coast Run', subtitle: '오픈 시즌 해안 맵', theme: 'august' },
@@ -177,74 +238,114 @@ const rewardMapImages: Record<RewardMapTheme, string> = {
 
 const rewardStageLayouts: Record<RewardMapTheme, RewardStageNode[]> = {
   august: [
-    { x: 9, y: 67, label: 'START' },
-    { x: 16, y: 60, label: '1' },
-    { x: 26, y: 49, label: '2' },
-    { x: 36, y: 51, label: '3' },
-    { x: 46, y: 41, label: '4' },
-    { x: 54, y: 31, label: '5' },
-    { x: 66, y: 43, label: '6' },
-    { x: 77, y: 53, label: '7' },
-    { x: 86, y: 60, label: '8' },
-    { x: 76, y: 66, label: '9' },
-    { x: 63, y: 70, label: '10' },
-    { x: 49, y: 75, label: 'GOAL' },
+    { x: 28.71, y: 71.79, label: '1' },
+    { x: 23.88, y: 59.53, label: '2' },
+    { x: 31.22, y: 51.99, label: '3' },
+    { x: 24.84, y: 44.03, label: '4' },
+    { x: 29.21, y: 31.61, label: '5' },
+    { x: 38.43, y: 23.37, label: '6' },
+    { x: 45.68, y: 28.36, label: '7' },
+    { x: 49.86, y: 18.46, label: '8' },
+    { x: 55.9, y: 26.14, label: '9' },
+    { x: 48.49, y: 38.4, label: '10' },
+    { x: 55.4, y: 52.14, label: '11' },
+    { x: 53.17, y: 67.06, label: '12' },
+    { x: 59.71, y: 71.64, label: '13' },
+    { x: 63.09, y: 56.87, label: '14' },
+    { x: 70.79, y: 40.47, label: '15' },
+    { x: 74.53, y: 12.85, label: '16' },
+    { x: 82.01, y: 32.2, label: '17' },
+    { x: 83.38, y: 57.16, label: '18' },
+    { x: 74.6, y: 76.22, label: '19' },
+    { x: 70.43, y: 93.94, label: '20' },
   ],
   september: [
-    { x: 12, y: 75, label: 'START' },
-    { x: 22, y: 67, label: '1' },
-    { x: 32, y: 59, label: '2' },
-    { x: 42, y: 51, label: '3' },
-    { x: 51, y: 56, label: '4' },
-    { x: 59, y: 49, label: '5' },
-    { x: 69, y: 43, label: '6' },
-    { x: 80, y: 49, label: '7' },
-    { x: 86, y: 57, label: '8' },
-    { x: 78, y: 66, label: '9' },
-    { x: 65, y: 72, label: '10' },
-    { x: 50, y: 76, label: 'GOAL' },
+    { x: 15.54, y: 45.94, label: '1' },
+    { x: 27.33, y: 48.93, label: '2' },
+    { x: 36.21, y: 47.54, label: '3' },
+    { x: 34.53, y: 33.68, label: '4' },
+    { x: 40.14, y: 22.9, label: '5' },
+    { x: 44.32, y: 43.13, label: '6' },
+    { x: 48.71, y: 25.26, label: '7' },
+    { x: 58.31, y: 27.21, label: '8' },
+    { x: 59.42, y: 45.2, label: '9' },
+    { x: 69.86, y: 37.81, label: '10' },
+    { x: 80.94, y: 48.6, label: '11' },
+    { x: 84.32, y: 68.54, label: '12' },
+    { x: 77.48, y: 86.71, label: '13' },
+    { x: 65.04, y: 84.05, label: '14' },
+    { x: 65.11, y: 66.47, label: '15' },
+    { x: 60.58, y: 55.83, label: '16' },
+    { x: 52.52, y: 47.56, label: '17' },
+    { x: 43.96, y: 55.83, label: '18' },
+    { x: 46.83, y: 67.06, label: '19' },
+    { x: 31.01, y: 88.77, label: '20' },
   ],
   october: [
-    { x: 10, y: 76, label: 'START' },
-    { x: 21, y: 67, label: '1' },
-    { x: 32, y: 60, label: '2' },
-    { x: 43, y: 52, label: '3' },
-    { x: 37, y: 42, label: '4' },
-    { x: 50, y: 33, label: '5' },
-    { x: 61, y: 42, label: '6' },
-    { x: 72, y: 36, label: '7' },
-    { x: 83, y: 46, label: '8' },
-    { x: 76, y: 56, label: '9' },
-    { x: 63, y: 63, label: '10' },
-    { x: 48, y: 68, label: 'GOAL' },
+    { x: 10.65, y: 71.2, label: '1' },
+    { x: 16.94, y: 58.63, label: '2' },
+    { x: 24.08, y: 48.17, label: '3' },
+    { x: 33.49, y: 43.39, label: '4' },
+    { x: 42.01, y: 36.19, label: '5' },
+    { x: 43.17, y: 19.54, label: '6' },
+    { x: 49.06, y: 23.49, label: '7' },
+    { x: 55.56, y: 30.49, label: '8' },
+    { x: 62.94, y: 27.92, label: '9' },
+    { x: 68.92, y: 22.9, label: '10' },
+    { x: 64.68, y: 41.51, label: '11' },
+    { x: 73.53, y: 44.02, label: '12' },
+    { x: 84.89, y: 53.32, label: '13' },
+    { x: 84.1, y: 69.13, label: '14' },
+    { x: 73.81, y: 72.53, label: '15' },
+    { x: 67.27, y: 65.14, label: '16' },
+    { x: 55.04, y: 63.96, label: '17' },
+    { x: 48.71, y: 56.72, label: '18' },
+    { x: 40.36, y: 67.65, label: '19' },
+    { x: 37.41, y: 89.36, label: '20' },
   ],
   november: [
-    { x: 12, y: 68, label: 'START' },
-    { x: 23, y: 61, label: '1' },
-    { x: 34, y: 55, label: '2' },
-    { x: 45, y: 49, label: '3' },
-    { x: 55, y: 40, label: '4' },
-    { x: 64, y: 47, label: '5' },
-    { x: 75, y: 41, label: '6' },
-    { x: 83, y: 49, label: '7' },
-    { x: 76, y: 60, label: '8' },
-    { x: 63, y: 67, label: '9' },
-    { x: 50, y: 61, label: '10' },
-    { x: 38, y: 71, label: 'GOAL' },
+    { x: 21.94, y: 49.78, label: '1' },
+    { x: 27.48, y: 49.35, label: '2' },
+    { x: 35.4, y: 50.22, label: '3' },
+    { x: 30.94, y: 67.06, label: '4' },
+    { x: 39.05, y: 67.6, label: '5' },
+    { x: 46.12, y: 58.79, label: '6' },
+    { x: 54.1, y: 66.03, label: '7' },
+    { x: 54.04, y: 79.57, label: '8' },
+    { x: 58.82, y: 64.34, label: '9' },
+    { x: 64.17, y: 48.3, label: '10' },
+    { x: 54.53, y: 30.28, label: '11' },
+    { x: 57.55, y: 21.42, label: '12' },
+    { x: 67.55, y: 40.92, label: '13' },
+    { x: 77.41, y: 45.53, label: '14' },
+    { x: 84.31, y: 50.85, label: '15' },
+    { x: 75.76, y: 71.34, label: '16' },
+    { x: 66.98, y: 63.81, label: '17' },
+    { x: 52.23, y: 58.49, label: '18' },
+    { x: 40, y: 36.19, label: '19' },
+    { x: 29.5, y: 22.6, label: '20' },
   ],
   december: [
-    { x: 12, y: 72, label: 'START' },
-    { x: 24, y: 64, label: '1' },
-    { x: 35, y: 56, label: '2' },
-    { x: 45, y: 49, label: '3' },
-    { x: 55, y: 56, label: '4' },
-    { x: 64, y: 48, label: '5' },
-    { x: 59, y: 36, label: '6' },
-    { x: 70, y: 30, label: '7' },
-    { x: 81, y: 40, label: '8' },
-    { x: 73, y: 53, label: '9' },
-    { x: 62, y: 65, label: '10' },
-    { x: 48, y: 73, label: 'GOAL' },
+    { x: 25.54, y: 83.46, label: '1' },
+    { x: 33.08, y: 76.96, label: '2' },
+    { x: 36.75, y: 68.12, label: '3' },
+    { x: 30.13, y: 53.07, label: '4' },
+    { x: 23.45, y: 40.77, label: '5' },
+    { x: 34.82, y: 35.45, label: '6' },
+    { x: 35.15, y: 50.72, label: '7' },
+    { x: 44.03, y: 66.38, label: '8' },
+    { x: 55.61, y: 76.22, label: '9' },
+    { x: 64.1, y: 78.43, label: '10' },
+    { x: 71.37, y: 74, label: '11' },
+    { x: 70.65, y: 49.63, label: '12' },
+    { x: 63.67, y: 39.29, label: '13' },
+    { x: 73.74, y: 35.45, label: '14' },
+    { x: 79.21, y: 49.78, label: '15' },
+    { x: 81.29, y: 67.95, label: '16' },
+    { x: 61.44, y: 58.94, label: '17' },
+    { x: 44.82, y: 50.22, label: '18' },
+    { x: 47.89, y: 33.15, label: '19' },
+    { x: 43.81, y: 15.36, label: '20' },
   ],
 };
 
@@ -278,23 +379,34 @@ const cloneRewardStageNodes = (nodes: RewardStageNode[]) => nodes.map((node) => 
   label: String(node.label),
 }));
 
-const loadRewardMapLayouts = (): Record<string, RewardStageNode[]> => {
-  try {
-    const raw = localStorage.getItem(REWARD_MAP_LAYOUT_KEY);
-    if (!raw) return {};
-    const parsed = JSON.parse(raw) as Record<string, RewardStageNode[]>;
-    return Object.fromEntries(
-      Object.entries(parsed)
-        .filter(([, nodes]) => Array.isArray(nodes) && nodes.length === rewardStageTotal)
-        .map(([key, nodes]) => [key, cloneRewardStageNodes(nodes)]),
-    );
-  } catch {
-    return {};
+const normalizeRewardStageNodes = (nodes: RewardStageNode[]) => {
+  const safeNodes = cloneRewardStageNodes(nodes).filter((node) => Number.isFinite(node.x) && Number.isFinite(node.y));
+  if (safeNodes.length === rewardStageTotal) {
+    return safeNodes.map((node, index) => ({ ...node, label: rewardStageLabel(index) }));
   }
+  if (safeNodes.length < 2) return safeNodes;
+  return Array.from({ length: rewardStageTotal }, (_, index) => {
+    const sourcePosition = (index / (rewardStageTotal - 1)) * (safeNodes.length - 1);
+    const fromIndex = Math.floor(sourcePosition);
+    const toIndex = Math.min(safeNodes.length - 1, fromIndex + 1);
+    const ratio = sourcePosition - fromIndex;
+    const from = safeNodes[fromIndex];
+    const to = safeNodes[toIndex];
+    return {
+      x: clampRewardMapPercent(from.x + (to.x - from.x) * ratio),
+      y: clampRewardMapPercent(from.y + (to.y - from.y) * ratio),
+      label: rewardStageLabel(index),
+    };
+  });
 };
 
-const saveRewardMapLayouts = (layouts: Record<string, RewardStageNode[]>) => {
-  localStorage.setItem(REWARD_MAP_LAYOUT_KEY, JSON.stringify(layouts));
+const defaultRewardStageNodes = (theme: RewardMapTheme) => normalizeRewardStageNodes(rewardStageLayouts[theme]);
+
+const rewardStageStarCount = (monthMinutes: number, stageIndex: number, stageMinutes: number) => {
+  const stageStartMinutes = stageIndex * stageMinutes;
+  if (monthMinutes >= stageStartMinutes + stageMinutes) return rewardStageStarsPerStage;
+  if (monthMinutes < stageStartMinutes) return 0;
+  return Math.min(rewardStageStarsPerStage, Math.floor((monthMinutes - stageStartMinutes) / rewardStageStarMinutes));
 };
 
 const mapObject = (kind: string, x: number, y: number, scale = 1, rotate = 0) => ({
@@ -889,7 +1001,7 @@ function isLikelyBrokenText(value: string) {
 }
 
 function displayStudentName(name: string) {
-  return name && !isLikelyBrokenText(name) ? name : '김서윤';
+  return name && !isLikelyBrokenText(name) ? name : '학생';
 }
 
 function displaySubject(subject: TimerTab | Subject, subjects: Subject[] = DEFAULT_SUBJECTS) {
@@ -974,11 +1086,18 @@ function timeToSeconds(time: string) {
   return (Number.isFinite(hours) ? hours : 0) * 3600 + (Number.isFinite(minutes) ? minutes : 0) * 60;
 }
 
-function secondsSinceStartOfDay(date = new Date()) {
-  return date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+function requestPageFullscreen() {
+  const target = document.documentElement;
+  if (!document.fullscreenElement && target.requestFullscreen) {
+    void target.requestFullscreen().catch(() => undefined);
+  }
 }
 
-const analogClockMarks = ['12', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11'];
+function exitPageFullscreen() {
+  if (document.fullscreenElement && document.exitFullscreen) {
+    void document.exitFullscreen().catch(() => undefined);
+  }
+}
 
 function TimerFace({
   seconds,
@@ -986,39 +1105,46 @@ function TimerFace({
   label,
   subLabel,
   fullscreen = false,
+  minuteMode,
 }: {
   seconds: number;
   skin: TimerSkin;
   label?: string;
   subLabel?: string;
   fullscreen?: boolean;
+  minuteMode?: 'elapsed' | 'remaining';
 }) {
+  const safeSeconds = Math.max(0, Math.floor(seconds));
   const clock = formatClock(seconds);
   const [displayHours, displayMinutes, displaySeconds] = clock.split(':');
-  const minuteDegrees = ((seconds / 60) % 60) * 6;
-  const hourDegrees = ((seconds / 3600) % 12) * 30 + ((seconds % 3600) / 3600) * 30;
-  const secondDegrees = (seconds % 60) * 6;
+  const displayMinuteCount = Math.floor(safeSeconds / 60);
+  const displayMinuteSeconds = pad(safeSeconds % 60);
+  const minuteClock = `${displayMinuteCount}:${displayMinuteSeconds}`;
+  const ariaLabel = minuteMode ? `${displayMinuteCount}분 ${displayMinuteSeconds}초` : clock;
 
-  if (skin === 'studio') {
+  if (skin === 'pulse') {
     return (
-      <div className={`timer-face timer-face-classic ${fullscreen ? 'timer-face-fullscreen' : ''}`} aria-label={clock}>
-        <div className="classic-clock">
-          {analogClockMarks.map((mark, index) => {
-            const angle = index * 30;
-            return (
-              <span
-                className="classic-mark"
-                key={mark}
-                style={{ '--mark-angle': `${angle}deg`, '--mark-counter-angle': `${-angle}deg` } as React.CSSProperties}
-              >
-                {mark}
-              </span>
-            );
-          })}
-          <i className="classic-hand hour" style={{ transform: `translate(-50%, -100%) rotate(${hourDegrees}deg)` }} />
-          <i className="classic-hand minute" style={{ transform: `translate(-50%, -100%) rotate(${minuteDegrees}deg)` }} />
-          <i className="classic-hand second" style={{ transform: `translate(-50%, -100%) rotate(${secondDegrees}deg)` }} />
-          <b />
+      <div className={`timer-face timer-face-pulse ${minuteMode ? 'timer-face-minute' : ''} ${fullscreen ? 'timer-face-fullscreen' : ''}`} aria-label={ariaLabel}>
+        <div className="pulse-clock-shell">
+          {label ? <span>{label}</span> : null}
+          <div className="pulse-clock-digits">
+            {minuteMode ? (
+              <>
+                <strong>{displayMinuteCount}</strong>
+                <i>:</i>
+                <strong>{displayMinuteSeconds}</strong>
+              </>
+            ) : (
+              <>
+                <strong>{displayHours}</strong>
+                <i />
+                <strong>{displayMinutes}</strong>
+                <i />
+                <strong>{displaySeconds}</strong>
+              </>
+            )}
+          </div>
+          {subLabel ? <em>{subLabel}</em> : null}
         </div>
       </div>
     );
@@ -1027,11 +1153,12 @@ function TimerFace({
   if (skin === 'halo') {
     const progress = `${((seconds % 3600) / 3600) * 360}deg`;
     return (
-      <div className={`timer-face timer-face-aurora ${fullscreen ? 'timer-face-fullscreen' : ''}`} style={{ '--face-progress': progress } as React.CSSProperties} aria-label={clock}>
+      <div className={`timer-face timer-face-aurora ${minuteMode ? 'timer-face-minute' : ''} ${fullscreen ? 'timer-face-fullscreen' : ''}`} style={{ '--face-progress': progress } as React.CSSProperties} aria-label={ariaLabel}>
         <div className="aurora-orbit">
           <div>
             {label ? <span>{label}</span> : null}
-            <strong>{clock}</strong>
+            <strong>{minuteMode ? minuteClock : clock}</strong>
+            {minuteMode ? <i>분:초</i> : null}
             {subLabel ? <em>{subLabel}</em> : null}
           </div>
         </div>
@@ -1040,15 +1167,25 @@ function TimerFace({
   }
 
   return (
-    <div className={`timer-face timer-face-wood ${fullscreen ? 'timer-face-fullscreen' : ''}`} aria-label={clock}>
+    <div className={`timer-face timer-face-wood ${minuteMode ? 'timer-face-minute' : ''} ${fullscreen ? 'timer-face-fullscreen' : ''}`} aria-label={ariaLabel}>
       <div className="wood-clock-shell">
         {label ? <span>{label}</span> : null}
         <div className="wood-clock-digits">
-          <strong>{displayHours}</strong>
-          <i>:</i>
-          <strong>{displayMinutes}</strong>
-          <i>:</i>
-          <strong>{displaySeconds}</strong>
+          {minuteMode ? (
+            <>
+              <strong>{displayMinuteCount}</strong>
+              <i>:</i>
+              <strong>{displayMinuteSeconds}</strong>
+            </>
+          ) : (
+            <>
+              <strong>{displayHours}</strong>
+              <i>:</i>
+              <strong>{displayMinutes}</strong>
+              <i>:</i>
+              <strong>{displaySeconds}</strong>
+            </>
+          )}
         </div>
         {subLabel ? <em>{subLabel}</em> : null}
       </div>
@@ -1070,51 +1207,7 @@ const examDayPlan = [
   { id: 'inquiry-1', label: '탐구 1', start: '15:35', end: '16:05', kind: 'exam' },
   { id: 'collect-2', label: '탐구 문답지 회수', start: '16:05', end: '16:07', kind: 'break' },
   { id: 'inquiry-2', label: '탐구 2', start: '16:07', end: '16:37', kind: 'exam' },
-  { id: 'break-3', label: '쉬는시간', start: '16:37', end: '17:05', kind: 'break' },
-  { id: 'second-language', label: '제2외국어/한문', start: '17:05', end: '17:45', kind: 'exam' },
 ] as const;
-
-const examCountdownOptions = [
-  { id: 'korean', label: '국어', seconds: 80 * 60 },
-  { id: 'math', label: '수학', seconds: 100 * 60 },
-  { id: 'english', label: '영어', seconds: 70 * 60 },
-  { id: 'history', label: '한국사', seconds: 30 * 60 },
-  { id: 'inquiry', label: '탐구', seconds: 30 * 60 },
-  { id: 'second-language', label: '제2외국어/한문', seconds: 40 * 60 },
-];
-
-function getLiveExamStatus(now = new Date()) {
-  const currentSeconds = secondsSinceStartOfDay(now);
-  const phases = examDayPlan.map((phase) => ({
-    ...phase,
-    startSeconds: timeToSeconds(phase.start),
-    endSeconds: timeToSeconds(phase.end),
-  }));
-  const active = phases.find((phase) => currentSeconds >= phase.startSeconds && currentSeconds < phase.endSeconds);
-  if (active) {
-    return {
-      label: active.label,
-      subLabel: active.kind === 'exam' ? `${active.start}-${active.end}` : `${active.start}-${active.end} 쉬는시간`,
-      remainingSeconds: Math.max(0, active.endSeconds - currentSeconds),
-      kind: active.kind,
-    };
-  }
-  const next = phases.find((phase) => currentSeconds < phase.startSeconds);
-  if (next) {
-    return {
-      label: `${next.label} 시작까지`,
-      subLabel: `${next.start} 시작`,
-      remainingSeconds: Math.max(0, next.startSeconds - currentSeconds),
-      kind: 'waiting',
-    };
-  }
-  return {
-    label: '수능 일정 종료',
-    subLabel: '오늘 실시간 일정이 끝났습니다.',
-    remainingSeconds: 0,
-    kind: 'done',
-  };
-}
 
 function formatMinuteText(minutes: number) {
   const safe = Math.max(0, Math.floor(minutes));
@@ -1134,6 +1227,8 @@ function getStoredData() {
     const storedSubjects = Array.isArray(parsed.subjectNames) && parsed.subjectNames.length ? parsed.subjectNames : DEFAULT_SUBJECTS;
     const subjectNames = normalizeStoredSubjects(storedSubjects);
     const shouldMigrateSubjects = subjectNames === DEFAULT_SUBJECTS;
+    const timerSkin: TimerSkin = parsed.timerSkin === 'halo' || parsed.timerSkin === 'pulse' ? parsed.timerSkin : 'pure';
+    const appTheme: AppTheme = parsed.appTheme === 'midnight' || parsed.appTheme === 'botanic' ? parsed.appTheme : 'modern';
     const studyBlocks = Array.isArray(parsed.studyBlocks)
       ? parsed.studyBlocks
         .filter((block) => !['block-1', 'block-2', 'block-3', 'block-4'].includes(block.id))
@@ -1164,7 +1259,8 @@ function getStoredData() {
       adminMessages: Array.isArray(parsed.adminMessages) ? parsed.adminMessages : [],
       dismissedMessageIds: Array.isArray(parsed.dismissedMessageIds) ? parsed.dismissedMessageIds : [],
       hiddenTaskIds: Array.isArray(parsed.hiddenTaskIds) ? parsed.hiddenTaskIds : [],
-      timerSkin: parsed.timerSkin === 'studio' || parsed.timerSkin === 'halo' || parsed.timerSkin === 'pure' ? parsed.timerSkin : 'pure',
+      timerSkin,
+      appTheme,
     };
   } catch {
     return defaultAppData();
@@ -1208,12 +1304,11 @@ function normalizeRewardSettings(settings?: LegacyRewardSettings): RewardSetting
     const next = Number(value);
     return Number.isFinite(next) ? next : fallback;
   };
-  const stageMinutes = Math.max(30, numberOr(settings?.stageMinutes ?? settings?.minutesPerFruit, defaultRewardSettings.stageMinutes));
   const attendanceTenStars = Math.max(0, numberOr(settings?.attendanceTenStars ?? settings?.attendanceTenFruits, defaultRewardSettings.attendanceTenStars));
   const attendanceTwentyStars = Math.max(0, numberOr(settings?.attendanceTwentyStars ?? settings?.attendanceTwentyFruits, defaultRewardSettings.attendanceTwentyStars));
   const attendanceFullStars = Math.max(0, numberOr(settings?.attendanceFullStars ?? settings?.attendanceFullFruits, defaultRewardSettings.attendanceFullStars));
   return {
-    stageMinutes,
+    stageMinutes: rewardStageDefaultMinutes,
     stageRewardStars: Math.max(1, numberOr(settings?.stageRewardStars, defaultRewardSettings.stageRewardStars)),
     attendanceTenStars,
     attendanceTwentyStars,
@@ -1258,7 +1353,7 @@ function monthlyStudyMinutes(blocks: StudyBlock[], monthKey: string) {
 }
 
 function rewardStageCount(monthMinutes: number, settings: RewardSettings) {
-  return Math.min(rewardStageTotal, Math.floor(monthMinutes / Math.max(1, settings.stageMinutes)));
+  return Math.min(rewardStageStepCount, Math.floor(monthMinutes / Math.max(1, settings.stageMinutes)));
 }
 
 function applyStageRewards(data: AppData): AppData {
@@ -1353,6 +1448,29 @@ function sortStudents(students: StudentStatus[], sortKey: StudentSortKey) {
   });
 }
 
+function mergeAdminMessages(current: AdminMessage[], incoming: AdminMessage[]) {
+  const merged = new Map<string, AdminMessage>();
+  [...current, ...incoming].forEach((message) => {
+    if (!message?.id) return;
+    const existing = merged.get(message.id);
+    merged.set(message.id, {
+      ...existing,
+      ...message,
+      dismissedBy: Array.from(new Set([...(existing?.dismissedBy ?? []), ...(message.dismissedBy ?? [])])),
+    });
+  });
+  return [...merged.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 200);
+}
+
+function applyRealtimeData(data: AppData, snapshot: RealtimeSnapshot): AppData {
+  return {
+    ...data,
+    adminMessages: mergeAdminMessages(data.adminMessages, snapshot.messages),
+    rewardSettings: snapshot.rewardSettings ? normalizeRewardSettings(snapshot.rewardSettings) : data.rewardSettings,
+    rewardMapVisibility: snapshot.rewardMapVisibility ? normalizeRewardMapVisibility(snapshot.rewardMapVisibility) : data.rewardMapVisibility,
+  };
+}
+
 function commitSegmentToData(data: AppData, session: RunningSession, seconds: number, completeTask = false) {
   const durationSeconds = Math.max(0, Math.floor(seconds));
   if (durationSeconds <= 0) return data;
@@ -1396,12 +1514,15 @@ function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: stri
   const [id, setId] = useState('qtf258');
   const [medischeduleToken, setMedischeduleToken] = useState(() => localStorage.getItem('medical-study-medischedule-token') || '');
   const [mentorToken, setMentorToken] = useState(() => localStorage.getItem('medical-study-mentor-token') || '');
+  const [appAdminToken, setAppAdminToken] = useState(() => localStorage.getItem('medical-study-app-admin-token') || '');
 
   function saveIntegrationTokens() {
     const cleanMedischeduleToken = medischeduleToken.trim().replace(/^Bearer\s+/i, '');
     const cleanMentorToken = mentorToken.trim().replace(/^Bearer\s+/i, '');
+    const cleanAppAdminToken = appAdminToken.trim().replace(/^Bearer\s+/i, '');
     if (cleanMedischeduleToken) localStorage.setItem('medical-study-medischedule-token', cleanMedischeduleToken);
     if (cleanMentorToken) localStorage.setItem('medical-study-mentor-token', cleanMentorToken);
+    if (cleanAppAdminToken) localStorage.setItem('medical-study-app-admin-token', cleanAppAdminToken);
   }
 
   return (
@@ -1441,6 +1562,10 @@ function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: stri
             <label>
               medimentors token
               <input value={mentorToken} onChange={(event) => setMentorToken(event.target.value)} placeholder="token" />
+            </label>
+            <label>
+              app realtime token
+              <input value={appAdminToken} onChange={(event) => setAppAdminToken(event.target.value)} placeholder="APP_ADMIN_TOKEN" />
             </label>
           </div>
         ) : null}
@@ -1578,6 +1703,7 @@ function HomePage({
   selectedSubject,
   selectedTab,
   timerSkin,
+  appTheme,
   runningSession,
   totalElapsedSeconds,
   subjectElapsedSeconds,
@@ -1589,6 +1715,7 @@ function HomePage({
   onSubjectSelect,
   onRenameSubject,
   onTimerSkinChange,
+  onAppThemeChange,
   onTimerFullscreen,
   onWeekOpen,
 }: {
@@ -1598,6 +1725,7 @@ function HomePage({
   selectedSubject: Subject;
   selectedTab: TimerTab;
   timerSkin: TimerSkin;
+  appTheme: AppTheme;
   runningSession: RunningSession | null;
   totalElapsedSeconds: number;
   subjectElapsedSeconds: number;
@@ -1609,6 +1737,7 @@ function HomePage({
   onSubjectSelect: (subject: Subject) => void;
   onRenameSubject: (index: number, name: string) => void;
   onTimerSkinChange: (skin: TimerSkin) => void;
+  onAppThemeChange: (theme: AppTheme) => void;
   onTimerFullscreen: () => void;
   onWeekOpen: () => void;
 }) {
@@ -1870,8 +1999,8 @@ function AnalysisPage({ subjects, blocks, tasks, onEditBlock }: { subjects: Subj
         <div className="insight-metrics">
           <div><span>총 공부</span><strong>{formatMinuteText(total)}</strong></div>
           <div><span>최다 과목</span><strong>{topSubject}</strong></div>
-          <div><span>평균 세션</span><strong>{formatMinuteText(avg)}</strong></div>
-          <div><span>최장 세션</span><strong>{longest ? formatMinuteText(blockDurationSeconds(longest) / 60) : '0분'}</strong></div>
+          <div><span>평균 공부</span><strong>{formatMinuteText(avg)}</strong></div>
+          <div><span>가장 긴 공부</span><strong>{longest ? formatMinuteText(blockDurationSeconds(longest) / 60) : '0분'}</strong></div>
         </div>
         <div className="timeline-panel">
           <div className="card-head">
@@ -2122,6 +2251,7 @@ function ModernHomePage({
   selectedSubject,
   selectedTab,
   timerSkin,
+  appTheme,
   runningSession,
   totalElapsedSeconds,
   subjectElapsedSeconds,
@@ -2132,6 +2262,7 @@ function ModernHomePage({
   onSubjectSelect,
   onRenameSubject,
   onTimerSkinChange,
+  onAppThemeChange,
   onTimerFullscreen,
   onMockTimerOpen,
   onWeekOpen,
@@ -2142,6 +2273,7 @@ function ModernHomePage({
   selectedSubject: Subject;
   selectedTab: TimerTab;
   timerSkin: TimerSkin;
+  appTheme: AppTheme;
   runningSession: RunningSession | null;
   totalElapsedSeconds: number;
   subjectElapsedSeconds: number;
@@ -2152,6 +2284,7 @@ function ModernHomePage({
   onSubjectSelect: (subject: Subject) => void;
   onRenameSubject: (index: number, name: string) => void;
   onTimerSkinChange: (skin: TimerSkin) => void;
+  onAppThemeChange: (theme: AppTheme) => void;
   onTimerFullscreen: () => void;
   onMockTimerOpen: () => void;
   onWeekOpen: () => void;
@@ -2192,7 +2325,7 @@ function ModernHomePage({
       <ModernPageHeader
         eyebrow="Student Workspace"
         title={`${displayStudentName(data.studentName)}님의 오늘`}
-        description="타이머, 과제, 일정, 보상을 한 화면에서 이어서 관리합니다."
+        description=""
         right={
           <div className="modern-header-actions">
             <button className="modern-header-button" type="button" onClick={onWeekOpen}>
@@ -2201,8 +2334,15 @@ function ModernHomePage({
             </button>
             <button className="modern-header-button" type="button" onClick={onMockTimerOpen}>
               <Timer size={18} />
-              <span>모의고사 타이머</span>
+              <span>수능 카운트다운</span>
             </button>
+            <div className="modern-theme-switch" aria-label="앱 테마 선택">
+              {appThemeOptions.map((option) => (
+                <button className={appTheme === option.key ? 'active' : ''} key={option.key} type="button" onClick={() => onAppThemeChange(option.key)}>
+                  {option.label}
+                </button>
+              ))}
+            </div>
             <div className={`modern-live-chip ${runningSession && !runningSession.paused ? 'live' : ''}`}>
               <span>{sessionLabel}</span>
               <strong>{runningSession ? displaySubject(runningSession.subject, subjects) : `${weekDayLabels[todayIndex]}요일`}</strong>
@@ -2243,8 +2383,8 @@ function ModernHomePage({
 
           <div className="modern-subject-strip">
             <div className="modern-subject-strip-head">
-              <span>과목별 누적</span>
-              <strong>오늘</strong>
+              <span>과목별</span>
+              <strong>오늘의 총 공부 시간</strong>
             </div>
             {subjects.map((subject, index) => {
               const seconds = (subjectTotals[subject] ?? 0) + (activeSubject === subject ? subjectElapsedSeconds : 0);
@@ -2264,7 +2404,7 @@ function ModernHomePage({
                   ) : (
                     <button type="button" onClick={() => onSubjectSelect(subject)}>
                       <span>{displaySubject(subject, subjects)}</span>
-                      <strong>{formatClock(seconds)}</strong>
+                      <strong>{formatStudyMinutes(seconds / 60)}</strong>
                     </button>
                   )}
                   <button className="modern-subject-edit" type="button" onClick={() => openSubjectEditor(index, subject)} aria-label="과목 이름 변경">
@@ -2415,7 +2555,9 @@ function ModernAnalysisPage({
   penaltySource: string;
   onEditBlock: (block: StudyBlock) => void;
 }) {
-  const todays = todayBlocks(blocks);
+  const [reportDate, setReportDate] = useState(todayKey());
+  const [stayScope, setStayScope] = useState<'day' | 'week'>('day');
+  const todays = blocks.filter((block) => block.date === reportDate);
   const minutesBySubject = subjectMinutes(todays, subjects);
   const total = totalMinutesFromBlocks(todays);
   const topSubject = subjects.length ? subjects.reduce((best, subject) => (minutesBySubject[subject] > minutesBySubject[best] ? subject : best), subjects[0]) : '';
@@ -2441,6 +2583,61 @@ function ModernAnalysisPage({
       };
     });
   const sortedBlocks = [...todays].sort((a, b) => a.startMinute - b.startMinute);
+  const selectedWeekKeys = weekKeysForDate(reportDate);
+  const selectedStayRows = stayScope === 'week'
+    ? selectedWeekKeys.map((date) => buildDailyStayRow(date, blocks.filter((block) => block.date === date)))
+    : [buildDailyStayRow(reportDate, todays)];
+  const selectedStayRow = selectedStayRows.find((row) => row.date === reportDate) ?? selectedStayRows[0];
+  const selectedStayStudyMinutes = selectedStayRows.reduce((sum, row) => sum + row.studyMinutes, 0);
+  const selectedStayTitle = stayScope === 'week' ? `${selectedWeekKeys[0]} ~ ${selectedWeekKeys[6]}` : reportDate;
+
+  function dateFromKey(dateKey: string) {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    return new Date(year, (month || 1) - 1, day || 1);
+  }
+
+  function weekKeysForDate(dateKey: string) {
+    const date = dateFromKey(dateKey);
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - currentWeekDayIndex(date));
+    return Array.from({ length: 7 }, (_, index) => {
+      const next = new Date(monday);
+      next.setDate(monday.getDate() + index);
+      return todayKey(next);
+    });
+  }
+
+  function buildDailyStayRow(date: string, dayBlocks: StudyBlock[]) {
+    const sortedDayBlocks = [...dayBlocks].sort((a, b) => a.startMinute - b.startMinute);
+    const studyMinutes = totalMinutesFromBlocks(sortedDayBlocks);
+    if (!sortedDayBlocks.length) {
+      return {
+        date,
+        blocks: sortedDayBlocks,
+        gradient: dailyPlanGradient(sortedDayBlocks),
+        firstBlock: undefined,
+        start: '--:--',
+        end: '--:--',
+        stayMinutes: 0,
+        studyMinutes,
+        percent: 0,
+      };
+    }
+    const firstStart = Math.min(...sortedDayBlocks.map((block) => block.startMinute));
+    const lastEnd = Math.max(...sortedDayBlocks.map((block) => block.startMinute + Math.round(blockDurationSeconds(block) / 60)));
+    const stayMinutes = Math.max(studyMinutes, lastEnd - firstStart);
+    return {
+      date,
+      blocks: sortedDayBlocks,
+      gradient: dailyPlanGradient(sortedDayBlocks),
+      firstBlock: sortedDayBlocks[0],
+      start: minuteLabel(firstStart),
+      end: minuteLabel(lastEnd),
+      stayMinutes,
+      studyMinutes,
+      percent: stayMinutes ? Math.min(100, Math.round((studyMinutes / stayMinutes) * 100)) : 0,
+    };
+  }
 
   function minuteLabel(minute: number) {
     const normalized = ((minute % (24 * 60)) + (24 * 60)) % (24 * 60);
@@ -2451,6 +2648,36 @@ function ModernAnalysisPage({
     const start = block.startMinute;
     const end = start + Math.round(blockDurationSeconds(block) / 60);
     return `${minuteLabel(start)}-${minuteLabel(end)}`;
+  }
+
+  function dailyPlanGradient(dayBlocks: StudyBlock[]) {
+    const intervals = dayBlocks
+      .flatMap((block) => {
+        const start = ((block.startMinute % (24 * 60)) + (24 * 60)) % (24 * 60);
+        const duration = Math.max(1, Math.round(blockDurationSeconds(block) / 60));
+        const end = start + duration;
+        const color = subjectColor(block.subject, subjects);
+        if (end <= 24 * 60) return [{ start, end, color }];
+        return [
+          { start, end: 24 * 60, color },
+          { start: 0, end: end - (24 * 60), color },
+        ];
+      })
+      .sort((a, b) => a.start - b.start);
+    if (!intervals.length) return 'conic-gradient(from -90deg, #edf2f7 0deg 360deg)';
+    const stops: string[] = [];
+    let cursor = 0;
+    intervals.forEach((interval) => {
+      const startDeg = (Math.max(cursor, interval.start) / (24 * 60)) * 360;
+      const endDeg = (Math.max(interval.start, interval.end) / (24 * 60)) * 360;
+      if (startDeg > (cursor / (24 * 60)) * 360) {
+        stops.push(`#edf2f7 ${(cursor / (24 * 60)) * 360}deg ${startDeg}deg`);
+      }
+      stops.push(`${interval.color} ${startDeg}deg ${endDeg}deg`);
+      cursor = Math.max(cursor, interval.end);
+    });
+    if (cursor < 24 * 60) stops.push(`#edf2f7 ${(cursor / (24 * 60)) * 360}deg 360deg`);
+    return `conic-gradient(from -90deg, ${stops.join(', ')})`;
   }
 
   function blockForSlot(minute: number) {
@@ -2471,8 +2698,16 @@ function ModernAnalysisPage({
       <ModernPageHeader
         eyebrow="Insights"
         title="학습 리포트"
-        description="오늘 공부의 양, 균형, 과제 진행도를 한 번에 봅니다."
-        right={<div className="modern-progress-chip"><strong>{focusScore}</strong><span>리포트 점수</span></div>}
+        description="선택한 날짜의 공부량, 균형, 과제 진행도를 한 번에 봅니다."
+        right={(
+          <div className="modern-report-header-tools">
+            <label>
+              <span>기준일</span>
+              <input type="date" value={reportDate} onChange={(event) => setReportDate(event.target.value || todayKey())} />
+            </label>
+            <div className="modern-progress-chip"><strong>{focusScore}</strong><span>리포트 점수</span></div>
+          </div>
+        )}
       />
       <section className="modern-report-grid">
         <section className="modern-report-hero">
@@ -2483,7 +2718,7 @@ function ModernAnalysisPage({
             </div>
           </div>
           <div className="modern-report-copy">
-            <span>오늘 페이스</span>
+            <span>선택일 페이스</span>
             <h2>{total > 0 ? `${formatStudyMinutes(total)} 집중했습니다` : '아직 기록된 공부가 없습니다'}</h2>
             <p>{total > 0 && topSubject ? `${displaySubject(topSubject, subjects)} 비중이 가장 높습니다.` : '타이머를 시작하면 리포트가 자동으로 채워집니다.'}</p>
           </div>
@@ -2498,8 +2733,8 @@ function ModernAnalysisPage({
 
         <section className="modern-report-metrics">
           <div><span>총 공부</span><strong>{formatStudyMinutes(total)}</strong></div>
-          <div><span>평균 세션</span><strong>{formatStudyMinutes(avg)}</strong></div>
-          <div><span>최장 세션</span><strong>{longest ? formatStudyMinutes(blockDurationSeconds(longest) / 60) : '0분'}</strong></div>
+          <div><span>평균 공부</span><strong>{formatStudyMinutes(avg)}</strong></div>
+          <div><span>가장 긴 공부</span><strong>{longest ? formatStudyMinutes(blockDurationSeconds(longest) / 60) : '0분'}</strong></div>
           <div><span>활동 과목</span><strong>{activeSubjectCount}개</strong></div>
         </section>
 
@@ -2562,26 +2797,74 @@ function ModernAnalysisPage({
           </div>
         </section>
 
-        <section className="modern-report-card modern-report-sessions">
+        <section className="modern-report-card modern-report-sessions modern-report-stay">
           <div className="modern-panel-title">
             <Activity size={22} />
             <div>
-              <span>세션 기록</span>
-              <strong>{sortedBlocks.length ? `${sortedBlocks.length}개 세션` : '기록 없음'}</strong>
+              <span>일별 체류 시간</span>
+              <strong>{selectedStayTitle}</strong>
             </div>
           </div>
-          <div className="modern-session-list">
-            {sortedBlocks.length ? (
-              sortedBlocks.slice(0, 8).map((block) => (
-                <button key={block.id} type="button" onClick={() => onEditBlock(block)}>
-                  <i style={{ backgroundColor: subjectColor(block.subject, subjects) }} />
-                  <span>{blockRange(block)}</span>
-                  <strong>{displaySubject(block.subject, subjects)}</strong>
-                  <em>{formatStudyMinutes(blockDurationSeconds(block) / 60)}</em>
+          <div className="modern-stay-controls">
+            <div>
+              <button className={stayScope === 'day' ? 'active' : ''} type="button" onClick={() => setStayScope('day')}>일별</button>
+              <button className={stayScope === 'week' ? 'active' : ''} type="button" onClick={() => setStayScope('week')}>주별</button>
+            </div>
+            <input type="date" value={reportDate} onChange={(event) => setReportDate(event.target.value || todayKey())} />
+          </div>
+          <div className="modern-stay-plan">
+            {stayScope === 'week' ? (
+              <div className="modern-stay-week-list">
+                <div className="modern-stay-week-summary">
+                  <span>선택 주간 공부</span>
+                  <strong>{formatStudyMinutes(selectedStayStudyMinutes)}</strong>
+                </div>
+                {selectedStayRows.map((row) => (
+                  <button
+                    className={row.date === reportDate ? 'active' : ''}
+                    key={row.date}
+                    type="button"
+                    onClick={() => {
+                      setReportDate(row.date);
+                      setStayScope('day');
+                    }}
+                  >
+                    <span>{row.date}</span>
+                    <strong>체류 {formatStudyMinutes(row.stayMinutes)}</strong>
+                    <em>공부 {formatStudyMinutes(row.studyMinutes)}</em>
+                  </button>
+                ))}
+              </div>
+            ) : selectedStayRow?.blocks.length ? (
+              <>
+                <button
+                  className="modern-stay-clock"
+                  type="button"
+                  onClick={() => selectedStayRow.firstBlock && onEditBlock(selectedStayRow.firstBlock)}
+                  style={{ '--stay-plan-gradient': selectedStayRow.gradient } as React.CSSProperties}
+                >
+                  <span className="stay-hour h0">0</span>
+                  <span className="stay-hour h6">6</span>
+                  <span className="stay-hour h12">12</span>
+                  <span className="stay-hour h18">18</span>
+                  <div>
+                    <strong>{formatStudyMinutes(selectedStayRow.stayMinutes)}</strong>
+                    <span>{selectedStayRow.start}-{selectedStayRow.end}</span>
+                    <em>공부 {formatStudyMinutes(selectedStayRow.studyMinutes)}</em>
+                  </div>
                 </button>
-              ))
+                <div className="modern-stay-legend">
+                  {selectedStayRow.blocks.slice(0, 5).map((block) => (
+                    <button key={block.id} type="button" onClick={() => onEditBlock(block)}>
+                      <i style={{ backgroundColor: subjectColor(block.subject, subjects) }} />
+                      <span>{blockRange(block)}</span>
+                      <strong>{displaySubject(block.subject, subjects)}</strong>
+                    </button>
+                  ))}
+                </div>
+              </>
             ) : (
-              <div className="modern-report-empty">오늘 공부를 시작하면 세션이 여기에 쌓입니다.</div>
+              <div className="modern-report-empty">공부를 시작하면 날짜별 체류 시간이 여기에 표시됩니다.</div>
             )}
           </div>
         </section>
@@ -2628,84 +2911,21 @@ function ModernAnalysisPage({
 function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppData; onBuyReward: (item: { id: string; name: string; cost: number }) => void; onOpenAttendance: () => void }) {
   const [selectedMonthKey, setSelectedMonthKey] = useState(rewardMapMonths[0].key);
   const [stageTab, setStageTab] = useState<'map' | 'rewards'>('map');
-  const [customStageLayouts, setCustomStageLayouts] = useState<Record<string, RewardStageNode[]>>(loadRewardMapLayouts);
-  const [mapEditing, setMapEditing] = useState(false);
-  const [draftStageNodes, setDraftStageNodes] = useState<RewardStageNode[]>(() => cloneRewardStageNodes(rewardStageLayouts[rewardMapMonths[0].theme]));
-  const mapRef = useRef<HTMLDivElement | null>(null);
   const selectedMonth = rewardMapMonths.find((month) => month.key === selectedMonthKey) ?? rewardMapMonths[0];
   const rewardMapVisibility = normalizeRewardMapVisibility(data.rewardMapVisibility);
   const selectedMapOpen = rewardMapVisibility[selectedMonth.key] !== false;
-  const savedStageNodes = customStageLayouts[selectedMonth.key] ?? rewardStageLayouts[selectedMonth.theme];
-  const stageNodes = mapEditing ? draftStageNodes : savedStageNodes;
+  const stageNodes = defaultRewardStageNodes(selectedMonth.theme);
   const rewardSettings = normalizeRewardSettings(data.rewardSettings);
+  const stageStepMinutes = Math.max(1, rewardSettings.stageMinutes);
   const monthMinutes = monthlyStudyMinutes(data.studyBlocks, selectedMonth.key);
   const completedStages = rewardStageCount(monthMinutes, rewardSettings);
   const currentNodeIndex = Math.min(completedStages, stageNodes.length - 1);
   const currentNode = stageNodes[currentNodeIndex];
-  const nextTargetMinutes = Math.min(stageNodes.length - 1, completedStages + 1) * rewardSettings.stageMinutes;
-  const nextMinutes = completedStages >= stageNodes.length - 1 ? 0 : Math.max(0, nextTargetMinutes - monthMinutes);
-  const monthProgress = Math.min(100, Math.round((completedStages / (stageNodes.length - 1)) * 100));
+  const nextTargetMinutes = Math.min(rewardStageStepCount, completedStages + 1) * stageStepMinutes;
+  const nextMinutes = completedStages >= rewardStageStepCount ? 0 : Math.max(0, nextTargetMinutes - monthMinutes);
+  const monthProgress = Math.min(100, Math.round((monthMinutes / (stageStepMinutes * rewardStageStepCount)) * 100));
   const monthCount = data.attendanceDates.filter((key) => key.startsWith(selectedMonth.key)).length;
-
-  useEffect(() => {
-    const month = rewardMapMonths.find((item) => item.key === selectedMonthKey) ?? rewardMapMonths[0];
-    setMapEditing(false);
-    setDraftStageNodes(cloneRewardStageNodes(customStageLayouts[month.key] ?? rewardStageLayouts[month.theme]));
-  }, [selectedMonthKey, customStageLayouts]);
-
-  const startMapEdit = () => {
-    setDraftStageNodes(cloneRewardStageNodes(savedStageNodes));
-    setMapEditing(true);
-  };
-
-  const cancelMapEdit = () => {
-    setDraftStageNodes(cloneRewardStageNodes(savedStageNodes));
-    setMapEditing(false);
-  };
-
-  const resetMapEdit = () => {
-    setDraftStageNodes(cloneRewardStageNodes(rewardStageLayouts[selectedMonth.theme]));
-  };
-
-  const saveMapEdit = () => {
-    const nextLayouts = {
-      ...customStageLayouts,
-      [selectedMonth.key]: cloneRewardStageNodes(draftStageNodes),
-    };
-    setCustomStageLayouts(nextLayouts);
-    saveRewardMapLayouts(nextLayouts);
-    setMapEditing(false);
-  };
-
-  const updateDraftNodeFromPointer = (index: number, clientX: number, clientY: number) => {
-    const map = mapRef.current;
-    if (!map) return;
-    const rect = map.getBoundingClientRect();
-    if (!rect.width || !rect.height) return;
-    const nextNode = {
-      x: clampRewardMapPercent(((clientX - rect.left) / rect.width) * 100),
-      y: clampRewardMapPercent(((clientY - rect.top) / rect.height) * 100),
-    };
-    setDraftStageNodes((nodes) => nodes.map((node, nodeIndex) => (
-      nodeIndex === index ? { ...node, ...nextNode } : node
-    )));
-  };
-
-  const beginMapNodeDrag = (index: number, event: React.PointerEvent<HTMLDivElement>) => {
-    if (!mapEditing) return;
-    event.preventDefault();
-    event.stopPropagation();
-    updateDraftNodeFromPointer(index, event.clientX, event.clientY);
-    const handleMove = (moveEvent: PointerEvent) => {
-      updateDraftNodeFromPointer(index, moveEvent.clientX, moveEvent.clientY);
-    };
-    const handleUp = () => {
-      window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('pointerup', handleUp);
-    };
-    window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp);
-  };
+  const completedPathNodes = stageNodes.slice(0, Math.min(completedStages + 1, stageNodes.length));
 
   return (
     <div className="page modern-page modern-garden-page">
@@ -2729,7 +2949,7 @@ function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppDa
       </div>
       {stageTab === 'map' ? (
         <section className="modern-stage-layout map-only">
-          <div ref={mapRef} className={`modern-stage-map reward-map-zero theme-${selectedMonth.theme} ${mapEditing ? 'editing-map-layout' : ''} ${selectedMapOpen ? '' : 'map-closed'}`}>
+          <div className={`modern-stage-map reward-map-zero theme-${selectedMonth.theme} ${selectedMapOpen ? '' : 'map-closed'}`}>
             <img
               className="reward-map-art"
               src={rewardMapImages[selectedMonth.theme]}
@@ -2742,20 +2962,9 @@ function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppDa
             </div>
             <div className="stage-map-hud">
               <div><span>{selectedMonth.label} 진행률</span><strong>{monthProgress}%</strong></div>
-              <div><span>현재</span><strong>{currentNodeIndex}/{stageNodes.length - 1}</strong></div>
+              <div><span>현재</span><strong>{currentNodeIndex + 1}/{rewardStageStepCount}</strong></div>
               <div><span>다음 이동</span><strong>{nextMinutes ? formatStudyMinutes(nextMinutes) : '완주'}</strong></div>
             </div>
-            {selectedMapOpen ? <div className="stage-map-edit-toolbar">
-              {mapEditing ? (
-                <>
-                  <button type="button" onClick={resetMapEdit}>기본값</button>
-                  <button type="button" onClick={cancelMapEdit}>취소</button>
-                  <button className="primary" type="button" onClick={saveMapEdit}>저장</button>
-                </>
-              ) : (
-                <button className="primary" type="button" onClick={startMapEdit}>길 위치 편집</button>
-              )}
-            </div> : null}
             <svg className="modern-map-path" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               <path
                 className="path-shadow"
@@ -2767,27 +2976,27 @@ function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppDa
               />
               <path
                 className="path-done"
-                d={buildRewardMapPath(stageNodes.slice(0, currentNodeIndex + 1))}
+                d={buildRewardMapPath(completedPathNodes)}
               />
             </svg>
             {stageNodes.map((node, index) => {
-              const reached = index <= currentNodeIndex;
-              const current = index === currentNodeIndex;
-              const rewardId = `${selectedMonth.key}-${index}`;
-              const claimed = data.claimedStageRewards.includes(rewardId);
-              const lastStage = index === stageNodes.length - 1;
-              const stageCaption = index === 0 ? 'START' : current ? formatStudyMinutes(index * rewardSettings.stageMinutes) : reached && !lastStage ? '완료' : '';
+              const stageStars = rewardStageStarCount(monthMinutes, index, stageStepMinutes);
+              const reached = stageStars === rewardStageStarsPerStage;
+              const current = index === currentNodeIndex && completedStages < rewardStageStepCount;
               return (
                 <div
-                  className={`stage-node ${reached ? 'reached' : ''} ${current ? 'current' : ''} ${mapEditing ? 'editable' : ''}`}
+                  className={`stage-node ${reached ? 'reached' : ''} ${current ? 'current' : ''}`}
                   key={`${node.label}-${index}`}
-                  onPointerDown={(event) => beginMapNodeDrag(index, event)}
                   style={{ left: `${node.x}%`, top: `${node.y}%` }}
                 >
                 <button type="button" aria-label={`${node.label} 스테이지`}>
-                  {index === 0 ? <Flag size={18} /> : reached ? <Star size={18} /> : node.label}
+                  {node.label}
                 </button>
-                  {stageCaption ? <span>{claimed && !current && !lastStage ? `별 ${rewardSettings.stageRewardStars}개` : stageCaption}</span> : null}
+                  <div className="stage-star-row" aria-hidden="true">
+                    {Array.from({ length: rewardStageStarsPerStage }, (_, starIndex) => (
+                      <Star className={starIndex < stageStars ? 'filled' : ''} key={starIndex} size={11} />
+                    ))}
+                  </div>
               </div>
               );
             })}
@@ -2814,9 +3023,9 @@ function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppDa
                 <em>{formatStudyMinutes(monthMinutes)} 누적</em>
               </div>
               <div className="stage-summary-grid">
-                <div><span>현재 스테이지</span><strong>{currentNodeIndex}/{stageNodes.length - 1}</strong></div>
+                <div><span>현재 스테이지</span><strong>{currentNodeIndex + 1}/{rewardStageStepCount}</strong></div>
                 <div><span>다음 이동</span><strong>{nextMinutes ? formatStudyMinutes(nextMinutes) : '완주'}</strong></div>
-                <div><span>스테이지 기준</span><strong>{formatStudyMinutes(rewardSettings.stageMinutes)}</strong></div>
+                <div><span>스테이지 기준</span><strong>{formatStudyMinutes(stageStepMinutes)}</strong></div>
                 <div><span>도착 보상</span><strong>별 {rewardSettings.stageRewardStars}개</strong></div>
               </div>
               <button className="stage-attendance-button" type="button" onClick={onOpenAttendance}>
@@ -2885,7 +3094,6 @@ function ModernCenterPage({ students, subjects }: { students: StudentStatus[]; s
         eyebrow="Live Center"
         title="센터 학습 현황"
         description="같은 센터 학생들의 오늘 집중 상태를 한눈에 봅니다."
-        right={<div className="modern-progress-chip"><strong>{students.length}</strong><span>명</span></div>}
       />
       <section className="modern-center-grid">
         <div className="modern-center-stats">
@@ -2977,6 +3185,7 @@ function ModernTimerFullscreenModal({
   onPause,
   onStop,
   paused,
+  canControl,
 }: {
   elapsedSeconds: number;
   subject: Subject;
@@ -2985,44 +3194,63 @@ function ModernTimerFullscreenModal({
   onPause: () => void;
   onStop: () => void;
   paused: boolean;
+  canControl: boolean;
 }) {
+  const stateText = canControl ? (paused ? '일시정지' : '진행 중') : '대기 중';
   return (
     <div className="modern-modal-layer">
       <section className={`modern-fullscreen-timer timer-${timerSkin}`}>
         <button className="modern-modal-close" onClick={onClose} type="button" aria-label="닫기"><X size={28} /></button>
-        <span>{paused ? '일시정지' : '공부 중'} · {displaySubject(subject)}</span>
-        <TimerFace seconds={elapsedSeconds} skin={timerSkin} label={displaySubject(subject)} subLabel={paused ? '일시정지' : '진행 중'} fullscreen />
+        <span>{stateText} · {displaySubject(subject)}</span>
+        <TimerFace seconds={elapsedSeconds} skin={timerSkin} label={displaySubject(subject)} subLabel={stateText} fullscreen />
         <div className="modern-fullscreen-actions">
-          <button onClick={onPause} type="button"><Pause size={30} />{paused ? '다시 시작' : '일시정지'}</button>
-          <button onClick={onStop} type="button"><Square size={29} />종료</button>
+          <button onClick={onPause} type="button" disabled={!canControl}><Pause size={30} />{paused ? '다시 시작' : '일시정지'}</button>
+          <button onClick={onStop} type="button" disabled={!canControl}><Square size={29} />종료</button>
         </div>
       </section>
     </div>
   );
 }
 
-function ModernMockExamTimerModal({ timerSkin, onClose }: { timerSkin: TimerSkin; onClose: () => void }) {
-  const [tab, setTab] = useState<'live' | 'countdown'>('live');
-  const [nowMs, setNowMs] = useState(Date.now());
+function ModernMockExamTimerModal({
+  timerSkin,
+  onClose,
+  onFullscreenChange,
+}: {
+  timerSkin: TimerSkin;
+  onClose: () => void;
+  onFullscreenChange: (fullscreen: boolean) => void;
+}) {
   const [mockFullscreen, setMockFullscreen] = useState(false);
-  const [selectedCountdownId, setSelectedCountdownId] = useState(examCountdownOptions[2].id);
-  const selectedCountdown = examCountdownOptions.find((option) => option.id === selectedCountdownId) ?? examCountdownOptions[2];
-  const [remainingSeconds, setRemainingSeconds] = useState(selectedCountdown.seconds);
   const [countdownRunning, setCountdownRunning] = useState(false);
   const [countdownPaused, setCountdownPaused] = useState(false);
-  const liveStatus = getLiveExamStatus(new Date(nowMs));
+  const examOptions = useMemo(() => (
+    examDayPlan
+      .filter((phase) => phase.kind === 'exam')
+      .map((phase, index) => ({
+        ...phase,
+        index,
+        durationSeconds: Math.max(0, timeToSeconds(phase.end) - timeToSeconds(phase.start)),
+      }))
+  ), []);
+  const [selectedExamId, setSelectedExamId] = useState(() => examOptions[0]?.id ?? '');
+  const selectedExam = examOptions.find((phase) => phase.id === selectedExamId) ?? examOptions[0];
+  const selectedExamSeconds = selectedExam?.durationSeconds ?? 0;
+  const [remainingSeconds, setRemainingSeconds] = useState(selectedExamSeconds);
+  const selectedExamColor = subjectColor(DEFAULT_SUBJECTS[(selectedExam?.index ?? 0) % DEFAULT_SUBJECTS.length]);
 
   useEffect(() => {
-    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
+    setRemainingSeconds(selectedExamSeconds);
+    setCountdownRunning(false);
+    setCountdownPaused(false);
+  }, [selectedExamId, selectedExamSeconds]);
 
   useEffect(() => {
-    if (!countdownRunning || countdownPaused || tab !== 'countdown') return;
+    if (!countdownRunning || countdownPaused) return;
     const id = window.setInterval(() => {
       setRemainingSeconds((prev) => {
         const next = Math.max(0, prev - 1);
-        if (next === 0) {
+        if (next <= 0) {
           setCountdownRunning(false);
           setCountdownPaused(false);
         }
@@ -3030,18 +3258,10 @@ function ModernMockExamTimerModal({ timerSkin, onClose }: { timerSkin: TimerSkin
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [countdownPaused, countdownRunning, tab]);
-
-  function selectCountdown(id: string) {
-    const next = examCountdownOptions.find((option) => option.id === id) ?? examCountdownOptions[0];
-    setSelectedCountdownId(next.id);
-    setRemainingSeconds(next.seconds);
-    setCountdownRunning(false);
-    setCountdownPaused(false);
-  }
+  }, [countdownPaused, countdownRunning]);
 
   function startCountdown() {
-    if (remainingSeconds <= 0) setRemainingSeconds(selectedCountdown.seconds);
+    if (remainingSeconds <= 0) setRemainingSeconds(selectedExamSeconds);
     setCountdownRunning(true);
     setCountdownPaused(false);
   }
@@ -3049,67 +3269,72 @@ function ModernMockExamTimerModal({ timerSkin, onClose }: { timerSkin: TimerSkin
   function stopCountdown() {
     setCountdownRunning(false);
     setCountdownPaused(false);
-    setRemainingSeconds(selectedCountdown.seconds);
+    setRemainingSeconds(selectedExamSeconds);
+  }
+
+  function enterMockFullscreen() {
+    setMockFullscreen(true);
+    onFullscreenChange(true);
+  }
+
+  function leaveMockFullscreen() {
+    setMockFullscreen(false);
+    onFullscreenChange(false);
   }
 
   return (
     <div className="modern-modal-layer">
       <section className={`modern-modal-panel modern-mock-modal ${mockFullscreen ? 'mock-fullscreen' : ''}`}>
-        <div className="modern-modal-head">
-          <div><h2>모의고사 타이머</h2><span>실시간 수능 일정과 과목별 제한시간을 같은 시계 디자인으로 표시합니다.</span></div>
-          <div className="modern-modal-head-actions">
-            <button onClick={() => setMockFullscreen((prev) => !prev)} type="button" aria-label="전체화면"><Expand size={24} /></button>
-            <button onClick={onClose} type="button" aria-label="닫기"><X size={26} /></button>
-          </div>
-        </div>
-        <div className="modern-mock-tabs">
-          <button className={tab === 'live' ? 'active' : ''} type="button" onClick={() => setTab('live')}>실시간 수능 타이머</button>
-          <button className={tab === 'countdown' ? 'active' : ''} type="button" onClick={() => setTab('countdown')}>과목별 카운트다운</button>
-        </div>
-        {tab === 'live' ? (
-          <div className={`modern-mock-stage timer-${timerSkin}`}>
-            <div className={`modern-mock-state ${liveStatus.kind}`}>
-              <span>{liveStatus.kind === 'exam' ? '시험 진행' : liveStatus.kind === 'break' ? '쉬는시간' : '대기'}</span>
-              <strong>{liveStatus.label}</strong>
-            </div>
-            <TimerFace seconds={liveStatus.remainingSeconds} skin={timerSkin} label={liveStatus.label} subLabel={liveStatus.subLabel} />
-            <div className="modern-mock-actions single">
-              <button className="danger" onClick={onClose} type="button"><Square size={22} />종료</button>
+        {!mockFullscreen ? (
+          <div className="modern-modal-head">
+            <div><h2>수능 카운트다운</h2><span>과목을 선택하면 해당 시험 시간만 카운트다운합니다.</span></div>
+            <div className="modern-modal-head-actions">
+              <button onClick={enterMockFullscreen} type="button" aria-label="전체화면"><Expand size={24} /></button>
+              <button onClick={onClose} type="button" aria-label="닫기"><X size={26} /></button>
             </div>
           </div>
         ) : (
-          <div className={`modern-mock-stage timer-${timerSkin}`}>
-            <div className="modern-countdown-subjects">
-              {examCountdownOptions.map((option, index) => (
-                <button
-                  key={option.id}
-                  className={selectedCountdownId === option.id ? 'active' : ''}
-                  type="button"
-                  onClick={() => selectCountdown(option.id)}
-                  style={{ '--subject-color': subjectColor(DEFAULT_SUBJECTS[index] ?? DEFAULT_SUBJECTS[0]) } as React.CSSProperties}
-                >
-                  <span>{option.label}</span>
-                  <strong>{Math.round(option.seconds / 60)}분</strong>
-                </button>
-              ))}
-            </div>
-            <TimerFace
-              seconds={remainingSeconds}
-              skin={timerSkin}
-              label={selectedCountdown.label}
-              subLabel={countdownRunning && !countdownPaused ? '카운트다운 진행 중' : countdownPaused ? '일시정지' : '대기 중'}
-            />
-            <div className="modern-mock-actions">
-              <button className="primary" onClick={startCountdown} type="button" disabled={countdownRunning && !countdownPaused}>
-                <Play size={22} />{countdownPaused ? '다시 시작' : '시작'}
-              </button>
-              <button onClick={() => setCountdownPaused((prev) => !prev)} type="button" disabled={!countdownRunning}>
-                <Pause size={22} />{countdownPaused ? '해제' : '일시정지'}
-              </button>
-              <button className="danger" onClick={stopCountdown} type="button"><Square size={21} />종료</button>
-            </div>
-          </div>
+          <button className="modern-modal-close" onClick={leaveMockFullscreen} type="button" aria-label="전체화면 닫기"><X size={30} /></button>
         )}
+        {!mockFullscreen ? (
+          <div className="modern-countdown-subjects">
+            {examOptions.map((phase) => (
+              <button
+                key={phase.id}
+                className={phase.id === selectedExam?.id ? 'active' : ''}
+                type="button"
+                onClick={() => setSelectedExamId(phase.id)}
+                style={{ '--subject-color': subjectColor(DEFAULT_SUBJECTS[phase.index % DEFAULT_SUBJECTS.length]) } as React.CSSProperties}
+              >
+                <span>{phase.label}</span>
+                <strong>{phase.start}-{phase.end}</strong>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        <div className={`modern-mock-stage timer-${timerSkin} ${mockFullscreen ? 'timer-only' : ''}`} style={{ '--subject-color': selectedExamColor } as React.CSSProperties}>
+          <div className="modern-mock-state exam">
+            <span>{countdownRunning && !countdownPaused ? '카운트다운 진행' : countdownPaused ? '일시정지' : '선택 과목'}</span>
+            <strong>{selectedExam?.label ?? '과목 선택'}</strong>
+            <em>{selectedExam ? `${selectedExam.start}-${selectedExam.end}` : ''}</em>
+          </div>
+          <TimerFace
+            seconds={remainingSeconds}
+            skin={timerSkin}
+            label={selectedExam?.label}
+            subLabel={selectedExam ? `${selectedExam.start}-${selectedExam.end} · ${Math.ceil(selectedExamSeconds / 60)}분 시험` : undefined}
+            minuteMode="remaining"
+          />
+          <div className="modern-mock-actions">
+            <button className="primary" onClick={startCountdown} type="button" disabled={!selectedExam || (countdownRunning && !countdownPaused)}>
+              <Play size={22} />{countdownPaused ? '다시 시작' : remainingSeconds < selectedExamSeconds && remainingSeconds > 0 ? '이어가기' : '시작'}
+            </button>
+            <button onClick={() => setCountdownPaused((prev) => !prev)} type="button" disabled={!countdownRunning}>
+              <Pause size={22} />{countdownPaused ? '해제' : '일시정지'}
+            </button>
+            <button className="danger" onClick={stopCountdown} type="button"><Square size={21} />종료</button>
+          </div>
+        </div>
       </section>
     </div>
   );
@@ -3139,7 +3364,7 @@ function ModernAttendanceModal({
     <div className="modern-modal-layer">
       <section className="modern-modal-panel modern-attendance-modal">
         <div className="modern-modal-head">
-          <div><h2>출석 체크</h2><span>이번 달 {count}/{full}일 · 공부 시작 시 자동 기록됩니다.</span></div>
+          <div><h2>출석 체크</h2><span>이번 달 {count}/{full}일 · 공부 시작 시 자동 기록합니다.</span></div>
           <button onClick={onClose} type="button" aria-label="닫기"><X size={26} /></button>
         </div>
         <div className="modern-calendar-grid">
@@ -3178,8 +3403,8 @@ function ModernAttendanceModal({
           </div>
         </div>
         <div className="modern-modal-actions">
-          <button type="button" onClick={onHideToday}>오늘 다시 보지 않기</button>
-          <button type="button" onClick={onClose}>확인</button>
+          <button type="button" onClick={onHideToday}>오늘은 숨기기</button>
+          <button className="primary" type="button" onClick={onClose}>확인</button>
         </div>
       </section>
     </div>
@@ -3280,7 +3505,7 @@ function AdminPage({
   onRewardMapVisibilityChange: (visibility: Record<string, boolean>) => void;
   onFruitChange: (delta: number) => void;
 }) {
-  const [tab, setTab] = useState<'overview' | 'students' | 'learning' | 'rewards' | 'settings' | 'messages'>('overview');
+  const [tab, setTab] = useState<'overview' | 'files' | 'students' | 'learning' | 'rewards' | 'settings' | 'messages'>('overview');
   const [selectedStudentId, setSelectedStudentId] = useState(students[0]?.id ?? data.studentId);
   const [studentSort, setStudentSort] = useState<StudentSortKey>('name');
   const [messageBody, setMessageBody] = useState('');
@@ -3289,6 +3514,7 @@ function AdminPage({
   const [selectedTaskSource, setSelectedTaskSource] = useState('medimentors.kr');
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleItem[]>(schedule);
   const [selectedScheduleSource, setSelectedScheduleSource] = useState('medischedule.kr');
+  const [linkedFileNames, setLinkedFileNames] = useState<string[]>([]);
   const rewardSettings = normalizeRewardSettings(data.rewardSettings);
   const rewardMapVisibility = normalizeRewardMapVisibility(data.rewardMapVisibility);
   const openRewardMapCount = rewardMapMonths.filter((month) => rewardMapVisibility[month.key] !== false).length;
@@ -3376,12 +3602,18 @@ function AdminPage({
     setMessageBody('');
   }
 
+  function rememberLinkedFiles(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    setLinkedFileNames(files.map((file) => `${file.name} (${Math.max(1, Math.round(file.size / 1024)).toLocaleString('ko-KR')}KB)`));
+  }
+
   return (
     <div className="page admin-page">
       <PageTitle label="Admin Console" title="학생 앱 운영 대시보드" right={<div className="session-state live">관리자</div>} />
       <nav className="admin-tabs">
         {[
           ['overview', '현황'],
+          ['files', '파일 연동'],
           ['students', '학생'],
           ['learning', '학습'],
           ['rewards', '보상·출석'],
@@ -3433,6 +3665,38 @@ function AdminPage({
               </div>
             </div>
           </>
+        ) : null}
+        {tab === 'files' ? (
+          <div className="admin-two-col admin-file-grid">
+            <div className="admin-panel admin-file-panel">
+              <div className="admin-panel-head"><h2>파일 연동</h2><span>CSV · Excel · JSON 준비</span></div>
+              <label className="admin-file-drop">
+                <input type="file" accept=".csv,.xlsx,.xls,.json" multiple onChange={rememberLinkedFiles} />
+                <ClipboardList size={30} />
+                <strong>파일 선택</strong>
+                <span>학생 명단, 일정, 과제 파일을 연결할 자리입니다.</span>
+              </label>
+              <div className="admin-compact-list">
+                {linkedFileNames.length ? linkedFileNames.map((fileName) => (
+                  <div key={fileName}><span>선택됨</span><strong>{fileName}</strong></div>
+                )) : <div><span>선택됨</span><strong>아직 선택된 파일 없음</strong></div>}
+              </div>
+            </div>
+            <div className="admin-panel admin-file-status">
+              <div className="admin-panel-head"><h2>현재 연동 상태</h2><span>앱 출시 전 확인</span></div>
+              <div className="admin-sync-list">
+                <div><span>학생 명단</span><strong>{students.length ? `${students.length}명 로드` : '대체 데이터'}</strong></div>
+                <div><span>일정</span><strong>{selectedScheduleSource}</strong></div>
+                <div><span>과제</span><strong>{selectedTaskSource}</strong></div>
+                <div><span>보상맵</span><strong>기본 좌표 고정</strong></div>
+              </div>
+              <div className="admin-compact-list">
+                <div><span>medischedule</span><strong>/medischedule-api 프록시</strong></div>
+                <div><span>medimentors</span><strong>/mentoring-api 프록시</strong></div>
+                <div><span>medipenalty</span><strong>/penalty-api 프록시</strong></div>
+              </div>
+            </div>
+          </div>
         ) : null}
         {tab === 'students' ? (
           <div className="admin-two-col">
@@ -3577,7 +3841,7 @@ function AdminPage({
             <div className="admin-panel admin-reward-settings">
               <div className="admin-panel-head"><h2>스테이지·별 규칙</h2><span>전체 학생 적용</span></div>
               <div className="admin-setting-grid">
-                <label>스테이지 이동 기준(분)<input type="number" min={30} step={10} value={rewardSettings.stageMinutes} onChange={(event) => updateRewardSetting('stageMinutes', Number(event.target.value))} /></label>
+                <label>스테이지 이동 기준(분)<input type="number" min={rewardStageDefaultMinutes} step={rewardStageDefaultMinutes} value={rewardSettings.stageMinutes} readOnly disabled /></label>
                 <label>스테이지 도착 별<input type="number" min={1} value={rewardSettings.stageRewardStars} onChange={(event) => updateRewardSetting('stageRewardStars', Number(event.target.value))} /></label>
                 <label>10일 출석 별<input type="number" min={0} value={rewardSettings.attendanceTenStars} onChange={(event) => updateRewardSetting('attendanceTenStars', Number(event.target.value))} /></label>
                 <label>20일 출석 별<input type="number" min={0} value={rewardSettings.attendanceTwentyStars} onChange={(event) => updateRewardSetting('attendanceTwentyStars', Number(event.target.value))} /></label>
@@ -3871,6 +4135,7 @@ function BlockEditor({ block, subjects, onSave, onClose }: { block: StudyBlock; 
 }
 
 export default function App() {
+  const desktopScale = useDesktopFrameScale();
   const [role, setRole] = useState<Role | null>(getInitialRole);
   const [page, setPage] = useState<PageKey>('home');
   const [data, setData] = useState<AppData>(getStoredData);
@@ -3885,25 +4150,42 @@ export default function App() {
   const [weekOpen, setWeekOpen] = useState(false);
   const [timerOpen, setTimerOpen] = useState(false);
   const [mockTimerOpen, setMockTimerOpen] = useState(false);
+  const [mockPageFullscreen, setMockPageFullscreen] = useState(false);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
   const [animatedAttendanceDate, setAnimatedAttendanceDate] = useState<string | null>(null);
   const [taskEditor, setTaskEditor] = useState<{ task: Task | null; subject: Subject } | null>(null);
   const [blockEditor, setBlockEditor] = useState<StudyBlock | null>(null);
   const [medischeduleStudents, setMedischeduleStudents] = useState<StudentStatus[]>([]);
+  const [liveStudents, setLiveStudents] = useState<LiveStudentStatus[]>([]);
   const [penaltySummaries, setPenaltySummaries] = useState<PenaltySummary[]>([]);
   const [penaltySource, setPenaltySource] = useState('medipenalty 연결 전');
   const totalElapsedSeconds = sessionSeconds(runningSession, nowMs);
   const subjectElapsedSeconds = subjectSessionSeconds(runningSession, nowMs);
+  const fullscreenSubject = timerTab === 'main' ? selectedSubject : timerTab;
+  const fullscreenSubjectTotals = subjectSeconds(todayBlocks(data.studyBlocks), subjects);
+  const fullscreenElapsedSeconds =
+    (fullscreenSubjectTotals[fullscreenSubject] ?? 0)
+    + (runningSession?.subject === fullscreenSubject ? subjectElapsedSeconds : 0);
   const actualTodayMinutes = Math.floor((totalSecondsFromBlocks(todayBlocks(data.studyBlocks)) + (runningSession ? subjectElapsedSeconds : 0)) / 60);
   const studentMessages = useMemo(
-    () => data.adminMessages.filter((message) => message.recipientId === data.studentId).sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
+    () => data.adminMessages.filter((message) => message.recipientId === data.studentId || message.recipientId === 'all').sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [data.adminMessages, data.studentId],
   );
-  const unreadMessage = role === 'user' ? studentMessages.find((message) => !data.dismissedMessageIds.includes(message.id)) : undefined;
+  const unreadMessage = role === 'user'
+    ? studentMessages.find((message) => !data.dismissedMessageIds.includes(message.id) && !(message.dismissedBy ?? []).includes(data.studentId))
+    : undefined;
 
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) setMockPageFullscreen(false);
+    };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
   useEffect(() => {
@@ -3917,6 +4199,28 @@ export default function App() {
   useEffect(() => {
     if (role) localStorage.setItem(ROLE_KEY, role);
   }, [role]);
+
+  useEffect(() => {
+    if (!role) return;
+    let cancelled = false;
+    const applySnapshot = (snapshot: RealtimeSnapshot) => {
+      if (cancelled) return;
+      setLiveStudents(snapshot.students);
+      setData((prev) => applyRealtimeData(prev, snapshot));
+    };
+
+    void loadRealtimeSnapshot(role, data.studentId).then(applySnapshot);
+    const unsubscribe = subscribeRealtimeSnapshot(role, data.studentId, applySnapshot);
+    const id = window.setInterval(() => {
+      void loadRealtimeSnapshot(role, data.studentId).then(applySnapshot);
+    }, 15000);
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+      window.clearInterval(id);
+    };
+  }, [role, data.studentId]);
 
   useEffect(() => {
     if (!role) return;
@@ -3997,6 +4301,23 @@ export default function App() {
     };
   }, [role]);
 
+  useEffect(() => {
+    if (role !== 'user') return;
+    const publish = () => {
+      void publishStudentStatus({
+        id: data.studentId,
+        name: data.studentName,
+        status: runningSession ? (runningSession.paused ? 'break' : 'studying') : 'offline',
+        todayMinutes: actualTodayMinutes,
+        subject: runningSession?.subject ?? selectedSubject,
+        running: Boolean(runningSession),
+      });
+    };
+    publish();
+    const id = window.setInterval(publish, 10000);
+    return () => window.clearInterval(id);
+  }, [actualTodayMinutes, data.studentId, data.studentName, role, runningSession, selectedSubject]);
+
   function markAttendance() {
     const today = todayKey();
     const alreadyStamped = data.attendanceDates.includes(today);
@@ -4039,6 +4360,34 @@ export default function App() {
     setRole(null);
     setRunningSession(null);
     setPage('home');
+    exitPageFullscreen();
+  }
+
+  function openTimerFullscreen() {
+    requestPageFullscreen();
+    setTimerOpen(true);
+  }
+
+  function closeTimerFullscreen() {
+    setTimerOpen(false);
+    exitPageFullscreen();
+  }
+
+  function openMockTimer() {
+    setMockTimerOpen(true);
+    setMockPageFullscreen(false);
+  }
+
+  function closeMockTimer() {
+    setMockTimerOpen(false);
+    setMockPageFullscreen(false);
+    exitPageFullscreen();
+  }
+
+  function handleMockFullscreenChange(fullscreen: boolean) {
+    setMockPageFullscreen(fullscreen);
+    if (fullscreen) requestPageFullscreen();
+    else exitPageFullscreen();
   }
 
   function startSession(subject = selectedSubject, taskId?: string) {
@@ -4166,6 +4515,10 @@ export default function App() {
     setData((prev) => ({ ...prev, timerSkin }));
   }
 
+  function setAppTheme(appTheme: AppTheme) {
+    setData((prev) => ({ ...prev, appTheme }));
+  }
+
   function saveTask(task: Task) {
     setData((prev) => {
       const exists = prev.tasks.some((item) => item.id === task.id);
@@ -4225,7 +4578,14 @@ export default function App() {
       body,
       createdAt: new Date().toISOString(),
     };
-    setData((prev) => ({ ...prev, adminMessages: [message, ...prev.adminMessages].slice(0, 30) }));
+    setData((prev) => ({ ...prev, adminMessages: mergeAdminMessages(prev.adminMessages, [message]) }));
+    void sendRealtimeAdminMessage(student, body).then((savedMessage) => {
+      if (!savedMessage) return;
+      setData((prev) => ({
+        ...prev,
+        adminMessages: mergeAdminMessages(prev.adminMessages.filter((item) => item.id !== message.id), [savedMessage]),
+      }));
+    });
   }
 
   function saveAdminTask(task: Task) {
@@ -4236,11 +4596,15 @@ export default function App() {
   }
 
   function saveRewardSettings(rewardSettings: RewardSettings) {
-    setData((prev) => ({ ...prev, rewardSettings: normalizeRewardSettings(rewardSettings) }));
+    const normalized = normalizeRewardSettings(rewardSettings);
+    setData((prev) => ({ ...prev, rewardSettings: normalized }));
+    void saveRealtimeSettings({ rewardSettings: normalized });
   }
 
   function saveRewardMapVisibility(rewardMapVisibility: Record<string, boolean>) {
-    setData((prev) => ({ ...prev, rewardMapVisibility: normalizeRewardMapVisibility(rewardMapVisibility) }));
+    const normalized = normalizeRewardMapVisibility(rewardMapVisibility);
+    setData((prev) => ({ ...prev, rewardMapVisibility: normalized }));
+    void saveRealtimeSettings({ rewardMapVisibility: normalized });
   }
 
   function changeFruits(delta: number) {
@@ -4253,36 +4617,44 @@ export default function App() {
         ? prev
         : { ...prev, dismissedMessageIds: [...prev.dismissedMessageIds, messageId] }
     ));
+    void dismissRealtimeAdminMessage(messageId, data.studentId);
   }
 
   const students = useMemo(
     () => {
-      const roster = medischeduleStudents.length ? medischeduleStudents : demoStudents;
-      return roster.map((student, index) => {
+      const liveById = new Map(liveStudents.map((student) => [student.id, student]));
+      const roster = medischeduleStudents.length ? medischeduleStudents : liveStudents.length ? liveStudents : demoStudents;
+      const rows: StudentStatus[] = roster.map((student, index): StudentStatus => {
         const fallback = demoStudents[index % demoStudents.length] ?? demoStudents[0];
-        const merged = {
-          ...fallback,
-          ...student,
-          studentPhone: student.studentPhone || fallback.studentPhone,
-          parentPhone: student.parentPhone || fallback.parentPhone,
-          status: fallback.status,
-          todayMinutes: fallback.todayMinutes,
-          subject: fallback.subject,
+        const live = liveById.get(student.id);
+        const merged: StudentStatus = {
+          id: live?.id || student.id || fallback.id,
+          name: live?.name || student.name || fallback.name,
+          studentPhone: live?.studentPhone || student.studentPhone || fallback.studentPhone,
+          parentPhone: live?.parentPhone || student.parentPhone || fallback.parentPhone,
+          status: live?.status ?? student.status ?? fallback.status,
+          todayMinutes: live?.todayMinutes ?? student.todayMinutes ?? fallback.todayMinutes,
+          subject: live?.subject || student.subject || fallback.subject,
         };
-        const isLiveUser = student.id === data.studentId || (!medischeduleStudents.length && index === 0);
+        const isLiveUser = role === 'user' && (student.id === data.studentId || (!medischeduleStudents.length && !liveStudents.length && index === 0));
         return isLiveUser
           ? {
               ...merged,
               id: data.studentId,
               name: data.studentName,
-              status: runningSession ? (runningSession.paused ? 'break' : 'studying') : merged.status,
+              status: runningSession ? (runningSession.paused ? 'break' : 'studying') : 'offline',
               todayMinutes: actualTodayMinutes,
-              subject: runningSession?.subject ?? merged.subject,
+              subject: runningSession?.subject ?? selectedSubject,
             }
           : merged;
       });
+      const rowIds = new Set(rows.map((student) => student.id));
+      liveStudents.forEach((student) => {
+        if (!rowIds.has(student.id)) rows.push(student);
+      });
+      return rows;
     },
-    [actualTodayMinutes, data.studentId, data.studentName, medischeduleStudents, runningSession],
+    [actualTodayMinutes, data.studentId, data.studentName, liveStudents, medischeduleStudents, role, runningSession, selectedSubject],
   );
 
   const currentPenalty = useMemo(() => {
@@ -4318,6 +4690,7 @@ export default function App() {
         selectedSubject={selectedSubject}
         selectedTab={timerTab}
         timerSkin={data.timerSkin}
+        appTheme={data.appTheme}
         runningSession={runningSession}
         totalElapsedSeconds={totalElapsedSeconds}
         subjectElapsedSeconds={subjectElapsedSeconds}
@@ -4328,8 +4701,9 @@ export default function App() {
         onSubjectSelect={selectSubject}
         onRenameSubject={renameSubject}
         onTimerSkinChange={setTimerSkin}
-        onTimerFullscreen={() => setTimerOpen(true)}
-        onMockTimerOpen={() => setMockTimerOpen(true)}
+        onAppThemeChange={setAppTheme}
+        onTimerFullscreen={openTimerFullscreen}
+        onMockTimerOpen={openMockTimer}
         onWeekOpen={() => setWeekOpen(true)}
       />
     );
@@ -4363,8 +4737,18 @@ export default function App() {
   }
 
   return (
-    <div className={`app-viewport ${role === 'user' ? 'student-viewport' : ''}`}>
-      <div className={`tablet-frame ${role ? 'with-rail' : 'login-only'} ${role === 'user' ? 'student-mode' : ''}`}>
+    <div className={`app-viewport app-theme-${data.appTheme} ${role === 'user' ? 'student-viewport' : ''}`}>
+      <div
+        className="desktop-scale-stage"
+        style={{
+          width: DESKTOP_FRAME_WIDTH * desktopScale,
+          height: DESKTOP_FRAME_HEIGHT * desktopScale,
+        }}
+      >
+      <div
+        className={`tablet-frame ${role ? 'with-rail' : 'login-only'} ${role === 'user' ? 'student-mode' : ''} ${timerOpen || mockPageFullscreen ? 'fullscreen-active' : ''}`}
+        style={{ transform: `scale(${desktopScale})` }}
+      >
         {role ? (
           role === 'user'
             ? <ModernSideRail page={page} setPage={setPage} studentName={data.studentName} onLogout={logout} />
@@ -4372,22 +4756,27 @@ export default function App() {
         ) : null}
         <main className={role ? 'app-main' : 'login-main'}>{content}</main>
         {weekOpen ? <ModernWeekScheduleModal schedule={schedule} source={scheduleSource} onClose={() => setWeekOpen(false)} /> : null}
-        {mockTimerOpen ? <ModernMockExamTimerModal timerSkin={data.timerSkin} onClose={() => setMockTimerOpen(false)} /> : null}
-        {timerOpen && runningSession ? (
+        {mockTimerOpen ? <ModernMockExamTimerModal timerSkin={data.timerSkin} onClose={closeMockTimer} onFullscreenChange={handleMockFullscreenChange} /> : null}
+        {timerOpen ? (
           <ModernTimerFullscreenModal
-            elapsedSeconds={totalElapsedSeconds}
-            subject={runningSession.subject}
+            elapsedSeconds={fullscreenElapsedSeconds}
+            subject={fullscreenSubject}
             timerSkin={data.timerSkin}
-            paused={runningSession.paused}
+            paused={runningSession?.paused ?? false}
+            canControl={Boolean(runningSession)}
             onPause={pauseSession}
-            onStop={() => stopSession(false)}
-            onClose={() => setTimerOpen(false)}
+            onStop={() => {
+              stopSession(false);
+              exitPageFullscreen();
+            }}
+            onClose={closeTimerFullscreen}
           />
         ) : null}
         {attendanceOpen ? <ModernAttendanceModal data={data} animatedDate={animatedAttendanceDate} onClose={closeAttendanceModal} onHideToday={hideAttendanceToday} /> : null}
         {unreadMessage ? <ModernAdminMessageModal message={unreadMessage} onClose={() => dismissAdminMessage(unreadMessage.id)} /> : null}
         {taskEditor ? <ModernTaskEditor task={taskEditor.task} subjects={subjects} initialSubject={taskEditor.subject} onSave={saveTask} onClose={() => setTaskEditor(null)} /> : null}
         {blockEditor ? <ModernBlockEditor block={blockEditor} subjects={subjects} onSave={saveBlock} onClose={() => setBlockEditor(null)} /> : null}
+      </div>
       </div>
     </div>
   );

@@ -8,3 +8,5 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 20
+      - key: APP_ADMIN_TOKEN
+        sync: false
