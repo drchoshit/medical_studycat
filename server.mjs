@@ -585,6 +585,11 @@ async function handleAppApi(req, res, url) {
 }
 
 async function proxyRequest(req, res, prefix, targetBase) {
+  if (req.method === 'OPTIONS') {
+    send(res, 204, '', corsHeaders());
+    return;
+  }
+
   const path = req.url.slice(prefix.length) || '/';
   const target = new URL(`${targetBase.replace(/\/$/, '')}${path}`);
   const headers = { ...req.headers, host: target.host };
@@ -599,7 +604,10 @@ async function proxyRequest(req, res, prefix, targetBase) {
       redirect: 'manual',
     });
 
-    res.writeHead(upstream.status, Object.fromEntries(upstream.headers.entries()));
+    res.writeHead(upstream.status, {
+      ...Object.fromEntries(upstream.headers.entries()),
+      ...corsHeaders(),
+    });
     if (upstream.body) {
       Readable.fromWeb(upstream.body).pipe(res);
     } else {
