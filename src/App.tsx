@@ -144,8 +144,8 @@ const modernNavItems: Array<{ key: PageKey; label: string; Icon: typeof Home }> 
 
 const modernTimerSkinOptions: Array<{ key: TimerSkin; label: string }> = [
   { key: 'pure', label: '모던' },
-  { key: 'halo', label: '플레이트' },
-  { key: 'pulse', label: '펄스' },
+  { key: 'halo', label: '타일' },
+  { key: 'pulse', label: '스코어' },
 ];
 
 const appThemeOptions: Array<{ key: AppTheme; label: string }> = [
@@ -2407,7 +2407,7 @@ function KioskUnlockModal({
   const isFullscreen = reason === 'fullscreen';
   const title = isFullscreen ? '전체화면이 해제되었습니다' : '관리자 확인이 필요합니다';
   const body = isFullscreen
-    ? '학생 태블릿은 StudyCat을 전체화면으로 유지해야 합니다. 계속 사용하려면 전체화면으로 돌아가거나, 관리자 비밀번호로 학생 모드를 종료하세요.'
+    ? '전체화면이 해제되어 앱이 잠겼습니다. 학생 태블릿은 전체화면으로 돌아가기 전까지 조작할 수 없습니다. 관리자만 비밀번호로 학생 모드를 종료할 수 있습니다.'
     : '학생 모드에서는 로그아웃, 뒤로가기, 앱 종료 시도를 관리자 비밀번호로 확인합니다.';
 
   async function submit() {
@@ -2424,7 +2424,7 @@ function KioskUnlockModal({
   }
 
   return (
-    <div className="kiosk-lock-layer" role="dialog" aria-modal="true" aria-labelledby="kiosk-lock-title">
+    <div className={`kiosk-lock-layer kiosk-lock-${reason}`} role="dialog" aria-modal="true" aria-labelledby="kiosk-lock-title">
       <section className="kiosk-lock-panel">
         <div className="kiosk-lock-head">
           <div className="kiosk-lock-icon">
@@ -2439,7 +2439,7 @@ function KioskUnlockModal({
         {isFullscreen ? (
           <button className="kiosk-continue-button" type="button" onClick={onContinue}>
             <Expand size={20} />
-            전체화면으로 돌아가기
+            터치해서 전체화면 복귀
           </button>
         ) : null}
         <form
@@ -4437,6 +4437,15 @@ export default function App() {
   }, [data.studentId, data.studentName, penaltySummaries]);
   const kioskLocked = role === 'user' && !kioskExitAllowed;
 
+  function forceKioskFullscreen(reason: KioskUnlockReason = 'fullscreen') {
+    if (role !== 'user' || kioskExitAllowed) return;
+    setKioskUnlockReason((prev) => prev ?? reason);
+    requestPageFullscreen();
+    window.setTimeout(requestPageFullscreen, 120);
+    window.setTimeout(requestPageFullscreen, 420);
+    window.setTimeout(requestPageFullscreen, 900);
+  }
+
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
@@ -4447,7 +4456,7 @@ export default function App() {
       if (!document.fullscreenElement) {
         setMockPageFullscreen(false);
         if (role === 'user' && !kioskExitAllowed) {
-          setKioskUnlockReason((prev) => prev ?? 'fullscreen');
+          forceKioskFullscreen('fullscreen');
         }
       }
     };
@@ -4493,7 +4502,7 @@ export default function App() {
     window.history.pushState(marker, '', window.location.href);
     const handlePopState = () => {
       window.history.pushState(marker, '', window.location.href);
-      setKioskUnlockReason((prev) => prev ?? 'exit');
+      forceKioskFullscreen('exit');
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -4504,10 +4513,20 @@ export default function App() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (!isBlockedKioskKey(event)) return;
       event.preventDefault();
-      setKioskUnlockReason((prev) => prev ?? (event.key === 'Escape' || event.key === 'F11' ? 'fullscreen' : 'exit'));
+      forceKioskFullscreen(event.key === 'Escape' || event.key === 'F11' ? 'fullscreen' : 'exit');
+    };
+    const handleKeyUp = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' || event.key === 'F11') {
+        event.preventDefault();
+        forceKioskFullscreen('fullscreen');
+      }
     };
     window.addEventListener('keydown', handleKeyDown, true);
-    return () => window.removeEventListener('keydown', handleKeyDown, true);
+    window.addEventListener('keyup', handleKeyUp, true);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown, true);
+      window.removeEventListener('keyup', handleKeyUp, true);
+    };
   }, [kioskLocked]);
 
   useEffect(() => {
@@ -4524,16 +4543,26 @@ export default function App() {
     };
     const restoreKiosk = () => {
       void requestWakeLock();
-      if (!document.fullscreenElement) requestPageFullscreen();
+      if (!document.fullscreenElement) forceKioskFullscreen('fullscreen');
     };
     void requestWakeLock();
-    window.addEventListener('focus', restoreKiosk);
-    window.addEventListener('pointerdown', restoreKiosk);
+    const guardId = window.setInterval(() => {
+      if (!document.fullscreenElement) forceKioskFullscreen('fullscreen');
+    }, 1500);
+    window.addEventListener('focus', restoreKiosk, true);
+    window.addEventListener('pointerdown', restoreKiosk, true);
+    window.addEventListener('mousedown', restoreKiosk, true);
+    window.addEventListener('click', restoreKiosk, true);
+    window.addEventListener('touchstart', restoreKiosk, true);
     document.addEventListener('visibilitychange', restoreKiosk);
     return () => {
       cancelled = true;
-      window.removeEventListener('focus', restoreKiosk);
-      window.removeEventListener('pointerdown', restoreKiosk);
+      window.clearInterval(guardId);
+      window.removeEventListener('focus', restoreKiosk, true);
+      window.removeEventListener('pointerdown', restoreKiosk, true);
+      window.removeEventListener('mousedown', restoreKiosk, true);
+      window.removeEventListener('click', restoreKiosk, true);
+      window.removeEventListener('touchstart', restoreKiosk, true);
       document.removeEventListener('visibilitychange', restoreKiosk);
       if (wakeLock) void wakeLock.release().catch(() => undefined);
     };

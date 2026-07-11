@@ -14724,3 +14724,798 @@ body {
   white-space: normal;
   line-height: 18px;
 }
+
+/* Stronger tablet fullscreen lock */
+.kiosk-lock-fullscreen {
+  background:
+    linear-gradient(180deg, rgba(5, 10, 12, 0.86), rgba(5, 10, 12, 0.78));
+}
+
+.kiosk-lock-fullscreen .kiosk-lock-panel {
+  border-color: rgba(20, 184, 166, 0.28);
+  background:
+    linear-gradient(180deg, #ffffff, #eefaf7);
+  box-shadow:
+    0 40px 100px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.96);
+}
+
+.kiosk-lock-fullscreen .kiosk-lock-icon {
+  background: #0f9488;
+}
+
+.kiosk-lock-fullscreen .kiosk-continue-button {
+  min-height: 66px;
+  background: linear-gradient(135deg, #0f9488, #0d6b62);
+  font-size: 18px;
+  box-shadow: 0 16px 34px rgba(15, 148, 136, 0.28);
+}
+
+/* Replaced timer skins: keep Modern, redesign Gauge and Flip. */
+.modern-timer-stage.timer-halo,
+.modern-fullscreen-timer.timer-halo,
+.modern-mock-stage.timer-halo {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 42%),
+    linear-gradient(135deg, #f6fbff, #edf5f7 52%, #f8fafc);
+}
+
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit,
+.timer-face-aurora.timer-face-minute .aurora-orbit {
+  width: min(780px, 86%);
+  min-height: 236px;
+  aspect-ratio: auto;
+  padding: 18px;
+  border: 1px solid rgba(48, 65, 82, 0.16);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, #ffffff, #eef3f7);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 30px 70px rgba(31, 44, 56, 0.14);
+}
+
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit::before,
+.timer-face-aurora.timer-face-minute .aurora-orbit::before {
+  inset: 16px;
+  border-radius: 18px;
+  background:
+    repeating-linear-gradient(90deg, rgba(15, 23, 42, 0.1) 0 1px, transparent 1px 28px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(239, 246, 249, 0.76));
+  mask: none;
+}
+
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit::after,
+.timer-face-aurora.timer-face-minute .aurora-orbit::after {
+  inset: auto 34px 28px;
+  height: 7px;
+  border: 0;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, #0f9488 0 38%, #d89216 38% 72%, #d95b63 72% 100%);
+  box-shadow: 0 10px 22px rgba(31, 44, 56, 0.12);
+}
+
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit > div,
+.timer-face-aurora.timer-face-minute .aurora-orbit > div {
+  position: relative;
+  z-index: 1;
+  min-height: 176px;
+  padding: 24px 32px 34px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(248, 250, 252, 0.72));
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 10px;
+}
+
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit span,
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit em,
+.timer-face-aurora.timer-face-minute .aurora-orbit span,
+.timer-face-aurora.timer-face-minute .aurora-orbit em,
+.timer-face-aurora.timer-face-minute .aurora-orbit i {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit strong,
+.timer-face-aurora.timer-face-minute .aurora-orbit strong {
+  color: #10202b;
+  font-family: "IBM Plex Mono", "Pretendard Variable", monospace;
+  font-size: 76px;
+  line-height: 84px;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-shadow: none;
+}
+
+.timer-face-aurora.timer-face-minute .aurora-orbit {
+  width: min(600px, 78%);
+  min-height: 224px;
+}
+
+.timer-face-aurora.timer-face-minute .aurora-orbit strong {
+  font-size: 86px;
+  line-height: 94px;
+}
+
+.modern-fullscreen-timer .timer-face-fullscreen.timer-face-aurora:not(.timer-face-minute) .aurora-orbit,
+.modern-mock-modal.mock-fullscreen .timer-face-aurora:not(.timer-face-minute) .aurora-orbit {
+  width: min(1080px, 86vw);
+  min-height: 360px;
+}
+
+.modern-fullscreen-timer .timer-face-fullscreen.timer-face-aurora:not(.timer-face-minute) .aurora-orbit > div,
+.modern-mock-modal.mock-fullscreen .timer-face-aurora:not(.timer-face-minute) .aurora-orbit > div {
+  min-height: 288px;
+}
+
+.modern-fullscreen-timer .timer-face-fullscreen.timer-face-aurora:not(.timer-face-minute) .aurora-orbit strong,
+.modern-mock-modal.mock-fullscreen .timer-face-aurora:not(.timer-face-minute) .aurora-orbit strong {
+  font-size: 118px;
+  line-height: 128px;
+}
+
+.modern-timer-stage.timer-pulse,
+.modern-fullscreen-timer.timer-pulse,
+.modern-mock-stage.timer-pulse {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 38%),
+    linear-gradient(135deg, #20262c, #111820 58%, #0c1117);
+}
+
+.pulse-clock-shell {
+  width: min(840px, 88%);
+  min-height: 252px;
+  padding: 30px 34px;
+  border: 1px solid rgba(245, 184, 76, 0.18);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, #2b3036, #171c22);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.4),
+    0 32px 74px rgba(2, 6, 23, 0.34);
+}
+
+.pulse-clock-shell::before {
+  inset: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 28%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 18px);
+}
+
+.pulse-clock-shell::after {
+  left: 34px;
+  right: 34px;
+  top: 50%;
+  height: 2px;
+  border-radius: 0;
+  background: rgba(0, 0, 0, 0.42);
+  box-shadow: 0 -1px 0 rgba(255, 255, 255, 0.06), 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.pulse-clock-shell > span,
+.pulse-clock-shell > em {
+  color: #f4c46a;
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.pulse-clock-shell > em {
+  color: rgba(255, 255, 255, 0.64);
+}
+
+.pulse-clock-digits {
+  gap: 10px;
+}
+
+.pulse-clock-digits strong {
+  min-width: 138px;
+  height: 112px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, #2a3037 0 49%, #11161c 50% 100%);
+  color: #ffd36a;
+  font-size: 72px;
+  line-height: 80px;
+  font-weight: 800;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.48);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    inset 0 -12px 24px rgba(0, 0, 0, 0.28),
+    0 16px 28px rgba(0, 0, 0, 0.24);
+}
+
+.pulse-clock-digits i {
+  width: 18px;
+  height: 82px;
+}
+
+.pulse-clock-digits i::before,
+.pulse-clock-digits i::after {
+  width: 7px;
+  height: 7px;
+  background: #ffd36a;
+  box-shadow: none;
+}
+
+.timer-face-minute .pulse-clock-shell {
+  width: min(560px, 84%);
+  min-height: 232px;
+}
+
+.timer-face-minute .pulse-clock-digits strong {
+  min-width: 164px;
+  width: 164px;
+  height: 118px;
+  font-size: 78px;
+  line-height: 86px;
+}
+
+.timer-face-minute .pulse-clock-digits i {
+  color: #ffd36a;
+  font-size: 62px;
+  line-height: 66px;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.48);
+}
+
+.modern-fullscreen-timer .pulse-clock-shell,
+.modern-mock-modal.mock-fullscreen .pulse-clock-shell {
+  width: min(1120px, 88vw);
+  min-height: 408px;
+}
+
+.modern-fullscreen-timer .pulse-clock-digits strong,
+.modern-mock-modal.mock-fullscreen .pulse-clock-digits strong {
+  min-width: 228px;
+  height: 172px;
+  font-size: 116px;
+  line-height: 126px;
+}
+
+/* Final light timer replacements sized like Modern. */
+.modern-timer-stage.timer-halo,
+.modern-fullscreen-timer.timer-halo,
+.modern-mock-stage.timer-halo {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(15, 148, 136, 0.12), transparent 28%),
+    radial-gradient(circle at 86% 22%, rgba(79, 111, 216, 0.11), transparent 30%),
+    linear-gradient(135deg, #f8fafc, #eef8f6 54%, #f7f9ff);
+}
+
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit,
+.timer-face-aurora.timer-face-minute .aurora-orbit {
+  width: min(680px, 82%);
+  min-height: 212px;
+  aspect-ratio: auto;
+  padding: 24px 30px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, #ffffff, #f4faf8);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    0 26px 52px rgba(15, 23, 42, 0.13);
+}
+
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit::before,
+.timer-face-aurora.timer-face-minute .aurora-orbit::before {
+  inset: 18px;
+  border-radius: 16px;
+  background:
+    linear-gradient(90deg, rgba(15, 148, 136, 0.12), transparent 18% 82%, rgba(79, 111, 216, 0.1)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(241, 245, 249, 0.76));
+  mask: none;
+}
+
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit::after,
+.timer-face-aurora.timer-face-minute .aurora-orbit::after {
+  inset: auto 30px 22px;
+  height: 6px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0f9488, #4f6fd8);
+  box-shadow: none;
+}
+
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit > div,
+.timer-face-aurora.timer-face-minute .aurora-orbit > div {
+  min-height: 144px;
+  padding: 16px 26px 28px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  gap: 8px;
+}
+
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit span,
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit em,
+.timer-face-aurora.timer-face-minute .aurora-orbit span,
+.timer-face-aurora.timer-face-minute .aurora-orbit em,
+.timer-face-aurora.timer-face-minute .aurora-orbit i {
+  color: #64748b;
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 900;
+}
+
+.timer-face-aurora:not(.timer-face-minute) .aurora-orbit strong,
+.timer-face-aurora.timer-face-minute .aurora-orbit strong {
+  color: #0f172a;
+  font-size: 64px;
+  line-height: 72px;
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.timer-face-aurora.timer-face-minute .aurora-orbit {
+  width: min(520px, 78%);
+  min-height: 212px;
+}
+
+.timer-face-aurora.timer-face-minute .aurora-orbit strong {
+  font-size: 74px;
+  line-height: 82px;
+}
+
+.modern-fullscreen-timer .timer-face-fullscreen.timer-face-aurora:not(.timer-face-minute) .aurora-orbit,
+.modern-mock-modal.mock-fullscreen .timer-face-aurora:not(.timer-face-minute) .aurora-orbit {
+  width: min(1160px, 88vw);
+  min-height: 390px;
+}
+
+.modern-fullscreen-timer .timer-face-fullscreen.timer-face-aurora:not(.timer-face-minute) .aurora-orbit > div,
+.modern-mock-modal.mock-fullscreen .timer-face-aurora:not(.timer-face-minute) .aurora-orbit > div {
+  min-height: 300px;
+}
+
+.modern-fullscreen-timer .timer-face-fullscreen.timer-face-aurora:not(.timer-face-minute) .aurora-orbit strong,
+.modern-mock-modal.mock-fullscreen .timer-face-aurora:not(.timer-face-minute) .aurora-orbit strong {
+  font-size: 116px;
+  line-height: 122px;
+}
+
+.modern-timer-stage.timer-pulse,
+.modern-fullscreen-timer.timer-pulse,
+.modern-mock-stage.timer-pulse {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(230, 162, 26, 0.12), transparent 28%),
+    radial-gradient(circle at 82% 20%, rgba(15, 148, 136, 0.1), transparent 30%),
+    linear-gradient(135deg, #fffdf7, #f5faf8 54%, #f8fafc);
+}
+
+.pulse-clock-shell {
+  width: min(680px, 82%);
+  min-height: 212px;
+  padding: 28px 34px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 22px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 253, 247, 0.84));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -14px 32px rgba(15, 23, 42, 0.05),
+    0 26px 52px rgba(15, 23, 42, 0.13);
+}
+
+.pulse-clock-shell::before {
+  inset: 18px;
+  border: 1px solid rgba(230, 162, 26, 0.22);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 44%),
+    linear-gradient(90deg, rgba(230, 162, 26, 0.1), transparent 22% 78%, rgba(15, 148, 136, 0.1));
+}
+
+.pulse-clock-shell::after {
+  content: "";
+  position: absolute;
+  left: 30px;
+  right: 30px;
+  top: auto;
+  bottom: 22px;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #e6a21a, #0f9488);
+  box-shadow: none;
+}
+
+.pulse-clock-shell > span,
+.pulse-clock-shell > em {
+  color: #9a6a12;
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 900;
+}
+
+.pulse-clock-shell > em {
+  color: #64748b;
+}
+
+.pulse-clock-digits {
+  gap: 12px;
+}
+
+.pulse-clock-digits strong {
+  min-width: 132px;
+  width: 132px;
+  height: 102px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, #ffffff 0 49%, #f4f7f8 50% 100%);
+  color: #17312f;
+  font-size: 62px;
+  line-height: 68px;
+  font-weight: 800;
+  text-shadow: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -1px 0 rgba(15, 23, 42, 0.08),
+    0 14px 24px rgba(15, 23, 42, 0.09);
+}
+
+.pulse-clock-digits i {
+  width: 18px;
+  height: 72px;
+  color: #0f9488;
+}
+
+.pulse-clock-digits i::before,
+.pulse-clock-digits i::after {
+  width: 7px;
+  height: 7px;
+  background: #0f9488;
+  box-shadow: none;
+}
+
+.timer-face-minute .pulse-clock-shell {
+  width: min(520px, 78%);
+  min-height: 212px;
+}
+
+.timer-face-minute .pulse-clock-digits strong {
+  min-width: 150px;
+  width: 150px;
+  height: 108px;
+  font-size: 72px;
+  line-height: 78px;
+}
+
+.timer-face-minute .pulse-clock-digits i {
+  color: #0f9488;
+  font-size: 54px;
+  line-height: 60px;
+  text-shadow: none;
+}
+
+.modern-fullscreen-timer .pulse-clock-shell,
+.modern-mock-modal.mock-fullscreen .pulse-clock-shell {
+  width: min(1160px, 88vw);
+  min-height: 390px;
+}
+
+.modern-fullscreen-timer .pulse-clock-digits strong,
+.modern-mock-modal.mock-fullscreen .pulse-clock-digits strong {
+  min-width: 220px;
+  width: 220px;
+  height: 170px;
+  font-size: 116px;
+  line-height: 122px;
+}
+
+/* Electronic score timer skin. */
+.modern-timer-stage.timer-pulse,
+.modern-fullscreen-timer.timer-pulse,
+.modern-mock-stage.timer-pulse {
+  background:
+    linear-gradient(90deg, rgba(15, 148, 136, 0.07) 1px, transparent 1px) 0 0 / 36px 36px,
+    linear-gradient(0deg, rgba(79, 111, 216, 0.055) 1px, transparent 1px) 0 0 / 36px 36px,
+    radial-gradient(circle at 18% 18%, rgba(15, 148, 136, 0.11), transparent 28%),
+    radial-gradient(circle at 82% 22%, rgba(79, 111, 216, 0.1), transparent 30%),
+    linear-gradient(135deg, #f8fffd, #eefbf9 54%, #f7fbff);
+}
+
+.pulse-clock-shell {
+  width: min(680px, 82%);
+  min-height: 212px;
+  padding: 26px 32px;
+  border: 1px solid rgba(15, 148, 136, 0.18);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(240, 253, 249, 0.88));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.98),
+    inset 0 -14px 30px rgba(15, 148, 136, 0.05),
+    0 26px 52px rgba(15, 23, 42, 0.12);
+}
+
+.pulse-clock-shell::before {
+  content: "";
+  position: absolute;
+  inset: 18px;
+  border: 1px solid rgba(15, 148, 136, 0.18);
+  border-radius: 12px;
+  background:
+    repeating-linear-gradient(0deg, rgba(15, 118, 110, 0.055) 0 1px, transparent 1px 7px),
+    linear-gradient(180deg, #effefa, #dff7f1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    inset 0 -10px 22px rgba(15, 148, 136, 0.08);
+  pointer-events: none;
+}
+
+.pulse-clock-shell::after {
+  content: "";
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  bottom: 22px;
+  top: auto;
+  height: 5px;
+  border-radius: 999px;
+  background:
+    linear-gradient(90deg, #0f9488 0 32%, rgba(15, 148, 136, 0.2) 32% 38%, #4f6fd8 38% 68%, rgba(79, 111, 216, 0.2) 68% 74%, #0f9488 74%);
+  box-shadow: none;
+}
+
+.pulse-clock-shell > span,
+.pulse-clock-shell > em,
+.pulse-clock-digits {
+  position: relative;
+  z-index: 1;
+}
+
+.pulse-clock-shell > span,
+.pulse-clock-shell > em {
+  color: #0f766e;
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 900;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+.pulse-clock-shell > em {
+  color: #64748b;
+}
+
+.pulse-clock-digits {
+  gap: 12px;
+}
+
+.pulse-clock-digits strong {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 132px;
+  width: 132px;
+  height: 102px;
+  overflow: hidden;
+  border: 1px solid rgba(15, 118, 110, 0.2);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), transparent 38%),
+    linear-gradient(180deg, #ecfbf7, #d8f4ee);
+  color: #08766f;
+  font-family: "Bahnschrift", "Roboto Mono", Consolas, monospace;
+  font-size: 62px;
+  line-height: 68px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.82);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.96),
+    inset 0 -1px 0 rgba(15, 118, 110, 0.12),
+    0 14px 24px rgba(15, 23, 42, 0.09);
+}
+
+.pulse-clock-digits strong::before {
+  content: "";
+  position: absolute;
+  inset: 14px 16px;
+  border-radius: 8px;
+  background:
+    linear-gradient(#0f9488, #0f9488) 50% 0 / 72% 5px no-repeat,
+    linear-gradient(#0f9488, #0f9488) 50% 50% / 72% 5px no-repeat,
+    linear-gradient(#0f9488, #0f9488) 50% 100% / 72% 5px no-repeat,
+    linear-gradient(#0f9488, #0f9488) 0 17% / 5px 32% no-repeat,
+    linear-gradient(#0f9488, #0f9488) 100% 17% / 5px 32% no-repeat,
+    linear-gradient(#0f9488, #0f9488) 0 83% / 5px 32% no-repeat,
+    linear-gradient(#0f9488, #0f9488) 100% 83% / 5px 32% no-repeat;
+  opacity: 0.12;
+  pointer-events: none;
+}
+
+.pulse-clock-digits strong::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.16) 0 1px, transparent 1px 8px);
+  pointer-events: none;
+}
+
+.pulse-clock-digits i {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 78px;
+  color: #0f9488;
+  font-family: "Bahnschrift", "Roboto Mono", Consolas, monospace;
+  font-size: 56px;
+  line-height: 60px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-shadow: none;
+}
+
+.pulse-clock-digits i::before,
+.pulse-clock-digits i::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: #0f9488;
+  box-shadow: 0 0 0 3px rgba(15, 148, 136, 0.1);
+  transform: translateX(-50%);
+}
+
+.pulse-clock-digits i::before {
+  top: 24px;
+}
+
+.pulse-clock-digits i::after {
+  bottom: 24px;
+}
+
+.timer-face-minute .pulse-clock-shell {
+  width: min(520px, 78%);
+  min-height: 212px;
+}
+
+.timer-face-minute .pulse-clock-digits strong {
+  min-width: 150px;
+  width: 150px;
+  height: 108px;
+  font-size: 72px;
+  line-height: 78px;
+}
+
+.timer-face-minute .pulse-clock-digits i {
+  width: 24px;
+  height: 88px;
+  color: #0f9488;
+  font-size: 54px;
+  line-height: 60px;
+  text-shadow: none;
+}
+
+.timer-face-minute .pulse-clock-digits i::before,
+.timer-face-minute .pulse-clock-digits i::after {
+  content: none;
+}
+
+.modern-fullscreen-timer .pulse-clock-shell,
+.modern-mock-modal.mock-fullscreen .pulse-clock-shell {
+  width: min(1160px, 88vw);
+  min-height: 390px;
+}
+
+.modern-fullscreen-timer .pulse-clock-digits strong,
+.modern-mock-modal.mock-fullscreen .pulse-clock-digits strong {
+  min-width: 220px;
+  width: 220px;
+  height: 170px;
+  font-size: 116px;
+  line-height: 122px;
+}
+
+.modern-fullscreen-timer .pulse-clock-digits strong::before,
+.modern-mock-modal.mock-fullscreen .pulse-clock-digits strong::before {
+  inset: 24px 28px;
+  background:
+    linear-gradient(#0f9488, #0f9488) 50% 0 / 72% 8px no-repeat,
+    linear-gradient(#0f9488, #0f9488) 50% 50% / 72% 8px no-repeat,
+    linear-gradient(#0f9488, #0f9488) 50% 100% / 72% 8px no-repeat,
+    linear-gradient(#0f9488, #0f9488) 0 17% / 8px 32% no-repeat,
+    linear-gradient(#0f9488, #0f9488) 100% 17% / 8px 32% no-repeat,
+    linear-gradient(#0f9488, #0f9488) 0 83% / 8px 32% no-repeat,
+    linear-gradient(#0f9488, #0f9488) 100% 83% / 8px 32% no-repeat;
+}
+
+@media (max-width: 900px) {
+  .modern-fullscreen-timer .pulse-clock-digits strong,
+  .modern-mock-modal.mock-fullscreen .pulse-clock-digits strong {
+    min-width: 160px;
+    width: 160px;
+    height: 126px;
+    font-size: 82px;
+    line-height: 90px;
+  }
+
+  .modern-fullscreen-timer .pulse-clock-digits i,
+  .modern-mock-modal.mock-fullscreen .pulse-clock-digits i {
+    width: 18px;
+    height: 90px;
+  }
+}
+
+@media (max-width: 640px) {
+  .pulse-clock-shell {
+    width: min(94vw, 680px);
+    min-height: 178px;
+    padding: 20px 16px;
+  }
+
+  .pulse-clock-shell::before {
+    inset: 14px;
+  }
+
+  .pulse-clock-shell::after {
+    left: 18px;
+    right: 18px;
+    bottom: 16px;
+  }
+
+  .pulse-clock-digits {
+    gap: 6px;
+  }
+
+  .pulse-clock-digits strong {
+    min-width: 74px;
+    width: 74px;
+    height: 68px;
+    font-size: 40px;
+    line-height: 46px;
+  }
+
+  .pulse-clock-digits strong::before {
+    inset: 10px 12px;
+  }
+
+  .pulse-clock-digits i {
+    width: 12px;
+    height: 58px;
+  }
+
+  .pulse-clock-digits i::before,
+  .pulse-clock-digits i::after {
+    width: 5px;
+    height: 5px;
+  }
+
+  .pulse-clock-digits i::before {
+    top: 18px;
+  }
+
+  .pulse-clock-digits i::after {
+    bottom: 18px;
+  }
+
+  .timer-face-minute .pulse-clock-digits strong {
+    min-width: 108px;
+    width: 108px;
+    height: 78px;
+    font-size: 50px;
+    line-height: 56px;
+  }
+}
