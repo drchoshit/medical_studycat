@@ -1,0 +1,19 @@
+{
+  "name": "StudyCat Tablet",
+  "short_name": "StudyCat",
+  "description": "StudyCat tablet study dashboard",
+  "start_url": "/?kiosk=1",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#dfe8e8",
+  "theme_color": "#063b2e",
+  "icons": [
+    {
+      "src": "/studycat-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

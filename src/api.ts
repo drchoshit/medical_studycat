@@ -92,6 +92,24 @@ function appApiHeaders(contentType = false): HeadersInit {
   };
 }
 
+export async function verifyAppAdminPassword(password: string): Promise<boolean> {
+  const token = password.trim().replace(/^Bearer\s+/i, '');
+  if (!token) return false;
+  try {
+    await fetchJson(
+      appApiUrl('/admin/verify'),
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      },
+      5000,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function normalizeSnapshot(payload: Partial<RealtimeSnapshot> | null | undefined): RealtimeSnapshot {
   return {
     serverTime: payload?.serverTime || new Date().toISOString(),

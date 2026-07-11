@@ -13744,6 +13744,143 @@ svg {
   line-height: 120px;
 }
 
+.kiosk-lock-layer {
+  position: absolute;
+  z-index: 80;
+  inset: 0;
+  padding: 28px;
+  background: rgba(6, 12, 10, 0.74);
+  display: grid;
+  place-items: center;
+  backdrop-filter: blur(14px);
+}
+
+.kiosk-lock-panel {
+  width: min(520px, 100%);
+  padding: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 8px;
+  background: #fffdf7;
+  color: #111613;
+  box-shadow: 0 34px 84px rgba(0, 0, 0, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.kiosk-lock-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.kiosk-lock-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 8px;
+  background: #0d3f35;
+  color: #fffdf7;
+  display: grid;
+  place-items: center;
+}
+
+.kiosk-lock-head span {
+  color: #9b7841;
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.kiosk-lock-head h2 {
+  margin: 4px 0 0;
+  color: #111613;
+  font-size: 25px;
+  line-height: 31px;
+  font-weight: 930;
+}
+
+.kiosk-lock-panel p {
+  margin: 18px 0 0;
+  color: #44504a;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 760;
+}
+
+.kiosk-continue-button,
+.kiosk-unlock-submit,
+.kiosk-cancel-button {
+  width: 100%;
+  min-height: 54px;
+  margin-top: 14px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.kiosk-continue-button {
+  background: #0d3f35;
+  color: #fffdf7;
+}
+
+.kiosk-unlock-form {
+  margin-top: 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.kiosk-unlock-form label {
+  color: #68716b;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 850;
+}
+
+.kiosk-unlock-form input {
+  width: 100%;
+  height: 54px;
+  margin-top: 7px;
+  padding: 0 14px;
+  border: 1px solid rgba(23, 26, 24, 0.14);
+  border-radius: 8px;
+  outline: 0;
+  background: #fffefa;
+  color: #111613;
+  font-size: 17px;
+  font-weight: 850;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.kiosk-unlock-form input:focus {
+  border-color: rgba(14, 111, 89, 0.46);
+  box-shadow: 0 0 0 3px rgba(14, 111, 89, 0.12);
+}
+
+.kiosk-unlock-error {
+  color: #b42318;
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 850;
+}
+
+.kiosk-unlock-submit {
+  margin-top: 0;
+  background: linear-gradient(135deg, #083f34, #0e6f59);
+  color: #fffdf7;
+}
+
+.kiosk-unlock-submit:disabled {
+  background: #9aa49d;
+  color: #fffdf7;
+}
+
+.kiosk-cancel-button {
+  background: #eef3ee;
+  color: #26302b;
+}
+
 /* App build lock: render the desktop canvas identically, then scale it to the device. */
 html,
 body,
@@ -13976,4 +14113,614 @@ body {
   height: min(720px, 88%) !important;
   grid-template-rows: 58px 76px minmax(0, 1fr) !important;
   gap: 14px !important;
+}
+
+/* Admin console refresh */
+.tablet-frame:not(.student-mode) {
+  background: #eef3f7;
+}
+
+.tablet-frame:not(.student-mode).with-rail {
+  grid-template-columns: 96px minmax(0, 1fr);
+}
+
+.tablet-frame:not(.student-mode) .side-rail {
+  padding: 18px 11px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), transparent 42%),
+    #101716;
+  grid-template-rows: 60px 62px 1fr 58px;
+  border-right: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.tablet-frame:not(.student-mode) .rail-logo {
+  width: 60px;
+  height: 60px;
+  background: linear-gradient(135deg, #f7c948, #14b8a6);
+  color: #071310;
+  box-shadow: 0 14px 30px rgba(20, 184, 166, 0.2);
+}
+
+.tablet-frame:not(.student-mode) .rail-user strong {
+  font-size: 14px;
+}
+
+.tablet-frame:not(.student-mode) .rail-user span {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.tablet-frame:not(.student-mode) .rail-nav button.active,
+.tablet-frame:not(.student-mode) .rail-logout:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.admin-page {
+  --admin-bg: #eef3f7;
+  --admin-surface: #ffffff;
+  --admin-surface-soft: #f7fafc;
+  --admin-line: #d9e3ea;
+  --admin-line-strong: #c7d3dc;
+  --admin-ink: #15202b;
+  --admin-muted: #667586;
+  --admin-teal: #0f9488;
+  --admin-green: #169b63;
+  --admin-amber: #d89216;
+  --admin-rose: #d95b63;
+  --admin-indigo: #4f6fd8;
+  --admin-shadow: 0 14px 34px rgba(31, 44, 56, 0.08);
+  position: relative;
+  isolation: isolate;
+  grid-template-rows: 78px 50px minmax(0, 1fr);
+  gap: 14px;
+  padding: 18px 20px 18px;
+  background:
+    linear-gradient(180deg, #f8fbfd 0 124px, var(--admin-bg) 124px 100%);
+  color: var(--admin-ink);
+}
+
+.admin-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+.admin-page .page-title {
+  min-height: 0;
+  padding: 0 18px;
+  border: 1px solid rgba(217, 227, 234, 0.92);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(247, 250, 252, 0.92));
+  box-shadow: var(--admin-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.admin-page .page-title span,
+.admin-page .eyebrow {
+  color: var(--admin-teal);
+  font-size: 11px;
+  line-height: 14px;
+}
+
+.admin-page .page-title h1 {
+  margin-top: 6px;
+  color: var(--admin-ink);
+  font-size: 29px;
+  line-height: 34px;
+  font-weight: 930;
+}
+
+.admin-page .session-state.live {
+  height: 42px;
+  min-width: 96px;
+  border-color: rgba(15, 148, 136, 0.24);
+  background: #e8faf6;
+  color: #0d6b62;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.admin-tabs {
+  height: 50px;
+  padding: 5px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.76);
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.admin-tabs button {
+  min-width: 0;
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--admin-muted);
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 900;
+  white-space: nowrap;
+}
+
+.admin-tabs button:hover {
+  border-color: rgba(15, 148, 136, 0.18);
+  background: #eefaf7;
+  color: #0d6b62;
+}
+
+.admin-tabs button.active {
+  border-color: rgba(15, 148, 136, 0.28);
+  background: #0f9488;
+  color: #ffffff;
+  box-shadow: 0 8px 18px rgba(15, 148, 136, 0.18);
+}
+
+.admin-content {
+  gap: 14px;
+}
+
+.admin-grid {
+  gap: 12px;
+}
+
+.admin-metric {
+  --metric-accent: var(--admin-indigo);
+  min-height: 86px;
+  padding: 15px 16px;
+  border: 1px solid var(--admin-line);
+  border-left: 4px solid var(--metric-accent);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 253, 0.94));
+  box-shadow: var(--admin-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.admin-metric.status-total.studying {
+  --metric-accent: var(--admin-green);
+}
+
+.admin-metric.status-total.break {
+  --metric-accent: var(--admin-amber);
+}
+
+.admin-metric.status-total.offline {
+  --metric-accent: #8795a7;
+}
+
+.admin-metric svg {
+  width: 34px;
+  height: 34px;
+  padding: 7px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--metric-accent) 12%, #ffffff);
+  color: var(--metric-accent);
+}
+
+.admin-metric span {
+  color: var(--admin-muted);
+  font-size: 12px;
+  line-height: 15px;
+  font-weight: 850;
+}
+
+.admin-metric strong {
+  color: var(--admin-ink);
+  font-size: 24px;
+  line-height: 28px;
+  font-weight: 950;
+}
+
+.admin-bottom,
+.admin-two-col {
+  gap: 14px;
+}
+
+.admin-bottom {
+  grid-template-columns: minmax(0, 1.12fr) minmax(0, 0.88fr);
+}
+
+.admin-two-col {
+  grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr);
+}
+
+.admin-panel {
+  padding: 17px;
+  border: 1px solid var(--admin-line);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 253, 0.94));
+  box-shadow: var(--admin-shadow), inset 0 1px 0 rgba(255, 255, 255, 0.92);
+}
+
+.admin-panel-head {
+  align-items: center;
+}
+
+.admin-panel-head h2 {
+  color: var(--admin-ink);
+  font-size: 20px;
+  line-height: 25px;
+  font-weight: 930;
+}
+
+.admin-panel-head span {
+  max-width: 48%;
+  overflow: hidden;
+  padding: 6px 9px;
+  border: 1px solid #e1e8ee;
+  border-radius: 999px;
+  background: #f7fafc;
+  color: var(--admin-muted);
+  font-size: 11px;
+  line-height: 13px;
+  font-weight: 850;
+  text-overflow: ellipsis;
+}
+
+.admin-student-list,
+.admin-select-list,
+.admin-subject-list,
+.admin-compact-list,
+.admin-message-log,
+.admin-sync-list,
+.admin-task-edit-list,
+.admin-student-task-preview,
+.admin-mini-student-picker,
+.admin-message-students {
+  scrollbar-width: thin;
+  scrollbar-color: #b8c6d1 transparent;
+}
+
+.admin-student-list::-webkit-scrollbar,
+.admin-select-list::-webkit-scrollbar,
+.admin-subject-list::-webkit-scrollbar,
+.admin-compact-list::-webkit-scrollbar,
+.admin-message-log::-webkit-scrollbar,
+.admin-task-edit-list::-webkit-scrollbar,
+.admin-student-task-preview::-webkit-scrollbar,
+.admin-mini-student-picker::-webkit-scrollbar,
+.admin-message-students::-webkit-scrollbar {
+  width: 7px;
+}
+
+.admin-student-list::-webkit-scrollbar-thumb,
+.admin-select-list::-webkit-scrollbar-thumb,
+.admin-subject-list::-webkit-scrollbar-thumb,
+.admin-compact-list::-webkit-scrollbar-thumb,
+.admin-message-log::-webkit-scrollbar-thumb,
+.admin-task-edit-list::-webkit-scrollbar-thumb,
+.admin-student-task-preview::-webkit-scrollbar-thumb,
+.admin-mini-student-picker::-webkit-scrollbar-thumb,
+.admin-message-students::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #b8c6d1;
+}
+
+.admin-student-row,
+.admin-select-list button,
+.admin-student-task-preview div,
+.admin-task-edit-list div,
+.admin-sync-list div,
+.admin-subject-list div,
+.admin-compact-list div,
+.admin-message-log div,
+.admin-control-grid div,
+.admin-detail-grid div,
+.admin-reward-rules div,
+.admin-reward-progress-list div {
+  border: 1px solid #dde6ed;
+  border-radius: 8px;
+  background: var(--admin-surface-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+.admin-student-row,
+.admin-select-list button {
+  transition: border-color 160ms ease, background 160ms ease, transform 160ms ease, box-shadow 160ms ease;
+}
+
+.admin-select-list button:hover,
+.admin-student-row:hover {
+  border-color: rgba(15, 148, 136, 0.3);
+  background: #f0fbf8;
+  box-shadow: 0 8px 18px rgba(31, 44, 56, 0.07);
+}
+
+.admin-student-row i,
+.admin-select-list i,
+.admin-mini-student-picker i {
+  box-shadow: 0 0 0 3px rgba(135, 149, 167, 0.14);
+}
+
+.admin-student-row.studying i,
+.admin-select-list .studying i,
+.admin-mini-student-picker .studying i {
+  background: var(--admin-green);
+  box-shadow: 0 0 0 3px rgba(22, 155, 99, 0.14);
+}
+
+.admin-student-row.break i,
+.admin-select-list .break i,
+.admin-mini-student-picker .break i {
+  background: var(--admin-amber);
+  box-shadow: 0 0 0 3px rgba(216, 146, 22, 0.16);
+}
+
+.admin-student-row span,
+.admin-student-row strong,
+.admin-select-list span,
+.admin-select-list em,
+.admin-student-card-main strong,
+.admin-student-card-main span,
+.admin-subject-list span,
+.admin-subject-list strong,
+.admin-subject-list em,
+.admin-compact-list span,
+.admin-compact-list strong,
+.admin-message-log span,
+.admin-message-log strong,
+.admin-detail-grid span,
+.admin-detail-grid strong,
+.admin-control-grid span,
+.admin-control-grid strong {
+  letter-spacing: 0;
+}
+
+.admin-student-row span,
+.admin-student-card-main strong,
+.admin-detail-grid strong,
+.admin-control-grid strong,
+.admin-compact-list strong,
+.admin-message-log strong {
+  color: var(--admin-ink);
+}
+
+.admin-student-row em,
+.admin-select-list em,
+.admin-student-card-main span,
+.admin-detail-grid span,
+.admin-control-grid span,
+.admin-compact-list span,
+.admin-message-log span,
+.admin-subject-list span,
+.admin-task-edit-list span {
+  color: var(--admin-muted);
+}
+
+.admin-control-grid {
+  gap: 9px;
+}
+
+.admin-control-grid div,
+.admin-detail-grid div {
+  padding: 10px 12px;
+  background:
+    linear-gradient(180deg, #ffffff, var(--admin-surface-soft));
+}
+
+.admin-control-grid svg {
+  color: var(--admin-teal);
+}
+
+.admin-control-grid strong,
+.admin-detail-grid strong {
+  font-size: 19px;
+}
+
+.admin-sync-list div {
+  min-height: 42px;
+  background: #f4f8fb;
+}
+
+.admin-sync-list strong {
+  color: #0d6b62;
+}
+
+.admin-select-list {
+  grid-auto-rows: 104px;
+  gap: 9px;
+}
+
+.admin-select-list button {
+  border-color: #dce6ed;
+  background:
+    linear-gradient(180deg, #ffffff, #f7fafc);
+}
+
+.admin-select-list button.selected,
+.admin-message-students button.selected,
+.admin-mini-student-picker button.selected {
+  border-color: rgba(15, 148, 136, 0.38);
+  background:
+    linear-gradient(135deg, #0f9488, #0d6b62);
+  color: #ffffff;
+  box-shadow: 0 12px 24px rgba(15, 148, 136, 0.2);
+}
+
+.admin-mini-student-picker button,
+.admin-message-students button,
+.admin-sort-controls button {
+  border-color: #dce6ed;
+  background: #ffffff;
+  color: var(--admin-ink);
+}
+
+.admin-mini-student-picker button:hover,
+.admin-message-students button:hover,
+.admin-sort-controls button:hover {
+  border-color: rgba(15, 148, 136, 0.28);
+  background: #eefaf7;
+}
+
+.admin-sort-controls button.active {
+  border-color: rgba(15, 148, 136, 0.38);
+  background: #0f9488;
+  color: #ffffff;
+}
+
+.admin-task-edit-list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 4px;
+}
+
+.admin-task-edit-list div {
+  background: #ffffff;
+}
+
+.admin-task-edit-list input,
+.admin-setting-grid input,
+.admin-message-compose textarea {
+  border-color: #d8e2ea;
+  background: #ffffff;
+  color: var(--admin-ink);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.84);
+}
+
+.admin-task-edit-list input:focus,
+.admin-setting-grid input:focus,
+.admin-message-compose textarea:focus {
+  border-color: rgba(15, 148, 136, 0.48);
+  box-shadow: 0 0 0 3px rgba(15, 148, 136, 0.12);
+}
+
+.admin-task-edit-list button,
+.admin-fruit-actions button,
+.admin-send-button {
+  background: #0f9488;
+  color: #ffffff;
+  box-shadow: 0 10px 20px rgba(15, 148, 136, 0.16);
+}
+
+.admin-task-edit-list button:hover,
+.admin-fruit-actions button:hover,
+.admin-send-button:hover {
+  background: #0d7f76;
+}
+
+.admin-fruit-actions button:first-child {
+  border: 1px solid #dce6ed;
+  background: #ffffff;
+  color: var(--admin-ink);
+  box-shadow: none;
+}
+
+.admin-fruit-actions svg {
+  color: #e6a21a;
+  fill: rgba(230, 162, 26, 0.18);
+}
+
+.admin-reward-rules div,
+.admin-reward-progress-list div {
+  background: #ffffff;
+}
+
+.admin-reward-progress-list span {
+  color: #0d6b62;
+}
+
+.admin-reward-progress-list i {
+  background: #e6edf2;
+}
+
+.admin-reward-progress-list b {
+  background: linear-gradient(90deg, #0f9488, #e6a21a);
+}
+
+.admin-mini-calendar div {
+  border-color: #dce6ed;
+  background: #ffffff;
+}
+
+.admin-mini-calendar div.stamped {
+  border-color: rgba(15, 148, 136, 0.42);
+  background: #0f9488;
+  color: #ffffff;
+}
+
+.admin-setting-grid label {
+  border-color: #dce6ed;
+  background: #ffffff;
+  color: var(--admin-muted);
+}
+
+.admin-setting-grid input:disabled {
+  background: #eef3f7;
+  color: #7a8794;
+}
+
+.admin-settings-grid {
+  grid-template-columns: minmax(0, 0.96fr) minmax(0, 1.04fr);
+  gap: 14px;
+}
+
+.admin-map-toggle-list {
+  gap: 9px;
+}
+
+.admin-map-toggle-list button {
+  border-color: #dce6ed;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: none;
+}
+
+.admin-map-toggle-list button.open {
+  border-color: rgba(15, 148, 136, 0.36);
+  background: #effbf8;
+}
+
+.admin-map-toggle-list button.closed {
+  background: #f4f7fa;
+}
+
+.admin-map-toggle-list button em {
+  background: #0f9488;
+}
+
+.admin-map-toggle-list button.closed em {
+  background: #e6edf2;
+  color: #667586;
+}
+
+.admin-file-panel,
+.admin-file-status {
+  min-height: 0;
+}
+
+.admin-file-drop {
+  min-height: 188px;
+  border-color: rgba(15, 148, 136, 0.34);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, #ffffff, #f2faf8);
+}
+
+.admin-file-drop svg {
+  color: var(--admin-teal);
+}
+
+.admin-file-drop strong {
+  color: var(--admin-ink);
+}
+
+.admin-file-drop span {
+  color: var(--admin-muted);
+}
+
+.admin-message-compose textarea {
+  border-radius: 8px;
+}
+
+.admin-message-log div {
+  align-items: flex-start;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  background: #ffffff;
+}
+
+.admin-message-log strong {
+  white-space: normal;
+  line-height: 18px;
 }

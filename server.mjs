@@ -28,6 +28,7 @@ const mimeTypes = {
   '.png': 'image/png',
   '.svg': 'image/svg+xml',
   '.txt': 'text/plain; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
   '.webp': 'image/webp',
 };
 
@@ -399,6 +400,16 @@ async function handleAppApi(req, res, url) {
   }
 
   if (url.pathname === '/app-api/health' && req.method === 'GET') {
+    sendJson(res, 200, { ok: true, serverTime: new Date().toISOString() });
+    return;
+  }
+
+  if (url.pathname === '/app-api/admin/verify' && req.method === 'POST') {
+    if (!appAdminToken) {
+      sendJson(res, 503, { error: 'APP_ADMIN_TOKEN is required for tablet unlock' });
+      return;
+    }
+    if (!requireAdmin(req, res, url)) return;
     sendJson(res, 200, { ok: true, serverTime: new Date().toISOString() });
     return;
   }

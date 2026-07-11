@@ -27,6 +27,8 @@ This repo includes `render.yaml`.
 - Build command: `npm ci && npm run build`
 - Start command: `npm start`
 - Runtime: Node 20+
+- Set `APP_ADMIN_TOKEN` in Render. The same value is used as the tablet unlock/logout password.
+- The production build uses relative API paths such as `/app-api`, so the web app and realtime API run from the same Render service.
 
 ## Integrations
 
