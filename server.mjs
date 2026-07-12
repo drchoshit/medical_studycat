@@ -13,9 +13,17 @@ const appAdminToken = process.env.APP_ADMIN_TOKEN || '';
 const appParentToken = process.env.APP_PARENT_TOKEN || '';
 
 const proxyTargets = {
-  '/medischedule-api': process.env.MEDISCHEDULE_API_BASE || 'https://medischedule.kr/api',
-  '/mentoring-api': process.env.MENTORING_API_BASE || 'https://mentoring-api-6l1a.onrender.com',
-  '/penalty-api': process.env.MEDIPENALTY_API_BASE || 'https://medipenalty.kr/api',
+  '/medischedule-api': process.env.MEDISCHEDULE_API_BASE || 'https://www.medischedule.kr/api',
+  '/mentoring-api': process.env.MENTORING_API_BASE || 'https://www.medimentors.kr',
+  '/mediweekly-api': process.env.MEDIWEEKLY_API_BASE || 'https://www.mediweekly.kr/api',
+  '/penalty-api': process.env.MEDIPENALTY_API_BASE || 'https://www.medipenalty.kr/api',
+};
+
+const proxyTokens = {
+  '/medischedule-api': process.env.MEDISCHEDULE_TOKEN || '',
+  '/mentoring-api': process.env.MENTORING_TOKEN || '',
+  '/mediweekly-api': process.env.MEDIWEEKLY_TOKEN || '',
+  '/penalty-api': process.env.MEDIPENALTY_TOKEN || '',
 };
 
 const mimeTypes = {
@@ -185,6 +193,7 @@ function snapshotFor(client = {}) {
     messages: messagesFor(client.role === 'admin' ? undefined : studentId),
     rewardSettings: appState.settings.rewardSettings,
     rewardMapVisibility: appState.settings.rewardMapVisibility,
+    penaltySettings: appState.settings.penaltySettings,
   };
 }
 
@@ -566,6 +575,7 @@ async function handleAppApi(req, res, url) {
       ...appState.settings,
       ...(body.rewardSettings ? { rewardSettings: body.rewardSettings } : {}),
       ...(body.rewardMapVisibility ? { rewardMapVisibility: body.rewardMapVisibility } : {}),
+      ...(body.penaltySettings ? { penaltySettings: body.penaltySettings } : {}),
       updatedAt: new Date().toISOString(),
     };
     touchState();
@@ -605,6 +615,9 @@ async function proxyRequest(req, res, prefix, targetBase) {
   const target = new URL(`${targetBase.replace(/\/$/, '')}${path}`);
   const headers = { ...req.headers, host: target.host };
   delete headers.connection;
+  if (!headers.authorization && proxyTokens[prefix]) {
+    headers.authorization = `Bearer ${proxyTokens[prefix]}`;
+  }
 
   try {
     const upstream = await fetch(target, {

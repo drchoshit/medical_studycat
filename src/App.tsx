@@ -52,7 +52,7 @@ import {
 import { DEFAULT_SUBJECTS, defaultAppData, defaultRewardSettings, demoSchedule, demoStudents, rewardItems, subjectColor, todayKey } from './demoData';
 import fruitUrl from './assets/tree-fruit.png';
 import treeSceneUrl from './assets/reward-tree-modern.png';
-import type { AdminMessage, AppData, AppTheme, FamilySyncReport, LiveStudentStatus, PageKey, PenaltySummary, RealtimeSnapshot, RewardPurchase, RewardSettings, Role, RunningSession, ScheduleItem, StudentStatus, StudyBlock, Subject, Task, TimerSkin } from './types';
+import type { AdminMessage, AppData, AppTheme, FamilySyncReport, LiveStudentStatus, PageKey, PenaltySettings, PenaltySummary, RealtimeSnapshot, RewardPurchase, RewardSettings, Role, RunningSession, ScheduleItem, StudentStatus, StudyBlock, Subject, Task, TimerSkin } from './types';
 
 const DESKTOP_FRAME_WIDTH = 1440;
 const DESKTOP_FRAME_HEIGHT = 900;
@@ -227,11 +227,11 @@ const rewardStageLabel = (index: number) => {
 };
 
 const rewardMapMonths: Array<{ key: string; label: string; title: string; subtitle: string; theme: RewardMapTheme }> = [
-  { key: '2026-08', label: '8월', title: 'Blue Coast Run', subtitle: '오픈 시즌 해안 맵', theme: 'august' },
-  { key: '2026-09', label: '9월', title: 'Campus Hills', subtitle: '개학 시즌 언덕 맵', theme: 'september' },
-  { key: '2026-10', label: '10월', title: 'Night Festival', subtitle: '가을 축제 맵', theme: 'october' },
-  { key: '2026-11', label: '11월', title: 'Crystal Lab', subtitle: '실전 집중 맵', theme: 'november' },
-  { key: '2026-12', label: '12월', title: 'Snow Finale', subtitle: '연말 완주 맵', theme: 'december' },
+  { key: '2026-08', label: '10월', title: 'Blue Coast Run', subtitle: '오픈 시즌 해안 맵', theme: 'august' },
+  { key: '2026-09', label: '11월', title: 'Campus Hills', subtitle: '개학 시즌 언덕 맵', theme: 'september' },
+  { key: '2026-10', label: '12월', title: 'Night Festival', subtitle: '가을 축제 맵', theme: 'october' },
+  { key: '2026-11', label: '1월', title: 'Crystal Lab', subtitle: '실전 집중 맵', theme: 'november' },
+  { key: '2026-12', label: '2월', title: 'Snow Finale', subtitle: '연말 완주 맵', theme: 'december' },
 ];
 
 const normalizeRewardMapVisibility = (visibility?: Record<string, boolean>): Record<string, boolean> => Object.fromEntries(
@@ -1281,6 +1281,7 @@ function getStoredData() {
       rewardPurchases: Array.isArray(parsed.rewardPurchases) ? parsed.rewardPurchases : [],
       rewardSettings: normalizeRewardSettings(parsed.rewardSettings),
       rewardMapVisibility: normalizeRewardMapVisibility(parsed.rewardMapVisibility),
+      penaltySettings: normalizePenaltySettings(parsed.penaltySettings),
       adminMessages: Array.isArray(parsed.adminMessages) ? parsed.adminMessages : [],
       dismissedMessageIds: Array.isArray(parsed.dismissedMessageIds) ? parsed.dismissedMessageIds : [],
       hiddenTaskIds: Array.isArray(parsed.hiddenTaskIds) ? parsed.hiddenTaskIds : [],
@@ -1339,6 +1340,17 @@ function normalizeRewardSettings(settings?: LegacyRewardSettings): RewardSetting
     attendanceTwentyStars,
     attendanceFullStars,
   };
+}
+
+function normalizePenaltySettings(settings?: Partial<PenaltySettings>): PenaltySettings {
+  const validDate = (value: unknown) => {
+    const text = String(value ?? '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : '';
+  };
+  const from = validDate(settings?.from);
+  const to = validDate(settings?.to);
+  if (from && to && from > to) return { from: to, to: from };
+  return { from, to };
 }
 
 function fruitPointThreshold(settings: RewardSettings) {
@@ -1637,6 +1649,7 @@ function applyRealtimeData(data: AppData, snapshot: RealtimeSnapshot): AppData {
     adminMessages: mergeAdminMessages(data.adminMessages, snapshot.messages),
     rewardSettings: snapshot.rewardSettings ? normalizeRewardSettings(snapshot.rewardSettings) : data.rewardSettings,
     rewardMapVisibility: snapshot.rewardMapVisibility ? normalizeRewardMapVisibility(snapshot.rewardMapVisibility) : data.rewardMapVisibility,
+    penaltySettings: snapshot.penaltySettings ? normalizePenaltySettings(snapshot.penaltySettings) : data.penaltySettings,
   };
 }
 
@@ -1683,14 +1696,20 @@ function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: stri
   const [id, setId] = useState('qtf258');
   const [medischeduleToken, setMedischeduleToken] = useState(() => localStorage.getItem('medical-study-medischedule-token') || '');
   const [mentorToken, setMentorToken] = useState(() => localStorage.getItem('medical-study-mentor-token') || '');
+  const [mediweeklyToken, setMediweeklyToken] = useState(() => localStorage.getItem('medical-study-mediweekly-token') || '');
+  const [medipenaltyToken, setMedipenaltyToken] = useState(() => localStorage.getItem('medical-study-medipenalty-token') || '');
   const [appAdminToken, setAppAdminToken] = useState(() => localStorage.getItem('medical-study-app-admin-token') || '');
 
   function saveIntegrationTokens() {
     const cleanMedischeduleToken = medischeduleToken.trim().replace(/^Bearer\s+/i, '');
     const cleanMentorToken = mentorToken.trim().replace(/^Bearer\s+/i, '');
+    const cleanMediweeklyToken = mediweeklyToken.trim().replace(/^Bearer\s+/i, '');
+    const cleanMedipenaltyToken = medipenaltyToken.trim().replace(/^Bearer\s+/i, '');
     const cleanAppAdminToken = appAdminToken.trim().replace(/^Bearer\s+/i, '');
     if (cleanMedischeduleToken) localStorage.setItem('medical-study-medischedule-token', cleanMedischeduleToken);
     if (cleanMentorToken) localStorage.setItem('medical-study-mentor-token', cleanMentorToken);
+    if (cleanMediweeklyToken) localStorage.setItem('medical-study-mediweekly-token', cleanMediweeklyToken);
+    if (cleanMedipenaltyToken) localStorage.setItem('medical-study-medipenalty-token', cleanMedipenaltyToken);
     if (cleanAppAdminToken) localStorage.setItem('medical-study-app-admin-token', cleanAppAdminToken);
   }
 
@@ -1731,6 +1750,14 @@ function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: stri
             <label>
               medimentors token
               <input value={mentorToken} onChange={(event) => setMentorToken(event.target.value)} placeholder="token" />
+            </label>
+            <label>
+              mediweekly token
+              <input value={mediweeklyToken} onChange={(event) => setMediweeklyToken(event.target.value)} placeholder="attendance token" />
+            </label>
+            <label>
+              medipenalty token
+              <input value={medipenaltyToken} onChange={(event) => setMedipenaltyToken(event.target.value)} placeholder="penalty token" />
             </label>
             <label>
               app realtime token
@@ -3575,7 +3602,6 @@ function ModernMockExamTimerModal({
             seconds={remainingSeconds}
             skin={timerSkin}
             label={selectedExam?.label}
-            subLabel={selectedExam ? `${selectedExam.start}-${selectedExam.end} · ${Math.ceil(selectedExamSeconds / 60)}분 시험` : undefined}
             minuteMode="remaining"
           />
           <div className="modern-mock-actions">
@@ -3746,6 +3772,7 @@ function AdminPage({
   onTaskChange,
   onRewardSettingsChange,
   onRewardMapVisibilityChange,
+  onPenaltySettingsChange,
   onFruitChange,
 }: {
   data: AppData;
@@ -3756,6 +3783,7 @@ function AdminPage({
   onTaskChange: (task: Task) => void;
   onRewardSettingsChange: (settings: RewardSettings) => void;
   onRewardMapVisibilityChange: (visibility: Record<string, boolean>) => void;
+  onPenaltySettingsChange: (settings: PenaltySettings) => void;
   onFruitChange: (delta: number) => void;
 }) {
   const [tab, setTab] = useState<'overview' | 'files' | 'students' | 'learning' | 'rewards' | 'settings' | 'messages'>('overview');
@@ -3770,6 +3798,7 @@ function AdminPage({
   const [linkedFileNames, setLinkedFileNames] = useState<string[]>([]);
   const rewardSettings = normalizeRewardSettings(data.rewardSettings);
   const rewardMapVisibility = normalizeRewardMapVisibility(data.rewardMapVisibility);
+  const penaltySettings = normalizePenaltySettings(data.penaltySettings);
   const openRewardMapCount = rewardMapMonths.filter((month) => rewardMapVisibility[month.key] !== false).length;
   const sorted = [...students].sort((a, b) => b.todayMinutes - a.todayMinutes);
   const adminStudents = useMemo(() => sortStudents(students, studentSort), [students, studentSort]);
@@ -3833,6 +3862,10 @@ function AdminPage({
 
   function updateRewardMapVisibility(key: string, open: boolean) {
     onRewardMapVisibilityChange(normalizeRewardMapVisibility({ ...rewardMapVisibility, [key]: open }));
+  }
+
+  function updatePenaltySetting(key: keyof PenaltySettings, value: string) {
+    onPenaltySettingsChange(normalizePenaltySettings({ ...penaltySettings, [key]: value }));
   }
 
   function renderStudentPicker(label: string) {
@@ -4099,6 +4132,17 @@ function AdminPage({
                 <label>10일 출석 별<input type="number" min={0} value={rewardSettings.attendanceTenStars} onChange={(event) => updateRewardSetting('attendanceTenStars', Number(event.target.value))} /></label>
                 <label>20일 출석 별<input type="number" min={0} value={rewardSettings.attendanceTwentyStars} onChange={(event) => updateRewardSetting('attendanceTwentyStars', Number(event.target.value))} /></label>
                 <label>전체 출석 별<input type="number" min={0} value={rewardSettings.attendanceFullStars} onChange={(event) => updateRewardSetting('attendanceFullStars', Number(event.target.value))} /></label>
+              </div>
+            </div>
+            <div className="admin-panel">
+              <div className="admin-panel-head"><h2>벌점 누적 기간</h2><span>학습 리포트 반영</span></div>
+              <div className="admin-setting-grid admin-penalty-period-grid">
+                <label>시작일<input type="date" value={penaltySettings.from} onChange={(event) => updatePenaltySetting('from', event.target.value)} /></label>
+                <label>종료일<input type="date" value={penaltySettings.to} onChange={(event) => updatePenaltySetting('to', event.target.value)} /></label>
+              </div>
+              <div className="admin-compact-list">
+                <div><span>조회 기준</span><strong>{penaltySettings.from || penaltySettings.to ? `${penaltySettings.from || '처음'} ~ ${penaltySettings.to || '오늘'}` : '전체 누적'}</strong></div>
+                <div><span>표시 위치</span><strong>학습 리포트 학생별 벌점란</strong></div>
               </div>
             </div>
             <div className="admin-panel">
@@ -4656,7 +4700,7 @@ export default function App() {
     if (!role) return;
     let cancelled = false;
     async function refreshPenaltySummary() {
-      const result = await loadPenaltySummary();
+      const result = await loadPenaltySummary(data.penaltySettings);
       if (cancelled) return;
       setPenaltySummaries(result.items);
       setPenaltySource(result.source);
@@ -4667,7 +4711,7 @@ export default function App() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [role]);
+  }, [role, data.penaltySettings]);
 
   useEffect(() => {
     if (role !== 'user') return;
@@ -5016,6 +5060,12 @@ export default function App() {
     void saveRealtimeSettings({ rewardMapVisibility: normalized });
   }
 
+  function savePenaltySettings(penaltySettings: PenaltySettings) {
+    const normalized = normalizePenaltySettings(penaltySettings);
+    setData((prev) => ({ ...prev, penaltySettings: normalized }));
+    void saveRealtimeSettings({ penaltySettings: normalized });
+  }
+
   function changeFruits(delta: number) {
     setData((prev) => ({ ...prev, fruits: Math.max(0, prev.fruits + delta) }));
   }
@@ -5058,9 +5108,11 @@ export default function App() {
           : merged;
       });
       const rowIds = new Set(rows.map((student) => student.id));
-      liveStudents.forEach((student) => {
-        if (!rowIds.has(student.id)) rows.push(student);
-      });
+      if (!medischeduleStudents.length) {
+        liveStudents.forEach((student) => {
+          if (!rowIds.has(student.id)) rows.push(student);
+        });
+      }
       return rows;
     },
     [actualTodayMinutes, data.studentId, data.studentName, liveStudents, medischeduleStudents, role, runningSession, selectedSubject],
@@ -5080,6 +5132,7 @@ export default function App() {
         onTaskChange={saveAdminTask}
         onRewardSettingsChange={saveRewardSettings}
         onRewardMapVisibilityChange={saveRewardMapVisibility}
+        onPenaltySettingsChange={savePenaltySettings}
         onFruitChange={changeFruits}
       />
     );

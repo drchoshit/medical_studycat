@@ -88,6 +88,10 @@ export function defaultAppData(name = '학생', id = 'student-demo'): AppData {
       '2026-11': true,
       '2026-12': true,
     },
+    penaltySettings: {
+      from: '',
+      to: '',
+    },
     adminMessages: [],
     dismissedMessageIds: [],
     hiddenTaskIds: [],

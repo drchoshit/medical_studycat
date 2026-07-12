@@ -15520,6 +15520,158 @@ body {
   }
 }
 
+/* Assignment board and countdown sizing refinements. */
+.modern-task-columns,
+.desktop-scale-stage .modern-task-columns {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-template-rows: repeat(2, minmax(0, 1fr)) !important;
+  gap: 14px !important;
+}
+
+.modern-task-column {
+  min-height: 0;
+  padding: 12px;
+  grid-template-rows: 40px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.modern-column-head {
+  grid-template-columns: 11px minmax(0, 1fr) 34px 34px;
+}
+
+.modern-column-head strong {
+  font-size: 16px;
+  line-height: 20px;
+}
+
+.modern-column-head span {
+  justify-self: end;
+  padding-right: 4px;
+}
+
+.modern-column-head button {
+  width: 34px;
+  height: 34px;
+}
+
+.modern-task-list {
+  overflow: auto;
+  padding-right: 2px;
+  gap: 9px;
+}
+
+.modern-task-card {
+  padding: 11px 12px;
+  gap: 7px;
+}
+
+.modern-task-card h3 {
+  min-height: auto;
+  font-size: 14px;
+  line-height: 19px;
+}
+
+.modern-empty-state {
+  min-height: 72px;
+  border-radius: 10px;
+  background: #f8fafc;
+}
+
+.modern-mock-modal {
+  width: min(1040px, 90%);
+  height: min(660px, 84%);
+  grid-template-rows: 54px 46px minmax(0, 1fr);
+}
+
+.modern-mock-stage {
+  grid-template-rows: 52px minmax(0, 0.86fr) 56px;
+  gap: 10px;
+  padding: 16px;
+}
+
+.modern-mock-state {
+  min-width: 190px;
+  padding: 8px 12px;
+}
+
+.modern-mock-state em {
+  display: none;
+}
+
+.modern-mock-stage .timer-face {
+  align-self: center;
+}
+
+.modern-mock-stage .timer-face-minute .wood-clock-shell {
+  width: min(430px, 72%);
+  min-height: 164px;
+}
+
+.modern-mock-stage .timer-face-minute .wood-clock-digits strong {
+  min-width: 142px;
+  width: 142px;
+  height: 88px;
+  font-size: 62px;
+  line-height: 70px;
+}
+
+.modern-mock-stage .timer-face-minute .wood-clock-digits i {
+  font-size: 38px;
+  line-height: 44px;
+}
+
+.modern-mock-modal.mock-fullscreen .modern-mock-stage.timer-only {
+  grid-template-rows: minmax(0, 1fr) 76px;
+  padding: 58px 52px 36px;
+}
+
+.modern-mock-modal.mock-fullscreen .modern-mock-state {
+  top: 28px;
+}
+
+.modern-mock-modal.mock-fullscreen .timer-face-minute .wood-clock-shell {
+  width: min(920px, 78vw);
+  min-height: 310px;
+}
+
+.modern-mock-modal.mock-fullscreen .timer-face-minute .wood-clock-digits strong {
+  min-width: 300px;
+  width: 300px;
+  height: 166px;
+  font-size: 128px;
+  line-height: 136px;
+}
+
+.modern-mock-modal.mock-fullscreen .timer-face-minute .wood-clock-digits i {
+  font-size: 48px;
+  line-height: 54px;
+}
+
+@media (max-width: 900px) {
+  .modern-task-columns,
+  .desktop-scale-stage .modern-task-columns {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-rows: repeat(3, minmax(0, 1fr)) !important;
+  }
+}
+
+.login-token-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.login-token-grid label:last-child {
+  grid-column: 1 / -1;
+}
+
+.admin-penalty-period-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.admin-penalty-period-grid input {
+  font-variant-numeric: tabular-nums;
+}
+
 /* Simple score timer skin. */
 .modern-timer-stage.timer-pulse,
 .modern-fullscreen-timer.timer-pulse,

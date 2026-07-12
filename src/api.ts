@@ -1,5 +1,5 @@
 import { DEFAULT_SUBJECTS, demoSchedule, todayKey } from './demoData';
-import type { AdminMessage, FamilySyncReport, LiveStudentStatus, PenaltySummary, RealtimeSnapshot, RewardSettings, ScheduleItem, StudentStatus, Subject, Task } from './types';
+import type { AdminMessage, FamilySyncReport, LiveStudentStatus, PenaltySettings, PenaltySummary, RealtimeSnapshot, RewardSettings, ScheduleItem, StudentStatus, Subject, Task } from './types';
 
 export const weekDays = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -9,6 +9,7 @@ const medischeduleBase =
   '/medischedule-api';
 
 const mentoringBase = import.meta.env.VITE_MENTORING_API_BASE || '/mentoring-api';
+const mediweeklyBase = import.meta.env.VITE_MEDIWEEKLY_API_BASE || '/mediweekly-api';
 const penaltyBase = import.meta.env.VITE_MEDIPENALTY_API_BASE || '/penalty-api';
 const appApiBase = import.meta.env.VITE_APP_API_BASE || '/app-api';
 
@@ -31,17 +32,31 @@ function getStoredToken(keys: string[], envToken?: string) {
   return '';
 }
 
-function authHeaders(kind: 'medischedule' | 'mentoring', contentType = false): HeadersInit {
-  const token =
-    kind === 'medischedule'
-      ? getStoredToken(
-          ['medical-study-medischedule-token', 'adminToken', 'studentToken', 'token'],
-          import.meta.env.VITE_MEDISCHEDULE_TOKEN || import.meta.env.VITE_MEDISCHECHEDULE_TOKEN,
-        )
-      : getStoredToken(
-          ['medical-study-mentor-token', 'mentorToken', 'token'],
-          import.meta.env.VITE_MENTORING_TOKEN,
-        );
+function authHeaders(kind: 'medischedule' | 'mentoring' | 'mediweekly' | 'penalty', contentType = false): HeadersInit {
+  const token = (() => {
+    if (kind === 'medischedule') {
+      return getStoredToken(
+        ['medical-study-medischedule-token', 'adminToken', 'studentToken', 'token'],
+        import.meta.env.VITE_MEDISCHEDULE_TOKEN || import.meta.env.VITE_MEDISCHECHEDULE_TOKEN,
+      );
+    }
+    if (kind === 'mentoring') {
+      return getStoredToken(
+        ['medical-study-mentor-token', 'mentorToken', 'token'],
+        import.meta.env.VITE_MENTORING_TOKEN,
+      );
+    }
+    if (kind === 'mediweekly') {
+      return getStoredToken(
+        ['medical-study-mediweekly-token', 'mediweeklyToken', 'token'],
+        import.meta.env.VITE_MEDIWEEKLY_TOKEN,
+      );
+    }
+    return getStoredToken(
+      ['medical-study-medipenalty-token', 'medipenaltyToken', 'token'],
+      import.meta.env.VITE_MEDIPENALTY_TOKEN,
+    );
+  })();
 
   return {
     ...(contentType ? { 'Content-Type': 'application/json' } : {}),
@@ -214,7 +229,7 @@ export async function dismissRealtimeAdminMessage(messageId: string, studentId: 
   }
 }
 
-export async function saveRealtimeSettings(settings: { rewardSettings?: RewardSettings; rewardMapVisibility?: Record<string, boolean> }): Promise<boolean> {
+export async function saveRealtimeSettings(settings: { rewardSettings?: RewardSettings; rewardMapVisibility?: Record<string, boolean>; penaltySettings?: PenaltySettings }): Promise<boolean> {
   try {
     await fetchJson(
       appApiUrl('/settings'),
@@ -361,6 +376,95 @@ function normalizeStudents(rows: unknown[]): StudentStatus[] {
     .filter((student) => student.id && student.name);
 }
 
+function normalizeLookupKey(value: unknown) {
+  return String(value ?? '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function normalizePhone(value: unknown) {
+  return String(value ?? '').replace(/[^\d]/g, '');
+}
+
+function collectObjects(value: unknown, rows: Record<string, unknown>[] = [], depth = 0): Record<string, unknown>[] {
+  if (depth > 5 || !value) return rows;
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectObjects(item, rows, depth + 1));
+    return rows;
+  }
+  if (typeof value !== 'object') return rows;
+  const object = value as Record<string, unknown>;
+  rows.push(object);
+  Object.entries(object).forEach(([key, child]) => {
+    if (['html', 'content', 'memo', 'note'].includes(key.toLowerCase())) return;
+    collectObjects(child, rows, depth + 1);
+  });
+  return rows;
+}
+
+function readStudentNumber(row: Record<string, unknown>) {
+  const value =
+    row.studentPhone
+    ?? row.student_phone
+    ?? row.phone
+    ?? row.phoneNumber
+    ?? row.phone_number
+    ?? row.attendanceNumber
+    ?? row.attendance_number
+    ?? row.number
+    ?? row.studentNumber
+    ?? row.student_number;
+  const normalized = normalizePhone(value);
+  return normalized.length >= 4 ? String(value ?? '').trim() : '';
+}
+
+function extractStudentNumberRows(payload: unknown) {
+  const result: Array<{ id: string; name: string; studentPhone: string }> = [];
+  const seen = new Set<string>();
+  collectObjects(payload).forEach((row) => {
+    const studentPhone = readStudentNumber(row);
+    if (!studentPhone) return;
+    const id = String(row.studentId ?? row.student_id ?? row.external_id ?? row.externalId ?? row.id ?? '').trim();
+    const name = String(row.studentName ?? row.student_name ?? row.name ?? row.student ?? '').trim();
+    if (!id && !name) return;
+    const key = `${normalizeLookupKey(id)}-${normalizeLookupKey(name)}-${normalizePhone(studentPhone)}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    result.push({ id, name, studentPhone });
+  });
+  return result;
+}
+
+function mergeMediweeklyStudentNumbers(roster: StudentStatus[], weeklyRows: Array<{ id: string; name: string; studentPhone: string }>) {
+  if (!roster.length || !weeklyRows.length) return roster;
+  const byId = new Map<string, string>();
+  const byName = new Map<string, string>();
+  weeklyRows.forEach((row) => {
+    if (row.id) byId.set(normalizeLookupKey(row.id), row.studentPhone);
+    if (row.name) byName.set(normalizeLookupKey(row.name), row.studentPhone);
+  });
+  return roster.map((student) => {
+    const weeklyPhone = byId.get(normalizeLookupKey(student.id)) ?? byName.get(normalizeLookupKey(student.name));
+    return weeklyPhone ? { ...student, studentPhone: weeklyPhone } : student;
+  });
+}
+
+export async function loadMediweeklyStudentNumbers(): Promise<Array<{ id: string; name: string; studentPhone: string }>> {
+  const endpoints = [`${mediweeklyBase}/state`, `${mediweeklyBase}/state/weekly-calendars`];
+  for (const endpoint of endpoints) {
+    try {
+      const payload = await fetchJson<unknown>(
+        `${endpoint}${endpoint.includes('?') ? '&' : '?'}_t=${Date.now()}`,
+        { headers: authHeaders('mediweekly') },
+        6000,
+      );
+      const rows = extractStudentNumberRows(payload);
+      if (rows.length) return rows;
+    } catch {
+      // mediweekly requires an authenticated admin token for the attendance table.
+    }
+  }
+  return [];
+}
+
 export async function loadMedischeduleStudents(): Promise<StudentStatus[]> {
   const endpoints = [`${medischeduleBase}/admin/students`, `${medischeduleBase}/students`];
   for (const endpoint of endpoints) {
@@ -371,7 +475,10 @@ export async function loadMedischeduleStudents(): Promise<StudentStatus[]> {
         5000,
       );
       const students = normalizeStudents(extractRows(payload));
-      if (students.length) return students;
+      if (students.length) {
+        const weeklyRows = await loadMediweeklyStudentNumbers();
+        return mergeMediweeklyStudentNumbers(students, weeklyRows);
+      }
     } catch {
       // A real medischedule admin token is required for the live roster.
     }
@@ -406,13 +513,32 @@ function normalizePenaltySummary(rows: unknown[]): PenaltySummary[] {
     .filter((row) => row.id);
 }
 
-export async function loadPenaltySummary(): Promise<{ items: PenaltySummary[]; source: string }> {
-  try {
-    const payload = await fetchJson<unknown>(`${penaltyBase}/summary/cumulative?_t=${Date.now()}`, undefined, 5000);
-    return { items: normalizePenaltySummary(extractRows(payload)), source: 'medipenalty 실시간' };
-  } catch {
-    return { items: [], source: 'medipenalty 연결 필요' };
+function penaltyQuery(settings?: PenaltySettings) {
+  const params = new URLSearchParams({ _t: String(Date.now()) });
+  if (settings?.from) params.set('from', settings.from);
+  if (settings?.to) params.set('to', settings.to);
+  return params.toString();
+}
+
+export async function loadPenaltySummary(settings?: PenaltySettings): Promise<{ items: PenaltySummary[]; source: string }> {
+  const query = penaltyQuery(settings);
+  const endpoints = [`${penaltyBase}/penalties/summary`, `${penaltyBase}/summary/cumulative`];
+  for (const endpoint of endpoints) {
+    try {
+      const payload = await fetchJson<unknown>(
+        `${endpoint}?${query}`,
+        { headers: authHeaders('penalty') },
+        5000,
+      );
+      return {
+        items: normalizePenaltySummary(extractRows(payload)),
+        source: settings?.from || settings?.to ? 'medipenalty 기간 실시간' : 'medipenalty 실시간',
+      };
+    } catch {
+      // Try the legacy endpoint before falling back.
+    }
   }
+  return { items: [], source: 'medipenalty 연결 필요' };
 }
 
 export async function loadSchedule(studentId: string): Promise<{ items: ScheduleItem[]; source: string }> {

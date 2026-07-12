@@ -64,6 +64,11 @@ export type PenaltySummary = {
   points: number;
 };
 
+export type PenaltySettings = {
+  from: string;
+  to: string;
+};
+
 export type RewardPurchase = {
   id: string;
   itemName: string;
@@ -94,6 +99,7 @@ export type RealtimeSnapshot = {
   messages: AdminMessage[];
   rewardSettings?: RewardSettings;
   rewardMapVisibility?: Record<string, boolean>;
+  penaltySettings?: PenaltySettings;
 };
 
 export type FamilySyncReport = {
@@ -173,6 +179,7 @@ export type AppData = {
   rewardPurchases: RewardPurchase[];
   rewardSettings: RewardSettings;
   rewardMapVisibility: Record<string, boolean>;
+  penaltySettings: PenaltySettings;
   adminMessages: AdminMessage[];
   dismissedMessageIds: string[];
   hiddenTaskIds: string[];
