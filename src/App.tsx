@@ -47,6 +47,7 @@ import {
   subscribeRealtimeSnapshot,
   syncMentoringTaskCompletion,
   verifyAppAdminPassword,
+  verifyMedimentorsStudentLogin,
   weekDays,
 } from './api';
 import { DEFAULT_SUBJECTS, defaultAppData, defaultRewardSettings, demoSchedule, demoStudents, rewardItems, subjectColor, todayKey } from './demoData';
@@ -1690,15 +1691,23 @@ function PageTitle({ label, title, right }: { label: string; title: string; righ
   );
 }
 
-function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: string) => void }) {
+type LoginResult = {
+  ok: boolean;
+  error?: string;
+};
+
+function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: string, password: string) => Promise<LoginResult> | LoginResult }) {
   const [mode, setMode] = useState<Role>('user');
   const [name, setName] = useState('김도윤');
   const [id, setId] = useState('qtf258');
+  const [studentPassword, setStudentPassword] = useState('');
   const [medischeduleToken, setMedischeduleToken] = useState(() => localStorage.getItem('medical-study-medischedule-token') || '');
   const [mentorToken, setMentorToken] = useState(() => localStorage.getItem('medical-study-mentor-token') || '');
   const [mediweeklyToken, setMediweeklyToken] = useState(() => localStorage.getItem('medical-study-mediweekly-token') || '');
   const [medipenaltyToken, setMedipenaltyToken] = useState(() => localStorage.getItem('medical-study-medipenalty-token') || '');
   const [appAdminToken, setAppAdminToken] = useState(() => localStorage.getItem('medical-study-app-admin-token') || '');
+  const [loginError, setLoginError] = useState('');
+  const [loggingIn, setLoggingIn] = useState(false);
 
   function saveIntegrationTokens() {
     const cleanMedischeduleToken = medischeduleToken.trim().replace(/^Bearer\s+/i, '');
@@ -1711,6 +1720,16 @@ function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: stri
     if (cleanMediweeklyToken) localStorage.setItem('medical-study-mediweekly-token', cleanMediweeklyToken);
     if (cleanMedipenaltyToken) localStorage.setItem('medical-study-medipenalty-token', cleanMedipenaltyToken);
     if (cleanAppAdminToken) localStorage.setItem('medical-study-app-admin-token', cleanAppAdminToken);
+  }
+
+  async function submitLogin() {
+    if (loggingIn) return;
+    setLoginError('');
+    saveIntegrationTokens();
+    setLoggingIn(true);
+    const result = await onLogin(mode, name.trim() || '학생', id.trim() || 'student-demo', studentPassword);
+    setLoggingIn(false);
+    if (!result.ok) setLoginError(result.error || '로그인에 실패했습니다.');
   }
 
   return (
@@ -1741,6 +1760,12 @@ function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: stri
           학생 ID
           <input value={id} onChange={(event) => setId(event.target.value)} />
         </label>
+        {mode === 'user' ? (
+          <label>
+            비밀번호
+            <input value={studentPassword} onChange={(event) => setStudentPassword(event.target.value)} type="password" autoComplete="current-password" />
+          </label>
+        ) : null}
         {mode === 'admin' ? (
           <div className="login-token-grid">
             <label>
@@ -1765,8 +1790,9 @@ function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: stri
             </label>
           </div>
         ) : null}
-        <button className="login-submit" type="button" onPointerDown={saveIntegrationTokens} onMouseDown={saveIntegrationTokens} onClick={() => onLogin(mode, name.trim() || '학생', id.trim() || 'student-demo')}>
-          시작하기
+        {loginError ? <div className="login-error">{loginError}</div> : null}
+        <button className="login-submit" type="button" onPointerDown={saveIntegrationTokens} onMouseDown={saveIntegrationTokens} onClick={submitLogin} disabled={loggingIn}>
+          {loggingIn ? '확인 중' : '시작하기'}
           <ChevronRight size={24} />
         </button>
       </section>
@@ -4753,7 +4779,18 @@ export default function App() {
     }
   }
 
-  function handleLogin(nextRole: Role, name: string, id: string) {
+  async function handleLogin(nextRole: Role, name: string, id: string, password: string): Promise<LoginResult> {
+    let loginName = name;
+    let loginId = id;
+    if (nextRole === 'user') {
+      const result = await verifyMedimentorsStudentLogin(id, password);
+      if (!result.ok || !result.student) {
+        return { ok: false, error: result.error || 'medimentors 학생 계정 확인에 실패했습니다.' };
+      }
+      loginName = result.student.name || name;
+      loginId = result.student.username || result.student.id || id;
+    }
+
     if (nextRole === 'user') {
       setKioskExitAllowed(false);
       requestPageFullscreen();
@@ -4762,11 +4799,12 @@ export default function App() {
       setKioskUnlockReason(null);
     }
     setRole(nextRole);
-    setData((prev) => ({ ...prev, studentName: name, studentId: id }));
+    setData((prev) => ({ ...prev, studentName: loginName, studentId: loginId }));
     if (nextRole === 'user' && shouldShowAttendancePopup()) {
       setAnimatedAttendanceDate(todayKey());
       setAttendanceOpen(true);
     }
+    return { ok: true };
   }
 
   function openAttendanceModal() {

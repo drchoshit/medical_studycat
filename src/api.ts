@@ -267,7 +267,7 @@ function extractRows(payload: unknown): unknown[] {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== 'object') return [];
   const object = payload as Record<string, unknown>;
-  const candidates = [object.students, object.schedules, object.tasks, object.data, object.items, object.rows, object.list];
+  const candidates = [object.students, object.schedules, object.tasks, object.users, object.data, object.items, object.rows, object.list];
   return candidates.find(Array.isArray) as unknown[] | undefined ?? [];
 }
 
@@ -354,6 +354,48 @@ type RemoteStudentRow = {
   parent_phone?: string;
   guardianPhone?: string;
 };
+
+export type MedimentorsStudentLogin = {
+  id: string;
+  username: string;
+  name: string;
+  active: boolean;
+};
+
+export async function verifyMedimentorsStudentLogin(loginId: string, password: string): Promise<{
+  ok: boolean;
+  source: string;
+  student?: MedimentorsStudentLogin;
+  error?: string;
+}> {
+  const cleanId = loginId.trim();
+  const cleanPassword = password.trim();
+  if (!cleanId || !cleanPassword) {
+    return { ok: false, source: '입력 필요', error: '학생 ID와 비밀번호를 입력하세요.' };
+  }
+
+  try {
+    const payload = await fetchJson<{ student?: MedimentorsStudentLogin; source?: string }>(
+      appApiUrl('/student-login/verify'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ loginId: cleanId, password: cleanPassword }),
+      },
+      7000,
+    );
+    if (!payload.student) {
+      return { ok: false, source: payload.source || 'medimentors 계정 인증 필요', error: 'medimentors 학생 계정 확인에 실패했습니다.' };
+    }
+    return { ok: true, source: payload.source || 'medimentors 계정 실시간', student: payload.student };
+  } catch (error) {
+    return {
+      ok: false,
+      source: 'medimentors 계정 인증 필요',
+      error: error instanceof Error ? error.message : 'medimentors 학생 계정 정보를 불러오지 못했습니다.',
+    };
+  }
+}
 
 function normalizeStudents(rows: unknown[]): StudentStatus[] {
   return rows

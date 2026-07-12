@@ -337,6 +337,107 @@ function normalizeText(value, fallback = '') {
   return text || fallback;
 }
 
+function extractRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== 'object') return [];
+  const candidates = [
+    payload.users,
+    payload.students,
+    payload.data,
+    payload.items,
+    payload.rows,
+    payload.list,
+  ];
+  return candidates.find(Array.isArray) || [];
+}
+
+function normalizeLoginKey(value) {
+  return String(value ?? '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function normalizeActive(value) {
+  if (value === undefined || value === null || value === '') return true;
+  if (typeof value === 'boolean') return value;
+  const text = String(value).trim().toLowerCase();
+  return !['0', 'false', 'off', 'inactive', 'disabled'].includes(text);
+}
+
+function publicMentorStudentUser(row) {
+  const username = normalizeText(row.username ?? row.external_id ?? row.externalId ?? row.studentId ?? row.student_id ?? row.id);
+  const id = normalizeText(row.external_id ?? row.externalId ?? row.username ?? row.studentId ?? row.student_id ?? row.id);
+  const name = normalizeText(row.student_name ?? row.studentName ?? row.name ?? row.display_name, username || id);
+  return {
+    id,
+    username,
+    name,
+    active: normalizeActive(row.is_active ?? row.isActive ?? row.active),
+  };
+}
+
+function normalizeMentorStudentUsers(rows) {
+  return rows
+    .map((raw) => {
+      const row = raw && typeof raw === 'object' ? raw : {};
+      return {
+        ...publicMentorStudentUser(row),
+        password: normalizeText(row.password ?? row.plain_password ?? row.parent_password),
+      };
+    })
+    .filter((row) => row.id && row.username);
+}
+
+async function fetchMentorStudentUsers() {
+  const token = proxyTokens['/mentoring-api'];
+  if (!token) {
+    const error = new Error('MENTORING_TOKEN is required for medimentors student login sync');
+    error.statusCode = 503;
+    throw error;
+  }
+  const target = new URL(`${proxyTargets['/mentoring-api'].replace(/\/$/, '')}/api/users/parents?_t=${Date.now()}`);
+  const upstream = await fetch(target, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Accept: 'application/json',
+    },
+  });
+  const text = await upstream.text();
+  const payload = text ? JSON.parse(text) : null;
+  if (!upstream.ok) {
+    const error = new Error(payload?.error || payload?.message || `medimentors HTTP ${upstream.status}`);
+    error.statusCode = upstream.status === 401 || upstream.status === 403 ? 503 : upstream.status;
+    throw error;
+  }
+  return normalizeMentorStudentUsers(extractRows(payload));
+}
+
+async function verifyMentorStudentLogin(loginId, password) {
+  const cleanId = normalizeText(loginId);
+  const cleanPassword = normalizeText(password);
+  if (!cleanId || !cleanPassword) {
+    const error = new Error('학생 ID와 비밀번호를 입력하세요.');
+    error.statusCode = 400;
+    throw error;
+  }
+  const users = await fetchMentorStudentUsers();
+  const student = users.find((row) => normalizeLoginKey(row.username) === normalizeLoginKey(cleanId) || normalizeLoginKey(row.id) === normalizeLoginKey(cleanId));
+  if (!student) {
+    const error = new Error('등록된 학생 ID가 아닙니다.');
+    error.statusCode = 401;
+    throw error;
+  }
+  if (!student.active) {
+    const error = new Error('비활성화된 학생 계정입니다.');
+    error.statusCode = 401;
+    throw error;
+  }
+  if (!student.password || student.password !== cleanPassword) {
+    const error = new Error('학생 비밀번호가 맞지 않습니다.');
+    error.statusCode = 401;
+    throw error;
+  }
+  return publicMentorStudentUser(student);
+}
+
 function handleRealtimeEvents(req, res, url) {
   const client = {
     res,
@@ -420,6 +521,17 @@ async function handleAppApi(req, res, url) {
     }
     if (!requireAdmin(req, res, url)) return;
     sendJson(res, 200, { ok: true, serverTime: new Date().toISOString() });
+    return;
+  }
+
+  if (url.pathname === '/app-api/student-login/verify' && req.method === 'POST') {
+    const body = await readJsonBody(req, 20_000);
+    try {
+      const student = await verifyMentorStudentLogin(body.loginId || body.id || body.username, body.password);
+      sendJson(res, 200, { student, source: 'medimentors 계정 실시간' });
+    } catch (error) {
+      sendJson(res, error.statusCode || 500, { error: error instanceof Error ? error.message : String(error), source: 'medimentors 계정 인증 필요' });
+    }
     return;
   }
 
@@ -615,6 +727,15 @@ async function proxyRequest(req, res, prefix, targetBase) {
   const target = new URL(`${targetBase.replace(/\/$/, '')}${path}`);
   const headers = { ...req.headers, host: target.host };
   delete headers.connection;
+  if (prefix === '/mentoring-api' && path.startsWith('/api/users/parents') && !headers.authorization) {
+    send(
+      res,
+      403,
+      JSON.stringify({ error: 'Use /app-api/student-login/verify for student credential checks' }),
+      corsHeaders({ 'content-type': 'application/json; charset=utf-8' }),
+    );
+    return;
+  }
   if (!headers.authorization && proxyTokens[prefix]) {
     headers.authorization = `Bearer ${proxyTokens[prefix]}`;
   }
