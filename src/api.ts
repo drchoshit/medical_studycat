@@ -74,7 +74,14 @@ async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 4500): 
       signal: init?.signal ?? controller.signal,
     });
     const text = await res.text();
-    const json = text ? JSON.parse(text) : null;
+    let json: { error?: string; message?: string } | null = null;
+    if (text) {
+      try {
+        json = JSON.parse(text);
+      } catch {
+        json = null;
+      }
+    }
     if (!res.ok) {
       const message = json?.error || json?.message || `HTTP ${res.status}`;
       throw new Error(message);
@@ -384,15 +391,18 @@ export async function verifyMedimentorsStudentLogin(loginId: string, password: s
       },
       7000,
     );
-    if (!payload.student) {
-      return { ok: false, source: payload.source || 'medimentors 계정 인증 필요', error: 'medimentors 학생 계정 확인에 실패했습니다.' };
+    if (!payload?.student) {
+      return { ok: false, source: payload?.source || 'medimentors 계정 인증 필요', error: 'medimentors 학생 계정 확인에 실패했습니다.' };
     }
     return { ok: true, source: payload.source || 'medimentors 계정 실시간', student: payload.student };
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'medimentors 학생 계정 정보를 불러오지 못했습니다.';
     return {
       ok: false,
       source: 'medimentors 계정 인증 필요',
-      error: error instanceof Error ? error.message : 'medimentors 학생 계정 정보를 불러오지 못했습니다.',
+      error: message === 'HTTP 404'
+        ? 'Render에 app-api 서버가 연결되지 않았습니다. Static Site가 아니라 Node Web Service로 배포되어야 합니다.'
+        : message,
     };
   }
 }
