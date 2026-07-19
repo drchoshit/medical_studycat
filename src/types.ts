@@ -19,6 +19,7 @@ export type Task = {
   mentorStudentId?: string;
   mentorWeekId?: string;
   mentorWeekRecordId?: string;
+  mentorSubjectRecordId?: string;
   mentorField?: string;
   mentorPath?: string;
 };

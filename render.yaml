@@ -15,7 +15,7 @@ services:
       - key: MEDISCHEDULE_API_BASE
         value: https://www.medischedule.kr/api
       - key: MENTORING_API_BASE
-        value: https://www.medimentors.kr
+        value: https://mentoring-api-6l1a.onrender.com
       - key: MEDIWEEKLY_API_BASE
         value: https://www.mediweekly.kr/api
       - key: MEDIPENALTY_API_BASE
