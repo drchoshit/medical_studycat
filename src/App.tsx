@@ -46,7 +46,6 @@ import {
   sendRealtimeAdminMessage,
   subscribeRealtimeSnapshot,
   syncMentoringTaskCompletion,
-  verifyAppAdminPassword,
   verifyMedimentorsStudentLogin,
   weekDays,
 } from './api';
@@ -93,17 +92,8 @@ function useDesktopFrameScale() {
 const STORAGE_KEY = 'medical-roadmap-study-v3';
 const ROLE_KEY = 'medical-roadmap-role-v1';
 const ATTENDANCE_HIDE_KEY = 'medical-roadmap-attendance-hide-date-v1';
-const KIOSK_HISTORY_STATE_KEY = 'medical-studycat-kiosk-lock-v1';
 type TimerTab = 'main' | Subject;
 type StudentSortKey = 'name' | 'phone';
-type KioskUnlockReason = 'logout' | 'exit' | 'fullscreen';
-type WakeLockSentinelLike = { release: () => Promise<void> };
-type WakeLockNavigator = Navigator & {
-  wakeLock?: {
-    request: (type: 'screen') => Promise<WakeLockSentinelLike>;
-  };
-};
-
 const navItems: Array<{ key: PageKey; label: string; Icon: typeof Home }> = [
   { key: 'home', label: '홈', Icon: Home },
   { key: 'tasks', label: '과제', Icon: ClipboardList },
@@ -1108,21 +1098,6 @@ function exitPageFullscreen() {
   if (document.fullscreenElement && document.exitFullscreen) {
     void document.exitFullscreen().catch(() => undefined);
   }
-}
-
-function isEditableTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) return false;
-  const tagName = target.tagName.toLowerCase();
-  return target.isContentEditable || tagName === 'input' || tagName === 'textarea' || tagName === 'select';
-}
-
-function isBlockedKioskKey(event: KeyboardEvent) {
-  const key = event.key.toLowerCase();
-  if (event.key === 'BrowserBack' || event.key === 'BrowserForward') return true;
-  if (event.key === 'Backspace' && !isEditableTarget(event.target)) return true;
-  if (event.altKey && ['arrowleft', 'arrowright', 'f4'].includes(key)) return true;
-  if ((event.ctrlKey || event.metaKey) && ['l', 'r', 'w'].includes(key)) return true;
-  return event.key === 'F5' || event.key === 'F11' || event.key === 'Escape';
 }
 
 function TimerFace({
@@ -2440,90 +2415,6 @@ function ModernSideRail({
         <span>나가기</span>
       </button>
     </aside>
-  );
-}
-
-function KioskUnlockModal({
-  reason,
-  onContinue,
-  onVerified,
-  onClose,
-}: {
-  reason: KioskUnlockReason;
-  onContinue: () => void;
-  onVerified: () => void;
-  onClose: () => void;
-}) {
-  const [password, setPassword] = useState('');
-  const [checking, setChecking] = useState(false);
-  const [error, setError] = useState('');
-  const isFullscreen = reason === 'fullscreen';
-  const title = isFullscreen ? '전체화면이 해제되었습니다' : '관리자 확인이 필요합니다';
-  const body = isFullscreen
-    ? '전체화면이 해제되어 앱이 잠겼습니다. 학생 태블릿은 전체화면으로 돌아가기 전까지 조작할 수 없습니다. 관리자만 비밀번호로 학생 모드를 종료할 수 있습니다.'
-    : '학생 모드에서는 로그아웃, 뒤로가기, 앱 종료 시도를 관리자 비밀번호로 확인합니다.';
-
-  async function submit() {
-    if (checking) return;
-    setChecking(true);
-    setError('');
-    const ok = await verifyAppAdminPassword(password);
-    setChecking(false);
-    if (!ok) {
-      setError('관리자 비밀번호가 맞지 않습니다.');
-      return;
-    }
-    onVerified();
-  }
-
-  return (
-    <div className={`kiosk-lock-layer kiosk-lock-${reason}`} role="dialog" aria-modal="true" aria-labelledby="kiosk-lock-title">
-      <section className="kiosk-lock-panel">
-        <div className="kiosk-lock-head">
-          <div className="kiosk-lock-icon">
-            <ShieldCheck size={30} />
-          </div>
-          <div>
-            <span>Tablet lock</span>
-            <h2 id="kiosk-lock-title">{title}</h2>
-          </div>
-        </div>
-        <p>{body}</p>
-        {isFullscreen ? (
-          <button className="kiosk-continue-button" type="button" onClick={onContinue}>
-            <Expand size={20} />
-            터치해서 전체화면 복귀
-          </button>
-        ) : null}
-        <form
-          className="kiosk-unlock-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void submit();
-          }}
-        >
-          <label>
-            관리자 비밀번호
-            <input
-              autoFocus
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="APP_ADMIN_TOKEN"
-              type="password"
-            />
-          </label>
-          {error ? <span className="kiosk-unlock-error">{error}</span> : null}
-          <button className="kiosk-unlock-submit" disabled={checking || !password.trim()} type="submit">
-            <ShieldCheck size={20} />
-            {checking ? '확인 중' : '학생 모드 종료'}
-          </button>
-        </form>
-        <button className="kiosk-cancel-button" type="button" onClick={onClose}>
-          <X size={18} />
-          계속 사용
-        </button>
-      </section>
-    </div>
   );
 }
 
@@ -4478,8 +4369,6 @@ export default function App() {
   const [animatedAttendanceDate, setAnimatedAttendanceDate] = useState<string | null>(null);
   const [taskEditor, setTaskEditor] = useState<{ task: Task | null; subject: Subject } | null>(null);
   const [blockEditor, setBlockEditor] = useState<StudyBlock | null>(null);
-  const [kioskUnlockReason, setKioskUnlockReason] = useState<KioskUnlockReason | null>(null);
-  const [kioskExitAllowed, setKioskExitAllowed] = useState(false);
   const [medischeduleStudents, setMedischeduleStudents] = useState<StudentStatus[]>([]);
   const [liveStudents, setLiveStudents] = useState<LiveStudentStatus[]>([]);
   const [penaltySummaries, setPenaltySummaries] = useState<PenaltySummary[]>([]);
@@ -4505,17 +4394,6 @@ export default function App() {
     return penaltySummaries.find((row) => row.id === studentId)
       ?? penaltySummaries.find((row) => row.name.trim() === studentName);
   }, [data.studentId, data.studentName, penaltySummaries]);
-  const kioskLocked = role === 'user' && !kioskExitAllowed;
-
-  function forceKioskFullscreen(reason: KioskUnlockReason = 'fullscreen') {
-    if (role !== 'user' || kioskExitAllowed) return;
-    setKioskUnlockReason((prev) => prev ?? reason);
-    requestPageFullscreen();
-    window.setTimeout(requestPageFullscreen, 120);
-    window.setTimeout(requestPageFullscreen, 420);
-    window.setTimeout(requestPageFullscreen, 900);
-  }
-
   useEffect(() => {
     const id = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(id);
@@ -4525,14 +4403,11 @@ export default function App() {
     const handleFullscreenChange = () => {
       if (!document.fullscreenElement) {
         setMockPageFullscreen(false);
-        if (role === 'user' && !kioskExitAllowed) {
-          forceKioskFullscreen('fullscreen');
-        }
       }
     };
     document.addEventListener('fullscreenchange', handleFullscreenChange);
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-  }, [kioskExitAllowed, role]);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
@@ -4545,98 +4420,6 @@ export default function App() {
   useEffect(() => {
     if (role) localStorage.setItem(ROLE_KEY, role);
   }, [role]);
-
-  useEffect(() => {
-    if (role === 'user') {
-      setKioskExitAllowed(false);
-      return;
-    }
-    setKioskExitAllowed(true);
-    setKioskUnlockReason(null);
-  }, [role]);
-
-  useEffect(() => {
-    if (!kioskLocked) return;
-    const beforeUnload = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = '';
-      return '';
-    };
-    window.addEventListener('beforeunload', beforeUnload);
-    return () => window.removeEventListener('beforeunload', beforeUnload);
-  }, [kioskLocked]);
-
-  useEffect(() => {
-    if (!kioskLocked) return;
-    const marker = { [KIOSK_HISTORY_STATE_KEY]: true };
-    window.history.pushState(marker, '', window.location.href);
-    const handlePopState = () => {
-      window.history.pushState(marker, '', window.location.href);
-      forceKioskFullscreen('exit');
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, [kioskLocked]);
-
-  useEffect(() => {
-    if (!kioskLocked) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (!isBlockedKioskKey(event)) return;
-      event.preventDefault();
-      forceKioskFullscreen(event.key === 'Escape' || event.key === 'F11' ? 'fullscreen' : 'exit');
-    };
-    const handleKeyUp = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' || event.key === 'F11') {
-        event.preventDefault();
-        forceKioskFullscreen('fullscreen');
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown, true);
-    window.addEventListener('keyup', handleKeyUp, true);
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown, true);
-      window.removeEventListener('keyup', handleKeyUp, true);
-    };
-  }, [kioskLocked]);
-
-  useEffect(() => {
-    if (!kioskLocked) return;
-    let wakeLock: WakeLockSentinelLike | null = null;
-    let cancelled = false;
-    const requestWakeLock = async () => {
-      try {
-        wakeLock = await ((navigator as WakeLockNavigator).wakeLock?.request('screen') ?? Promise.resolve(null));
-        if (cancelled && wakeLock) void wakeLock.release().catch(() => undefined);
-      } catch {
-        wakeLock = null;
-      }
-    };
-    const restoreKiosk = () => {
-      void requestWakeLock();
-      if (!document.fullscreenElement) forceKioskFullscreen('fullscreen');
-    };
-    void requestWakeLock();
-    const guardId = window.setInterval(() => {
-      if (!document.fullscreenElement) forceKioskFullscreen('fullscreen');
-    }, 1500);
-    window.addEventListener('focus', restoreKiosk, true);
-    window.addEventListener('pointerdown', restoreKiosk, true);
-    window.addEventListener('mousedown', restoreKiosk, true);
-    window.addEventListener('click', restoreKiosk, true);
-    window.addEventListener('touchstart', restoreKiosk, true);
-    document.addEventListener('visibilitychange', restoreKiosk);
-    return () => {
-      cancelled = true;
-      window.clearInterval(guardId);
-      window.removeEventListener('focus', restoreKiosk, true);
-      window.removeEventListener('pointerdown', restoreKiosk, true);
-      window.removeEventListener('mousedown', restoreKiosk, true);
-      window.removeEventListener('click', restoreKiosk, true);
-      window.removeEventListener('touchstart', restoreKiosk, true);
-      document.removeEventListener('visibilitychange', restoreKiosk);
-      if (wakeLock) void wakeLock.release().catch(() => undefined);
-    };
-  }, [kioskLocked]);
 
   useEffect(() => {
     if (!role) return;
@@ -4791,13 +4574,6 @@ export default function App() {
       loginId = result.student.username || result.student.id || id;
     }
 
-    if (nextRole === 'user') {
-      setKioskExitAllowed(false);
-      requestPageFullscreen();
-    } else {
-      setKioskExitAllowed(true);
-      setKioskUnlockReason(null);
-    }
     setRole(nextRole);
     setData((prev) => ({ ...prev, studentName: loginName, studentId: loginId }));
     if (nextRole === 'user' && shouldShowAttendancePopup()) {
@@ -4823,8 +4599,6 @@ export default function App() {
   }
 
   function logout() {
-    setKioskExitAllowed(true);
-    setKioskUnlockReason(null);
     localStorage.removeItem(ROLE_KEY);
     setRole(null);
     setRunningSession(null);
@@ -4833,21 +4607,6 @@ export default function App() {
   }
 
   function requestLogout() {
-    if (role === 'user' && !kioskExitAllowed) {
-      setKioskUnlockReason('logout');
-      return;
-    }
-    logout();
-  }
-
-  function continueKioskSession() {
-    setKioskUnlockReason(null);
-    requestPageFullscreen();
-  }
-
-  function unlockKioskAndLogout() {
-    setKioskExitAllowed(true);
-    setKioskUnlockReason(null);
     logout();
   }
 
@@ -4858,8 +4617,7 @@ export default function App() {
 
   function closeTimerFullscreen() {
     setTimerOpen(false);
-    if (role === 'user') requestPageFullscreen();
-    else exitPageFullscreen();
+    exitPageFullscreen();
   }
 
   function openMockTimer() {
@@ -4870,14 +4628,12 @@ export default function App() {
   function closeMockTimer() {
     setMockTimerOpen(false);
     setMockPageFullscreen(false);
-    if (role === 'user') requestPageFullscreen();
-    else exitPageFullscreen();
+    exitPageFullscreen();
   }
 
   function handleMockFullscreenChange(fullscreen: boolean) {
     setMockPageFullscreen(fullscreen);
     if (fullscreen) requestPageFullscreen();
-    else if (role === 'user') requestPageFullscreen();
     else exitPageFullscreen();
   }
 
@@ -5260,8 +5016,7 @@ export default function App() {
             onPause={pauseSession}
             onStop={() => {
               stopSession(false);
-              if (role === 'user') requestPageFullscreen();
-              else exitPageFullscreen();
+              exitPageFullscreen();
             }}
             onClose={closeTimerFullscreen}
           />
@@ -5270,14 +5025,6 @@ export default function App() {
         {unreadMessage ? <ModernAdminMessageModal message={unreadMessage} onClose={() => dismissAdminMessage(unreadMessage.id)} /> : null}
         {taskEditor ? <ModernTaskEditor task={taskEditor.task} subjects={subjects} initialSubject={taskEditor.subject} onSave={saveTask} onClose={() => setTaskEditor(null)} /> : null}
         {blockEditor ? <ModernBlockEditor block={blockEditor} subjects={subjects} onSave={saveBlock} onClose={() => setBlockEditor(null)} /> : null}
-        {kioskUnlockReason ? (
-          <KioskUnlockModal
-            reason={kioskUnlockReason}
-            onContinue={continueKioskSession}
-            onVerified={unlockKioskAndLogout}
-            onClose={continueKioskSession}
-          />
-        ) : null}
       </div>
       </div>
     </div>

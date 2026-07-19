@@ -1,6 +1,7 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
+import { scryptSync, timingSafeEqual } from 'node:crypto';
 import { extname, join, normalize, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 
@@ -8,6 +9,7 @@ const root = resolve('dist');
 const port = Number(process.env.PORT || 3000);
 const dataDir = resolve(process.env.APP_DATA_DIR || 'data');
 const appStatePath = join(dataDir, 'app-state.json');
+const studentAccountsPath = resolve(process.env.APP_STUDENT_ACCOUNTS_FILE || join(dataDir, 'student-accounts.json'));
 const staleStudentMs = Number(process.env.STUDENT_STALE_MS || 90_000);
 const appAdminToken = process.env.APP_ADMIN_TOKEN || '';
 const appParentToken = process.env.APP_PARENT_TOKEN || '';
@@ -386,6 +388,54 @@ function normalizeMentorStudentUsers(rows) {
     .filter((row) => row.id && row.username);
 }
 
+async function readLocalStudentUsers() {
+  try {
+    const payload = JSON.parse(await readFile(studentAccountsPath, 'utf8'));
+    return extractRows(payload)
+      .map((raw) => {
+        const row = raw && typeof raw === 'object' ? raw : {};
+        return {
+          ...publicMentorStudentUser(row),
+          passwordHash: normalizeText(row.passwordHash ?? row.password_hash),
+        };
+      })
+      .filter((row) => row.id && row.username && row.passwordHash);
+  } catch (error) {
+    if (error?.code === 'ENOENT') return [];
+    console.error(`Failed to read local student accounts from ${studentAccountsPath}:`, error);
+    return [];
+  }
+}
+
+function verifyPasswordHash(password, encodedHash) {
+  const [scheme, salt, expectedHex] = normalizeText(encodedHash).split('$');
+  if (scheme !== 'scrypt' || !salt || !/^[a-f0-9]+$/i.test(expectedHex || '')) return false;
+  try {
+    const expected = Buffer.from(expectedHex, 'hex');
+    const actual = scryptSync(password, salt, expected.length);
+    return expected.length > 0 && timingSafeEqual(actual, expected);
+  } catch {
+    return false;
+  }
+}
+
+async function verifyLocalStudentLogin(loginId, password) {
+  const users = await readLocalStudentUsers();
+  const student = users.find((row) => normalizeLoginKey(row.username) === normalizeLoginKey(loginId) || normalizeLoginKey(row.id) === normalizeLoginKey(loginId));
+  if (!student) return null;
+  if (!student.active) {
+    const error = new Error('비활성화된 학생 계정입니다.');
+    error.statusCode = 401;
+    throw error;
+  }
+  if (!verifyPasswordHash(password, student.passwordHash)) {
+    const error = new Error('학생 비밀번호가 맞지 않습니다.');
+    error.statusCode = 401;
+    throw error;
+  }
+  return publicMentorStudentUser(student);
+}
+
 async function fetchMentorStudentUsers() {
   const token = proxyTokens['/mentoring-api'];
   if (!token) {
@@ -418,6 +468,8 @@ async function verifyMentorStudentLogin(loginId, password) {
     error.statusCode = 400;
     throw error;
   }
+  const localStudent = await verifyLocalStudentLogin(cleanId, cleanPassword);
+  if (localStudent) return localStudent;
   const users = await fetchMentorStudentUsers();
   const student = users.find((row) => normalizeLoginKey(row.username) === normalizeLoginKey(cleanId) || normalizeLoginKey(row.id) === normalizeLoginKey(cleanId));
   if (!student) {
