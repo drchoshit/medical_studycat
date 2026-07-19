@@ -369,6 +369,92 @@ export type MedimentorsStudentLogin = {
   active: boolean;
 };
 
+type StaticStudentAccount = MedimentorsStudentLogin & {
+  iterations: number;
+  salt: string;
+  passwordHash: string;
+};
+
+const staticStudentAccounts: StaticStudentAccount[] = [
+  {
+    id: 'qtf258',
+    username: 'qtf258',
+    name: '김도윤',
+    active: true,
+    iterations: 210_000,
+    salt: 'ePfWZK1yzIIG9waZQLt+0g==',
+    passwordHash: 'g+L1CDYYwmbPOugRceHQfbSh4PVw5hf0Cscv7wvMJZE=',
+  },
+];
+
+function normalizeStudentLoginKey(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function decodeBase64(value: string) {
+  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0));
+}
+
+function equalBytes(left: Uint8Array, right: Uint8Array) {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left[index] ^ right[index];
+  }
+  return difference === 0;
+}
+
+async function verifyStaticStudentLogin(loginId: string, password: string): Promise<{
+  ok: boolean;
+  source: string;
+  student?: MedimentorsStudentLogin;
+  error?: string;
+} | null> {
+  const account = staticStudentAccounts.find((candidate) => (
+    normalizeStudentLoginKey(candidate.username) === normalizeStudentLoginKey(loginId)
+    || normalizeStudentLoginKey(candidate.id) === normalizeStudentLoginKey(loginId)
+  ));
+  if (!account) return null;
+  if (!account.active) {
+    return { ok: false, source: '정적 학생 계정', error: '비활성화된 학생 계정입니다.' };
+  }
+  if (!globalThis.crypto?.subtle) {
+    return { ok: false, source: '정적 학생 계정', error: '이 브라우저에서는 안전한 로그인 검증을 지원하지 않습니다.' };
+  }
+
+  const key = await globalThis.crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(password),
+    'PBKDF2',
+    false,
+    ['deriveBits'],
+  );
+  const bits = await globalThis.crypto.subtle.deriveBits(
+    {
+      name: 'PBKDF2',
+      hash: 'SHA-256',
+      salt: decodeBase64(account.salt),
+      iterations: account.iterations,
+    },
+    key,
+    256,
+  );
+  if (!equalBytes(new Uint8Array(bits), decodeBase64(account.passwordHash))) {
+    return { ok: false, source: '정적 학생 계정', error: '학생 비밀번호가 맞지 않습니다.' };
+  }
+
+  return {
+    ok: true,
+    source: '정적 학생 계정',
+    student: {
+      id: account.id,
+      username: account.username,
+      name: account.name,
+      active: account.active,
+    },
+  };
+}
+
 export async function verifyMedimentorsStudentLogin(loginId: string, password: string): Promise<{
   ok: boolean;
   source: string;
@@ -380,6 +466,9 @@ export async function verifyMedimentorsStudentLogin(loginId: string, password: s
   if (!cleanId || !cleanPassword) {
     return { ok: false, source: '입력 필요', error: '학생 ID와 비밀번호를 입력하세요.' };
   }
+
+  const staticResult = await verifyStaticStudentLogin(cleanId, cleanPassword);
+  if (staticResult) return staticResult;
 
   try {
     const payload = await fetchJson<{ student?: MedimentorsStudentLogin; source?: string }>(
