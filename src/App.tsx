@@ -3,6 +3,7 @@ import {
   Activity,
   BarChart3,
   Bell,
+  BookOpen,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
@@ -48,6 +49,8 @@ import {
   syncMentoringTaskCompletion,
   verifyMedimentorsStudentLogin,
   weekDays,
+  type MentoringCurriculumItem,
+  type MentoringWeekOption,
 } from './api';
 import { DEFAULT_SUBJECTS, defaultAppData, defaultRewardSettings, demoSchedule, demoStudents, rewardItems, subjectColor, todayKey } from './demoData';
 import fruitUrl from './assets/tree-fruit.png';
@@ -2676,6 +2679,11 @@ function ModernTaskCard({
 function ModernTasksPage({
   subjects,
   tasks,
+  mentoringWeeks,
+  selectedMentoringWeekId,
+  mentoringCurriculum,
+  mentoringError,
+  onMentoringWeekChange,
   onCompleteTask,
   onStopTask,
   onDeleteTask,
@@ -2684,25 +2692,53 @@ function ModernTasksPage({
 }: {
   subjects: Subject[];
   tasks: Task[];
+  mentoringWeeks: MentoringWeekOption[];
+  selectedMentoringWeekId: string;
+  mentoringCurriculum: MentoringCurriculumItem[];
+  mentoringError: string;
+  onMentoringWeekChange: (weekId: string) => void;
   onCompleteTask: (task: Task) => void;
   onStopTask: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
   onEditTask: (task: Task) => void;
   onNewTask: (subject: Subject) => void;
 }) {
+  const [curriculumOpen, setCurriculumOpen] = useState(false);
   return (
-    <div className="page modern-page modern-tasks-page">
+    <div className={`page modern-page modern-tasks-page ${mentoringError ? 'mentoring-error' : ''}`}>
       <ModernPageHeader
         eyebrow="Assignments"
         title="과목별 과제 보드"
-        description="해야 할 일과 완료 상태를 빠르게 정리합니다."
+        description="멘토링 포털의 회차별 이번주 과제를 확인합니다."
+        right={(
+          <div className="mentoring-board-tools">
+            <label>
+              <span>멘토링 회차</span>
+              <select
+                value={selectedMentoringWeekId}
+                onChange={(event) => onMentoringWeekChange(event.target.value)}
+                disabled={!mentoringWeeks.length}
+              >
+                {!mentoringWeeks.length ? <option value="">회차 불러오는 중</option> : null}
+                {mentoringWeeks.map((week) => (
+                  <option value={week.id} key={week.id}>
+                    {week.label} · {week.startDate} ~ {week.endDate}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="button" onClick={() => setCurriculumOpen(true)}>
+              <BookOpen size={19} />
+              학습 커리큘럼
+            </button>
+          </div>
+        )}
       />
+      {mentoringError ? <div className="mentoring-board-notice">멘토링 포털 데이터를 불러오지 못했습니다. 관리자 연동 설정을 확인해 주세요.</div> : null}
       <section className="modern-task-layout">
         <div className="modern-task-columns">
           {subjects.slice(0, 6).map((subject) => {
             const subjectTasks = tasks.filter((task) => task.subject === subject);
-            const visibleTasks = subjectTasks.slice(0, 3);
-            const hiddenCount = subjectTasks.length - visibleTasks.length;
             return (
               <section className="modern-task-column" key={subject}>
                 <div className="modern-column-head">
@@ -2714,7 +2750,7 @@ function ModernTasksPage({
                   </button>
                 </div>
                 <div className="modern-task-list">
-                  {visibleTasks.map((task) => (
+                  {subjectTasks.map((task) => (
                     <ModernTaskCard
                       key={task.id}
                       task={task}
@@ -2725,7 +2761,6 @@ function ModernTasksPage({
                       onDelete={() => onDeleteTask(task)}
                     />
                   ))}
-                  {hiddenCount > 0 ? <div className="modern-task-more">+{hiddenCount}개 더 있음</div> : null}
                   {!subjectTasks.length ? <div className="modern-empty-state">과제가 없습니다</div> : null}
                 </div>
               </section>
@@ -2733,6 +2768,31 @@ function ModernTasksPage({
           })}
         </div>
       </section>
+      {curriculumOpen ? (
+        <div className="modern-modal-layer mentoring-curriculum-layer" role="dialog" aria-modal="true" aria-label="학습 커리큘럼">
+          <section className="modern-modal-panel mentoring-curriculum-modal">
+            <div className="mentoring-curriculum-head">
+              <div>
+                <span>Mentoring Curriculum</span>
+                <h2>학습 커리큘럼</h2>
+                <p>{mentoringWeeks.find((week) => week.id === selectedMentoringWeekId)?.label ?? '선택 회차'} 기준</p>
+              </div>
+              <button type="button" onClick={() => setCurriculumOpen(false)} aria-label="닫기"><X size={25} /></button>
+            </div>
+            <div className="mentoring-curriculum-grid">
+              {subjects.slice(0, 6).map((subject) => {
+                const item = mentoringCurriculum.find((row) => row.subject === subject);
+                return (
+                  <article key={subject} style={{ '--subject-color': subjectColor(subject, subjects) } as React.CSSProperties}>
+                    <h3>{displaySubject(subject, subjects)}</h3>
+                    <div>{item?.content || '등록된 커리큘럼이 없습니다.'}</div>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -2742,14 +2802,12 @@ function ModernAnalysisPage({
   blocks,
   tasks,
   penaltyPoints,
-  penaltySource,
   onEditBlock,
 }: {
   subjects: Subject[];
   blocks: StudyBlock[];
   tasks: Task[];
   penaltyPoints: number;
-  penaltySource: string;
   onEditBlock: (block: StudyBlock) => void;
 }) {
   const [reportDate, setReportDate] = useState(todayKey());
@@ -3097,7 +3155,6 @@ function ModernAnalysisPage({
           <div className="modern-penalty-score">
             <span>누적 벌점</span>
             <strong>{penaltyPoints.toLocaleString('ko-KR')}점</strong>
-            <em>{penaltySource}</em>
           </div>
         </section>
       </section>
@@ -4348,6 +4405,31 @@ function BlockEditor({ block, subjects, onSave, onClose }: { block: StudyBlock; 
   );
 }
 
+const KIM_DOYUN_DEMO_DATE = '2026-07-19';
+const KIM_DOYUN_DEMO_SUBJECTS: Subject[] = ['국어', '수학', '영어', '사문', '생윤', '동아시아사'];
+
+function seedKimDoyunStudyTime(current: AppData) {
+  if (current.studentId.trim().toLowerCase() !== 'qtf258') return current;
+  const existingIds = new Set(current.studyBlocks.map((block) => block.id));
+  const demoBlocks: StudyBlock[] = KIM_DOYUN_DEMO_SUBJECTS.map((subject, index) => ({
+    id: `kim-doyun-demo-${KIM_DOYUN_DEMO_DATE}-${index + 1}`,
+    date: KIM_DOYUN_DEMO_DATE,
+    startMinute: 8 * 60 + index * 90,
+    durationMinutes: 90,
+    durationSeconds: 90 * 60,
+    subject,
+    taskTitle: '연동 확인용 임시 공부 기록',
+  }));
+  const missingBlocks = demoBlocks.filter((block) => !existingIds.has(block.id));
+  const subjectsMatch = KIM_DOYUN_DEMO_SUBJECTS.every((subject, index) => current.subjectNames[index] === subject);
+  if (!missingBlocks.length && subjectsMatch) return current;
+  return {
+    ...current,
+    subjectNames: KIM_DOYUN_DEMO_SUBJECTS,
+    studyBlocks: [...current.studyBlocks, ...missingBlocks],
+  };
+}
+
 export default function App() {
   const desktopScale = useDesktopFrameScale();
   const [role, setRole] = useState<Role | null>(getInitialRole);
@@ -4372,7 +4454,10 @@ export default function App() {
   const [medischeduleStudents, setMedischeduleStudents] = useState<StudentStatus[]>([]);
   const [liveStudents, setLiveStudents] = useState<LiveStudentStatus[]>([]);
   const [penaltySummaries, setPenaltySummaries] = useState<PenaltySummary[]>([]);
-  const [penaltySource, setPenaltySource] = useState('medipenalty 연결 전');
+  const [mentoringWeeks, setMentoringWeeks] = useState<MentoringWeekOption[]>([]);
+  const [selectedMentoringWeekId, setSelectedMentoringWeekId] = useState('');
+  const [mentoringCurriculum, setMentoringCurriculum] = useState<MentoringCurriculumItem[]>([]);
+  const [mentoringError, setMentoringError] = useState('');
   const totalElapsedSeconds = sessionSeconds(runningSession, nowMs);
   const subjectElapsedSeconds = subjectSessionSeconds(runningSession, nowMs);
   const fullscreenSubject = timerTab === 'main' ? selectedSubject : timerTab;
@@ -4412,6 +4497,11 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [data]);
+
+  useEffect(() => {
+    if (role !== 'user') return;
+    setData((prev) => seedKimDoyunStudyTime(prev));
+  }, [role, data.studentId]);
 
   useEffect(() => {
     setData((prev) => applyStageRewards({ ...prev, points: 0 }));
@@ -4476,12 +4566,16 @@ export default function App() {
     async function refreshLinkedData() {
       const [scheduleResult, taskResult] = await Promise.all([
         loadSchedule(data.studentId),
-        loadMentoringTasks(data.studentId),
+        loadMentoringTasks(data.studentId, selectedMentoringWeekId),
       ]);
       if (cancelled) return;
       setSchedule(scheduleResult.items);
       setScheduleSource(scheduleResult.source);
       setTaskSource(taskResult.source);
+      setMentoringWeeks(taskResult.weeks);
+      setSelectedMentoringWeekId(taskResult.selectedWeekId);
+      setMentoringCurriculum(taskResult.curriculum);
+      setMentoringError(taskResult.error ?? '');
       setData((prev) => {
         const hiddenTaskIds = new Set(prev.hiddenTaskIds);
         const visibleTasks = taskResult.tasks.filter((task) => !hiddenTaskIds.has(task.id));
@@ -4503,7 +4597,7 @@ export default function App() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [role, data.studentId]);
+  }, [role, data.studentId, selectedMentoringWeekId]);
 
   useEffect(() => {
     if (!role) return;
@@ -4512,7 +4606,6 @@ export default function App() {
       const result = await loadPenaltySummary(data.penaltySettings);
       if (cancelled) return;
       setPenaltySummaries(result.items);
-      setPenaltySource(result.source);
     }
     void refreshPenaltySummary();
     const id = window.setInterval(refreshPenaltySummary, 30000);
@@ -4961,6 +5054,11 @@ export default function App() {
       <ModernTasksPage
         subjects={subjects}
         tasks={data.tasks}
+        mentoringWeeks={mentoringWeeks}
+        selectedMentoringWeekId={selectedMentoringWeekId}
+        mentoringCurriculum={mentoringCurriculum}
+        mentoringError={mentoringError}
+        onMentoringWeekChange={setSelectedMentoringWeekId}
         onCompleteTask={completeTask}
         onStopTask={stopTask}
         onDeleteTask={deleteTask}
@@ -4975,7 +5073,6 @@ export default function App() {
         blocks={data.studyBlocks}
         tasks={data.tasks}
         penaltyPoints={currentPenalty?.points ?? 0}
-        penaltySource={penaltySource}
         onEditBlock={setBlockEditor}
       />
     );

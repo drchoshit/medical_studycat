@@ -671,15 +671,12 @@ export async function loadPenaltySummary(settings?: PenaltySettings): Promise<{ 
         { headers: authHeaders('penalty') },
         5000,
       );
-      return {
-        items: normalizePenaltySummary(extractRows(payload)),
-        source: settings?.from || settings?.to ? 'medipenalty 기간 실시간' : 'medipenalty 실시간',
-      };
+      return { items: normalizePenaltySummary(extractRows(payload)), source: '' };
     } catch {
       // Try the legacy endpoint before falling back.
     }
   }
-  return { items: [], source: 'medipenalty 연결 필요' };
+  return { items: [], source: '' };
 }
 
 export async function loadSchedule(studentId: string): Promise<{ items: ScheduleItem[]; source: string }> {
@@ -721,10 +718,26 @@ type RemoteMentoringRecord = {
   tasks?: unknown[];
 };
 
-type MentoringTasksResult = {
+export type MentoringWeekOption = {
+  id: string;
+  label: string;
+  startDate: string;
+  endDate: string;
+};
+
+export type MentoringCurriculumItem = {
+  subject: Subject;
+  content: string;
+};
+
+export type MentoringTasksResult = {
   tasks: Task[];
   subjects: Subject[];
   source: string;
+  weeks: MentoringWeekOption[];
+  selectedWeekId: string;
+  curriculum: MentoringCurriculumItem[];
+  error?: string;
 };
 
 function parseMaybeJson(value: unknown): unknown {
@@ -841,7 +854,7 @@ function shouldSkipMentoringKey(key: string) {
 
 function walkMentoringTasks(
   value: unknown,
-  context: { studentId: string; weekId: string; weekRecordId?: string; field: string; subject?: Subject; subjects?: Subject[]; path: Array<string | number> },
+  context: { studentId: string; weekId: string; weekRecordId?: string; subjectRecordId?: string; field: string; subject?: Subject; subjects?: Subject[]; path: Array<string | number> },
   tasks: Task[],
 ) {
   const parsed = parseMaybeJson(value);
@@ -860,10 +873,11 @@ function walkMentoringTasks(
       .forEach((line, index) => {
         const subject = context.subject ?? toSubject(context.path.at(-1));
         tasks.push(normalizeTask(line, tasks.length + index, subject, {
-          id: `mentor-task-${context.field}-${context.path.join('-')}-${index}`,
+          id: `mentor-task-${context.weekId}-${context.field}-${context.path.join('-')}-${index}`,
           mentorStudentId: context.studentId,
           mentorWeekId: context.weekId,
           mentorWeekRecordId: context.weekRecordId,
+          mentorSubjectRecordId: context.subjectRecordId,
           mentorField: context.field,
           mentorPath: JSON.stringify([...context.path, index]),
         }));
@@ -875,10 +889,11 @@ function walkMentoringTasks(
   if (isTaskLike(parsed)) {
     const subject = context.subject ?? toSubject(context.path.at(-1));
     tasks.push(normalizeTask(parsed, tasks.length, subject, {
-      id: `mentor-task-${context.field}-${context.path.join('-') || tasks.length}`,
+      id: `mentor-task-${context.weekId}-${context.field}-${context.path.join('-') || tasks.length}`,
       mentorStudentId: context.studentId,
       mentorWeekId: context.weekId,
       mentorWeekRecordId: context.weekRecordId,
+      mentorSubjectRecordId: context.subjectRecordId,
       mentorField: context.field,
       mentorPath: JSON.stringify(context.path),
     }));
@@ -902,17 +917,69 @@ function uniqueTasks(tasks: Task[]) {
   });
 }
 
-export async function loadMentoringTasks(studentId: string): Promise<MentoringTasksResult> {
+function normalizeMentoringWeek(raw: Record<string, unknown>): MentoringWeekOption {
+  const id = String(raw.id ?? '').trim();
+  return {
+    id,
+    label: String(raw.label ?? raw.name ?? `${id}회차`).trim().replace(/주차/g, '회차'),
+    startDate: String(raw.start_date ?? raw.startDate ?? '').slice(0, 10),
+    endDate: String(raw.end_date ?? raw.endDate ?? '').slice(0, 10),
+  };
+}
+
+function normalizedAccountKey(value: unknown) {
+  return String(value ?? '').trim().toLowerCase().replace(/\s+/g, '');
+}
+
+function findMentoringStudentId(payload: unknown, requestedId: string) {
+  const requestedKey = normalizedAccountKey(requestedId);
+  const match = extractRows(payload).find((raw) => {
+    if (!raw || typeof raw !== 'object') return false;
+    const row = raw as Record<string, unknown>;
+    return [
+      row.external_id,
+      row.externalId,
+      row.username,
+      row.student_id,
+      row.studentId,
+      row.id,
+    ].some((value) => normalizedAccountKey(value) === requestedKey);
+  }) as Record<string, unknown> | undefined;
+  return String(match?.id ?? match?.student_id ?? match?.studentId ?? requestedId).trim();
+}
+
+export async function loadMentoringTasks(studentId: string, requestedWeekId?: string): Promise<MentoringTasksResult> {
   const headers = authHeaders('mentoring');
+  const emptyResult: MentoringTasksResult = {
+    tasks: [],
+    subjects: [],
+    source: '',
+    weeks: [],
+    selectedWeekId: '',
+    curriculum: [],
+  };
 
   try {
-    const weeks = await fetchJson<{ weeks?: Array<{ id: string | number }> }>(`${mentoringBase}/api/weeks`, { headers }, 5000);
-    const sortedWeeks = [...(weeks.weeks ?? [])].sort((a, b) => Number(a.id) - Number(b.id));
-    const latestWeek = sortedWeeks.at(-1)?.id;
-    if (!latestWeek) throw new Error('No week id');
+    const [weeksPayload, studentsPayload] = await Promise.all([
+      fetchJson<{ weeks?: Array<Record<string, unknown>> }>(`${mentoringBase}/api/weeks`, { headers }, 5000),
+      fetchJson<unknown>(`${mentoringBase}/api/students`, { headers }, 5000),
+    ]);
+    const weeks = [...(weeksPayload.weeks ?? [])]
+      .map(normalizeMentoringWeek)
+      .filter((week) => week.id)
+      .sort((a, b) => (
+        (b.startDate || b.endDate).localeCompare(a.startDate || a.endDate)
+        || Number(b.id) - Number(a.id)
+      ))
+      .slice(0, 3);
+    const selectedWeekId = weeks.some((week) => week.id === requestedWeekId)
+      ? String(requestedWeekId)
+      : weeks[0]?.id;
+    if (!selectedWeekId) throw new Error('선택 가능한 멘토링 회차가 없습니다.');
 
+    const mentoringStudentId = findMentoringStudentId(studentsPayload, studentId);
     const record = await fetchJson<RemoteMentoringRecord>(
-      `${mentoringBase}/api/mentoring/record?studentId=${encodeURIComponent(studentId)}&weekId=${encodeURIComponent(String(latestWeek))}`,
+      `${mentoringBase}/api/mentoring/record?studentId=${encodeURIComponent(mentoringStudentId)}&weekId=${encodeURIComponent(selectedWeekId)}`,
       { headers },
       6000,
     );
@@ -921,70 +988,41 @@ export async function loadMentoringTasks(studentId: string): Promise<MentoringTa
     const weekRecordId = String(weekRecord.id ?? payload.id ?? '').trim() || undefined;
     const nextTasks: Task[] = [];
     const portalSubjects: Subject[] = [];
-
-    if (Array.isArray(payload.subjects)) {
-      payload.subjects.forEach((subjectRow, subjectIndex) => {
-        const subject = addSubject(portalSubjects, subjectRow.subject || subjectRow.subjectName || subjectRow.subject_name || subjectRow.name || subjectRow.title) ?? toSubject(subjectIndex);
-        const rows = Array.isArray(subjectRow.tasks) ? subjectRow.tasks : Array.isArray(subjectRow.todos) ? subjectRow.todos : [];
-        rows.forEach((row) => nextTasks.push(normalizeTask(row, nextTasks.length, subject, {
-          mentorStudentId: studentId,
-          mentorWeekId: String(latestWeek),
-          mentorWeekRecordId: weekRecordId,
-        })));
-      });
-    }
+    const curriculum: MentoringCurriculumItem[] = [];
 
     const subjectRecords = payload.subject_records ?? payload.subjectRecords ?? [];
     subjectRecords.forEach((row, index) => {
       const subject = addSubject(portalSubjects, subjectFromRecord(row, index)) ?? toSubject(index);
-      const taskSource = row.tasks || row.todos || row.assignments || row.daily_tasks || row.b_daily_tasks || row.b_daily_tasks_this_week;
-      if (!taskSource) return;
-      walkMentoringTasks(taskSource, {
-        studentId,
-        weekId: String(latestWeek),
+      const curriculumText = String(row.a_curriculum ?? '').trim();
+      if (curriculumText) curriculum.push({ subject, content: curriculumText });
+      if (row.a_this_hw === undefined || row.a_this_hw === null || row.a_this_hw === '') return;
+      walkMentoringTasks(row.a_this_hw, {
+        studentId: mentoringStudentId,
+        weekId: selectedWeekId,
         weekRecordId,
-        field: 'subject_records',
+        subjectRecordId: String(row.id ?? '').trim() || undefined,
+        field: 'a_this_hw',
         subject,
         subjects: portalSubjects,
         path: [index],
       }, nextTasks);
     });
 
-    ['b_daily_tasks_this_week', 'b_daily_tasks'].forEach((field) => {
-      if (weekRecord[field] === undefined) return;
-      const parsed = parseMaybeJson(weekRecord[field]);
-      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-        Object.keys(parsed as Record<string, unknown>).forEach((key) => {
-          if (!shouldSkipMentoringKey(key) && !isGenericMentoringKey(key)) addSubject(portalSubjects, key);
-        });
-      }
-      walkMentoringTasks(weekRecord[field], {
-        studentId,
-        weekId: String(latestWeek),
-        weekRecordId,
-        field,
-        subjects: portalSubjects,
-        path: [],
-      }, nextTasks);
-    });
-
-    const flatRows = Array.isArray(payload.tasks) ? payload.tasks : Array.isArray(payload.todos) ? payload.todos : [];
-    flatRows.forEach((row, index) => {
-      const raw = row as Record<string, unknown>;
-      const subject = addSubject(portalSubjects, raw?.subject || raw?.subjectName || raw?.subject_name) ?? toSubject(raw?.subject);
-      nextTasks.push(normalizeTask(row, index, subject, {
-        mentorStudentId: studentId,
-        mentorWeekId: String(latestWeek),
-        mentorWeekRecordId: weekRecordId,
-      }));
-    });
-
     const tasks = uniqueTasks(nextTasks);
     tasks.forEach((task) => addSubject(portalSubjects, task.subject));
-    if (tasks.length) return { tasks, subjects: portalSubjects, source: 'medimentors.kr 실시간' };
-    return { tasks: [], subjects: portalSubjects, source: 'medimentors.kr 실시간 - 과제 없음' };
-  } catch {
-    return { tasks: [], subjects: [], source: 'medimentors.kr 인증 필요' };
+    return {
+      tasks,
+      subjects: portalSubjects,
+      source: 'medimentors.kr',
+      weeks,
+      selectedWeekId,
+      curriculum,
+    };
+  } catch (error) {
+    return {
+      ...emptyResult,
+      error: error instanceof Error ? error.message : '멘토링 포털 연결에 실패했습니다.',
+    };
   }
 }
 
@@ -1026,7 +1064,7 @@ function updateTaskCompletionInValue(value: unknown, title: string, completed: b
 }
 
 export async function syncMentoringTaskCompletion(task: Task, completed: boolean): Promise<boolean> {
-  if (!task.mentorStudentId || !task.mentorWeekId || !task.mentorWeekRecordId || !task.mentorField) return false;
+  if (!task.mentorStudentId || !task.mentorWeekId || !task.mentorField) return false;
   const headers = authHeaders('mentoring', true);
 
   try {
@@ -1036,6 +1074,24 @@ export async function syncMentoringTaskCompletion(task: Task, completed: boolean
       5000,
     );
     const payload = record.record ?? record;
+    if (task.mentorSubjectRecordId) {
+      const subjectRecords = payload.subject_records ?? payload.subjectRecords ?? [];
+      const subjectRecord = subjectRecords.find((row) => String(row.id ?? '') === task.mentorSubjectRecordId);
+      if (!subjectRecord) return false;
+      const updated = updateTaskCompletionInValue(subjectRecord[task.mentorField], task.title, completed);
+      if (!updated.changed) return false;
+      await fetchJson(
+        `${mentoringBase}/api/mentoring/subject-record/${encodeURIComponent(task.mentorSubjectRecordId)}`,
+        {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({ [task.mentorField]: updated.value }),
+        },
+        5000,
+      );
+      return true;
+    }
+    if (!task.mentorWeekRecordId) return false;
     const weekRecord = (payload.week_record ?? payload.weekRecord ?? {}) as Record<string, unknown>;
     const current = weekRecord[task.mentorField];
     const updated = updateTaskCompletionInValue(current, task.title, completed);
