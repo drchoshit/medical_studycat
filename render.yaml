@@ -17,7 +17,7 @@ services:
       - key: MENTORING_API_BASE
         value: https://mentoring-api-6l1a.onrender.com
       - key: MEDIWEEKLY_API_BASE
-        value: https://web-new-weekly-plan-maker.onrender.com
+        value: https://web-new-weekly-plan-maker.onrender.com/api
       - key: MEDIPENALTY_API_BASE
         value: https://www.medipenalty.kr/api
       - key: MEDISCHEDULE_TOKEN
