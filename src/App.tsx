@@ -95,6 +95,7 @@ function useDesktopFrameScale() {
 const STORAGE_KEY = 'medical-roadmap-study-v3';
 const ROLE_KEY = 'medical-roadmap-role-v1';
 const ATTENDANCE_HIDE_KEY = 'medical-roadmap-attendance-hide-date-v1';
+const SUBJECT_NAMES_CUSTOMIZED_KEY = 'medical-roadmap-subject-names-customized-v1';
 type TimerTab = 'main' | Subject;
 type StudentSortKey = 'name' | 'phone';
 const navItems: Array<{ key: PageKey; label: string; Icon: typeof Home }> = [
@@ -1001,7 +1002,7 @@ function RewardWorldBackdrop({ theme }: { theme: RewardMapTheme }) {
 const weekDayLabels = ['월', '화', '수', '목', '금', '토', '일'];
 
 function isLikelyBrokenText(value: string) {
-  return value.includes('?') || /[-�]/u.test(value);
+  return value.includes('?') || value.includes('\uFFFD') || value.includes('占쏙옙');
 }
 
 function displayStudentName(name: string) {
@@ -2684,6 +2685,7 @@ function ModernTasksPage({
   mentoringCurriculum,
   mentoringError,
   onMentoringWeekChange,
+  onRenameSubject,
   onCompleteTask,
   onStopTask,
   onDeleteTask,
@@ -2697,6 +2699,7 @@ function ModernTasksPage({
   mentoringCurriculum: MentoringCurriculumItem[];
   mentoringError: string;
   onMentoringWeekChange: (weekId: string) => void;
+  onRenameSubject: (index: number, name: string) => void;
   onCompleteTask: (task: Task) => void;
   onStopTask: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
@@ -2704,6 +2707,20 @@ function ModernTasksPage({
   onNewTask: (subject: Subject) => void;
 }) {
   const [curriculumOpen, setCurriculumOpen] = useState(false);
+  const [editingSubjectIndex, setEditingSubjectIndex] = useState<number | null>(null);
+  const [subjectDraft, setSubjectDraft] = useState('');
+
+  function beginSubjectRename(index: number, subject: Subject) {
+    setEditingSubjectIndex(index);
+    setSubjectDraft(displaySubject(subject, subjects));
+  }
+
+  function finishSubjectRename() {
+    if (editingSubjectIndex === null) return;
+    onRenameSubject(editingSubjectIndex, subjectDraft);
+    setEditingSubjectIndex(null);
+  }
+
   return (
     <div className={`page modern-page modern-tasks-page ${mentoringError ? 'mentoring-error' : ''}`}>
       <ModernPageHeader
@@ -2737,14 +2754,29 @@ function ModernTasksPage({
       {mentoringError ? <div className="mentoring-board-notice">멘토링 포털 데이터를 불러오지 못했습니다. 관리자 연동 설정을 확인해 주세요.</div> : null}
       <section className="modern-task-layout">
         <div className="modern-task-columns">
-          {subjects.slice(0, 6).map((subject) => {
+          {subjects.slice(0, 6).map((subject, subjectIndex) => {
             const subjectTasks = tasks.filter((task) => task.subject === subject);
             return (
               <section className="modern-task-column" key={subject}>
                 <div className="modern-column-head">
                   <i style={{ backgroundColor: subjectColor(subject, subjects) }} />
-                  <strong>{displaySubject(subject, subjects)}</strong>
+                  {editingSubjectIndex === subjectIndex ? (
+                    <input
+                      className="modern-column-subject-input"
+                      value={subjectDraft}
+                      autoFocus
+                      onChange={(event) => setSubjectDraft(event.target.value)}
+                      onBlur={finishSubjectRename}
+                      onKeyDown={(event) => {
+                        if (event.key === 'Enter') finishSubjectRename();
+                        if (event.key === 'Escape') setEditingSubjectIndex(null);
+                      }}
+                    />
+                  ) : <strong>{displaySubject(subject, subjects)}</strong>}
                   <span>{subjectTasks.length}</span>
+                  <button type="button" onClick={() => beginSubjectRename(subjectIndex, subject)} aria-label="과목명 변경">
+                    <Pencil size={15} />
+                  </button>
                   <button type="button" onClick={() => onNewTask(subject)} aria-label="과제 추가">
                     <Plus size={17} />
                   </button>
@@ -4405,27 +4437,27 @@ function BlockEditor({ block, subjects, onSave, onClose }: { block: StudyBlock; 
   );
 }
 
-const KIM_DOYUN_DEMO_DATE = '2026-07-19';
+const KIM_DOYUN_DEMO_DATE = '2026-07-20';
 const KIM_DOYUN_DEMO_SUBJECTS: Subject[] = ['국어', '수학', '영어', '사문', '생윤', '동아시아사'];
 
 function seedKimDoyunStudyTime(current: AppData) {
   if (current.studentId.trim().toLowerCase() !== 'qtf258') return current;
+  const demoSubjects = current.subjectNames.length === 6 ? current.subjectNames : KIM_DOYUN_DEMO_SUBJECTS;
   const existingIds = new Set(current.studyBlocks.map((block) => block.id));
-  const demoBlocks: StudyBlock[] = KIM_DOYUN_DEMO_SUBJECTS.map((subject, index) => ({
+  const demoBlocks: StudyBlock[] = demoSubjects.map((subject, index) => ({
     id: `kim-doyun-demo-${KIM_DOYUN_DEMO_DATE}-${index + 1}`,
     date: KIM_DOYUN_DEMO_DATE,
-    startMinute: 8 * 60 + index * 90,
-    durationMinutes: 90,
-    durationSeconds: 90 * 60,
+    startMinute: 8 * 60 + index * 60,
+    durationMinutes: 60,
+    durationSeconds: 60 * 60,
     subject,
     taskTitle: '연동 확인용 임시 공부 기록',
   }));
   const missingBlocks = demoBlocks.filter((block) => !existingIds.has(block.id));
-  const subjectsMatch = KIM_DOYUN_DEMO_SUBJECTS.every((subject, index) => current.subjectNames[index] === subject);
-  if (!missingBlocks.length && subjectsMatch) return current;
+  if (!missingBlocks.length && current.studentName === '김도윤') return current;
   return {
     ...current,
-    subjectNames: KIM_DOYUN_DEMO_SUBJECTS,
+    studentName: '김도윤',
     studyBlocks: [...current.studyBlocks, ...missingBlocks],
   };
 }
@@ -4572,15 +4604,23 @@ export default function App() {
       setSchedule(scheduleResult.items);
       setScheduleSource(scheduleResult.source);
       setTaskSource(taskResult.source);
+      const storedSubjects = normalizeStoredSubjects(data.subjectNames);
+      const hasCustomizedSubjects = localStorage.getItem(SUBJECT_NAMES_CUSTOMIZED_KEY) === 'true';
+      const displaySubjects = hasCustomizedSubjects && storedSubjects.length === taskResult.subjects.length
+        ? storedSubjects
+        : taskResult.subjects;
+      const subjectMap = new Map(taskResult.subjects.map((subject, index) => [subject, displaySubjects[index] ?? subject]));
+      const mappedTasks = taskResult.tasks.map((task) => ({ ...task, subject: subjectMap.get(task.subject) ?? task.subject }));
+      const mappedCurriculum = taskResult.curriculum.map((item) => ({ ...item, subject: subjectMap.get(item.subject) ?? item.subject }));
       setMentoringWeeks(taskResult.weeks);
       setSelectedMentoringWeekId(taskResult.selectedWeekId);
-      setMentoringCurriculum(taskResult.curriculum);
+      setMentoringCurriculum(mappedCurriculum);
       setMentoringError(taskResult.error ?? '');
       setData((prev) => {
         const hiddenTaskIds = new Set(prev.hiddenTaskIds);
-        const visibleTasks = taskResult.tasks.filter((task) => !hiddenTaskIds.has(task.id));
-        const nextSubjects = taskResult.subjects.length
-          ? taskResult.subjects
+        const visibleTasks = mappedTasks.filter((task) => !hiddenTaskIds.has(task.id));
+        const nextSubjects = displaySubjects.length
+          ? displaySubjects
           : visibleTasks.reduce<Subject[]>((result, task) => (result.includes(task.subject) ? result : [...result, task.subject]), []);
         const shouldApplyMentoringResult = taskResult.source.startsWith('medimentors.kr');
         if (!shouldApplyMentoringResult && !visibleTasks.length && !nextSubjects.length) return prev;
@@ -4881,17 +4921,20 @@ export default function App() {
   function renameSubject(index: number, name: string) {
     const nextName = name.trim();
     if (!nextName) return;
+    localStorage.setItem(SUBJECT_NAMES_CUSTOMIZED_KEY, 'true');
+    const oldName = subjects[index];
     setData((prev) => {
-      const oldName = prev.subjectNames[index];
-      if (!oldName || oldName === nextName) return prev;
+      const storedOldName = prev.subjectNames[index];
+      if (!storedOldName || storedOldName === nextName) return prev;
       const subjectNames = prev.subjectNames.map((subject, subjectIndex) => (subjectIndex === index ? nextName : subject));
       return {
         ...prev,
         subjectNames,
-        tasks: prev.tasks.map((task) => (task.subject === oldName ? { ...task, subject: nextName } : task)),
-        studyBlocks: prev.studyBlocks.map((block) => (block.subject === oldName ? { ...block, subject: nextName } : block)),
+        tasks: prev.tasks.map((task) => (task.subject === storedOldName ? { ...task, subject: nextName } : task)),
+        studyBlocks: prev.studyBlocks.map((block) => (block.subject === storedOldName ? { ...block, subject: nextName } : block)),
       };
     });
+    setMentoringCurriculum((prev) => prev.map((item) => (item.subject === oldName ? { ...item, subject: nextName } : item)));
     setSelectedSubject((prev) => (prev === subjects[index] ? nextName : prev));
     setTimerTab((prev) => (prev === subjects[index] ? nextName : prev));
     setRunningSession((prev) => (prev?.subject === subjects[index] ? { ...prev, subject: nextName } : prev));
@@ -5059,6 +5102,7 @@ export default function App() {
         mentoringCurriculum={mentoringCurriculum}
         mentoringError={mentoringError}
         onMentoringWeekChange={setSelectedMentoringWeekId}
+        onRenameSubject={renameSubject}
         onCompleteTask={completeTask}
         onStopTask={stopTask}
         onDeleteTask={deleteTask}

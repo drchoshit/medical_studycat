@@ -4934,7 +4934,7 @@ svg {
 .modern-column-head {
   min-width: 0;
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) 24px 30px;
+  grid-template-columns: 10px minmax(0, 1fr) 24px 30px 30px;
   align-items: center;
   gap: 8px;
 }
@@ -4952,6 +4952,20 @@ svg {
   font-weight: 920;
   white-space: nowrap;
   text-overflow: ellipsis;
+}
+
+.modern-column-subject-input {
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid #0f766e;
+  border-radius: 7px;
+  background: #ffffff;
+  color: #0f172a;
+  font-size: 14px;
+  font-weight: 900;
+  outline: none;
 }
 
 .modern-column-head span {
@@ -15711,7 +15725,7 @@ body {
 }
 
 .modern-column-head {
-  grid-template-columns: 11px minmax(0, 1fr) 34px 34px;
+  grid-template-columns: 11px minmax(0, 1fr) 28px 34px 34px;
 }
 
 .modern-column-head strong {
