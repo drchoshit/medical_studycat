@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: medical-studycat
+    name: medical-studycat-api
     runtime: node
     plan: free
     buildCommand: npm ci && npm run build
