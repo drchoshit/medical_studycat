@@ -222,11 +222,11 @@ const rewardStageLabel = (index: number) => {
 };
 
 const rewardMapMonths: Array<{ key: string; label: string; title: string; subtitle: string; theme: RewardMapTheme }> = [
-  { key: '2026-08', label: '10월', title: 'Blue Coast Run', subtitle: '오픈 시즌 해안 맵', theme: 'august' },
-  { key: '2026-09', label: '11월', title: 'Campus Hills', subtitle: '개학 시즌 언덕 맵', theme: 'september' },
-  { key: '2026-10', label: '12월', title: 'Night Festival', subtitle: '가을 축제 맵', theme: 'october' },
-  { key: '2026-11', label: '1월', title: 'Crystal Lab', subtitle: '실전 집중 맵', theme: 'november' },
-  { key: '2026-12', label: '2월', title: 'Snow Finale', subtitle: '연말 완주 맵', theme: 'december' },
+  { key: '2026-07', label: '7월', title: 'Blue Coast Run', subtitle: '여름 시즌 해안 맵', theme: 'august' },
+  { key: '2026-08', label: '8월', title: 'Campus Hills', subtitle: '여름 집중 언덕 맵', theme: 'september' },
+  { key: '2026-09', label: '9월', title: 'Night Festival', subtitle: '가을 시작 축제 맵', theme: 'october' },
+  { key: '2026-10', label: '10월', title: 'Crystal Lab', subtitle: '실전 집중 연구소 맵', theme: 'november' },
+  { key: '2026-11', label: '11월', title: 'Snow Finale', subtitle: '시즌 완주 설원 맵', theme: 'december' },
 ];
 
 const normalizeRewardMapVisibility = (visibility?: Record<string, boolean>): Record<string, boolean> => Object.fromEntries(
@@ -3403,7 +3403,7 @@ function ModernCenterPage({ students, subjects }: { students: StudentStatus[]; s
           {students.map((student) => (
             <article className={`modern-student-card ${student.status}`} key={student.id} style={{ '--student-color': subjectColor(student.subject, subjects) } as React.CSSProperties}>
               <div className="modern-student-state">{statusLabel[student.status]}</div>
-              <h3>{student.id}</h3>
+              <h3>{student.name} <small>{student.id}</small></h3>
               <strong>{formatStudyMinutes(student.todayMinutes)}</strong>
               <span>{student.status === 'studying' ? `${displaySubject(student.subject, subjects)} 공부 중` : student.status === 'break' ? '잠시 휴식 중' : '접속 대기'}</span>
             </article>
@@ -3421,7 +3421,7 @@ function ModernCenterPage({ students, subjects }: { students: StudentStatus[]; s
             {sorted.slice(0, 5).map((student, index) => (
               <div className="modern-leader-row" key={student.id}>
                 <strong>{index + 1}</strong>
-                <span>{student.id}</span>
+                <span>{student.name}</span>
                 <em>{formatStudyMinutes(student.todayMinutes)}</em>
               </div>
             ))}
@@ -3437,7 +3437,7 @@ function ModernCenterPage({ students, subjects }: { students: StudentStatus[]; s
             {fruitLeaders.slice(0, 3).map((student, index) => (
               <div className="modern-fruit-row" key={`${student.id}-fruit`}>
                 <strong>{index + 1}</strong>
-                <span>{student.id}</span>
+                <span>{student.name}</span>
                 <em>{fruitCount(student)}개</em>
               </div>
             ))}
@@ -3449,26 +3449,70 @@ function ModernCenterPage({ students, subjects }: { students: StudentStatus[]; s
 }
 
 function ModernWeekScheduleModal({ schedule, source, onClose }: { schedule: ScheduleItem[]; source: string; onClose: () => void }) {
+  const now = new Date();
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - currentWeekDayIndex(now));
+  monday.setHours(0, 0, 0, 0);
+  const dates = weekDays.map((_, index) => {
+    const date = new Date(monday);
+    date.setDate(monday.getDate() + index);
+    return date;
+  });
+  const scheduleCount = schedule.length;
+  const centerCount = schedule.filter((item) => item.type === 'center').length;
+  const typeLabels: Record<ScheduleItem['type'], string> = {
+    center: '센터',
+    outside: '외부',
+    self: '자습',
+  };
+
   return (
     <div className="modern-modal-layer">
       <section className="modern-modal-panel modern-week-modal">
-        <div className="modern-modal-head">
-          <div><h2>이번주 일정</h2><span>{source && !isLikelyBrokenText(source) ? source : 'student-schedule-app-full 학생별 일정과 연동됩니다.'}</span></div>
-          <button onClick={onClose} type="button" aria-label="닫기"><X size={26} /></button>
+        <div className="modern-week-head">
+          <div className="modern-week-title">
+            <span><CalendarDays size={16} /> WEEKLY PLAN</span>
+            <h2>이번주 일정</h2>
+            <p>{source && !isLikelyBrokenText(source) ? source : '학생별 실시간 일정과 연동됩니다.'}</p>
+          </div>
+          <div className="modern-week-head-actions">
+            <div><span>전체 일정</span><strong>{scheduleCount}개</strong></div>
+            <div><span>센터 일정</span><strong>{centerCount}개</strong></div>
+            <button onClick={onClose} type="button" aria-label="닫기"><X size={25} /></button>
+          </div>
+        </div>
+        <div className="modern-week-legend">
+          <span className="center">센터</span>
+          <span className="outside">학교·학원·외부</span>
+          <span className="self">개인 자습</span>
         </div>
         <div className="modern-week-grid">
-          {weekDays.map((day, index) => (
-            <div className="modern-week-column" key={`${day}-${index}`}>
-              <strong>{weekDayLabels[index] ?? day}</strong>
-              {schedule.filter((item) => item.day === day).slice(0, 5).map((item) => (
-                <div className={`modern-week-item ${item.type}`} key={item.id}>
-                  <span>{item.start}-{item.end}</span>
-                  <em>{displayScheduleTitle(item)}</em>
-                </div>
-              ))}
-              {schedule.some((item) => item.day === day) ? null : <div className="modern-week-empty">일정 없음</div>}
+          {weekDays.map((day, index) => {
+            const dayItems = schedule.filter((item) => item.day === day).slice(0, 5);
+            const date = dates[index];
+            const isToday = todayKey(date) === todayKey(now);
+            return (
+            <div className={`modern-week-column ${isToday ? 'today' : ''} ${index >= 5 ? 'weekend' : ''}`} key={`${day}-${index}`}>
+              <div className="modern-week-day-head">
+                <span>{weekDayLabels[index] ?? day}</span>
+                <strong>{date.getMonth() + 1}.{date.getDate()}</strong>
+                {isToday ? <em>오늘</em> : null}
+              </div>
+              <div className="modern-week-items">
+                {dayItems.map((item) => {
+                  const durationMinutes = Math.max(0, (timeToSeconds(item.end) - timeToSeconds(item.start)) / 60);
+                  return (
+                    <div className={`modern-week-item ${item.type}`} key={item.id}>
+                      <div><span>{item.start}–{item.end}</span><b>{typeLabels[item.type]}</b></div>
+                      <em>{displayScheduleTitle(item)}</em>
+                      <small>{formatStudyMinutes(durationMinutes)}</small>
+                    </div>
+                  );
+                })}
+                {dayItems.length ? null : <div className="modern-week-empty"><CalendarDays size={20} /><span>일정 없음</span></div>}
+              </div>
             </div>
-          ))}
+          )})}
         </div>
       </section>
     </div>
@@ -5075,11 +5119,9 @@ export default function App() {
           : merged;
       });
       const rowIds = new Set(rows.map((student) => student.id));
-      if (!medischeduleStudents.length) {
-        liveStudents.forEach((student) => {
-          if (!rowIds.has(student.id)) rows.push(student);
-        });
-      }
+      liveStudents.forEach((student) => {
+        if (!rowIds.has(student.id)) rows.push(student);
+      });
       return rows;
     },
     [actualTodayMinutes, data.studentId, data.studentName, liveStudents, medischeduleStudents, role, runningSession, selectedSubject],

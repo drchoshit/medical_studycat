@@ -82,11 +82,11 @@ export function defaultAppData(name = '학생', id = 'student-demo'): AppData {
     rewardPurchases: [],
     rewardSettings: defaultRewardSettings,
     rewardMapVisibility: {
+      '2026-07': true,
       '2026-08': true,
       '2026-09': true,
       '2026-10': true,
       '2026-11': true,
-      '2026-12': true,
     },
     penaltySettings: {
       from: '',
