@@ -144,6 +144,7 @@ function normalizeSnapshot(payload: Partial<RealtimeSnapshot> | null | undefined
     serverTime: payload?.serverTime || new Date().toISOString(),
     students: Array.isArray(payload?.students) ? payload.students : [],
     messages: Array.isArray(payload?.messages) ? payload.messages : [],
+    familyReports: Array.isArray(payload?.familyReports) ? payload.familyReports : [],
     rewardSettings: payload?.rewardSettings,
     rewardMapVisibility: payload?.rewardMapVisibility,
   };
