@@ -357,6 +357,8 @@ function normalizeSchedule(rows: unknown[], studentId?: string): ScheduleItem[] 
 
 type RemoteStudentRow = {
   id?: string | number;
+  external_id?: string | number;
+  externalId?: string | number;
   studentId?: string | number;
   customId?: string | number;
   name?: string;
@@ -510,7 +512,7 @@ function normalizeStudents(rows: unknown[]): StudentStatus[] {
   return rows
     .map((raw, index) => {
       const row = raw && typeof raw === 'object' ? (raw as RemoteStudentRow) : {};
-      const id = String(row.studentId ?? row.customId ?? row.id ?? `med-${index + 1}`).trim();
+      const id = String(row.external_id ?? row.externalId ?? row.studentId ?? row.customId ?? row.id ?? `med-${index + 1}`).trim();
       const name = String(row.studentName ?? row.name ?? id).trim();
       const studentPhone = String(row.studentPhone ?? row.student_phone ?? row.phone ?? '').trim();
       const parentPhone = String(row.parentPhone ?? row.parent_phone ?? row.guardianPhone ?? '').trim();
@@ -525,6 +527,36 @@ function normalizeStudents(rows: unknown[]): StudentStatus[] {
       };
     })
     .filter((student) => student.id && student.name);
+}
+
+function mergeStudentRosters(primary: StudentStatus[], secondary: StudentStatus[]) {
+  const result = [...primary];
+  const byId = new Map(result.map((student, index) => [normalizeLookupKey(student.id), index]));
+  const byName = new Map(result.map((student, index) => [normalizeLookupKey(student.name), index]));
+  const byPhone = new Map(
+    result
+      .map((student, index) => [normalizePhone(student.studentPhone), index] as const)
+      .filter(([phone]) => phone),
+  );
+
+  secondary.forEach((student) => {
+    const index = byId.get(normalizeLookupKey(student.id))
+      ?? byName.get(normalizeLookupKey(student.name))
+      ?? byPhone.get(normalizePhone(student.studentPhone));
+    if (index === undefined) {
+      result.push(student);
+      byId.set(normalizeLookupKey(student.id), result.length - 1);
+      byName.set(normalizeLookupKey(student.name), result.length - 1);
+      if (student.studentPhone) byPhone.set(normalizePhone(student.studentPhone), result.length - 1);
+      return;
+    }
+    result[index] = {
+      ...result[index],
+      studentPhone: student.studentPhone || result[index].studentPhone,
+      parentPhone: student.parentPhone || result[index].parentPhone,
+    };
+  });
+  return result;
 }
 
 function normalizeLookupKey(value: unknown) {
@@ -617,6 +649,7 @@ export async function loadMediweeklyStudentNumbers(): Promise<Array<{ id: string
 }
 
 export async function loadMedischeduleStudents(): Promise<StudentStatus[]> {
+  let medischeduleStudents: StudentStatus[] = [];
   const endpoints = [`${medischeduleBase}/admin/students`, `${medischeduleBase}/students`];
   for (const endpoint of endpoints) {
     try {
@@ -627,14 +660,32 @@ export async function loadMedischeduleStudents(): Promise<StudentStatus[]> {
       );
       const students = normalizeStudents(extractRows(payload));
       if (students.length) {
-        const weeklyRows = await loadMediweeklyStudentNumbers();
-        return mergeMediweeklyStudentNumbers(students, weeklyRows);
+        medischeduleStudents = students;
+        break;
       }
     } catch {
       // A real medischedule admin token is required for the live roster.
     }
   }
-  return [];
+
+  let mentoringStudents: StudentStatus[] = [];
+  try {
+    const payload = await fetchJson<unknown>(
+      `${mentoringBase}/api/students?_t=${Date.now()}`,
+      { headers: authHeaders('mentoring') },
+      6000,
+    );
+    mentoringStudents = normalizeStudents(extractRows(payload));
+  } catch {
+    // Preserve the schedule roster when the mentoring roster is temporarily unavailable.
+  }
+
+  const roster = mentoringStudents.length
+    ? mergeStudentRosters(mentoringStudents, medischeduleStudents)
+    : medischeduleStudents;
+  if (!roster.length) return [];
+  const weeklyRows = await loadMediweeklyStudentNumbers();
+  return mergeMediweeklyStudentNumbers(roster, weeklyRows);
 }
 
 type RemotePenaltySummaryRow = {

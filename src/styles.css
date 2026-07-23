@@ -9937,85 +9937,310 @@ svg {
 }
 
 .modern-week-modal {
-  width: min(1240px, 94%);
-  height: min(720px, 88%);
+  width: min(1300px, 95%);
+  height: min(760px, 90%);
+  padding: 24px;
+  border: 1px solid rgba(203, 213, 225, 0.78);
+  border-radius: 22px;
+  background:
+    radial-gradient(circle at 92% 0%, rgba(20, 184, 166, 0.09), transparent 28%),
+    linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.22);
   display: grid;
-  grid-template-rows: 54px minmax(0, 1fr);
-  gap: 18px;
+  grid-template-rows: 76px 32px minmax(0, 1fr);
+  gap: 14px;
+}
+
+.modern-week-head {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.modern-week-title {
+  min-width: 0;
+}
+
+.modern-week-title > span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #0f766e;
+  font-size: 11px;
+  line-height: 16px;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+}
+
+.modern-week-title h2 {
+  margin: 3px 0 0;
+  color: #0f172a;
+  font-size: 27px;
+  line-height: 32px;
+  font-weight: 950;
+  letter-spacing: -0.035em;
+}
+
+.modern-week-title p {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: #64748b;
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 720;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.modern-student-card h3 small {
+  margin-left: 5px;
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.modern-week-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modern-week-head-actions > div {
+  min-width: 88px;
+  padding: 9px 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  background: rgba(248, 250, 252, 0.9);
+}
+
+.modern-week-head-actions > div span {
+  display: block;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.modern-week-head-actions > div strong {
+  display: block;
+  margin-top: 2px;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 930;
+}
+
+.modern-week-head-actions > button {
+  width: 44px;
+  height: 44px;
+  margin-left: 4px;
+  border: 1px solid #dbe3ec;
+  border-radius: 13px;
+  background: #f8fafc;
+  color: #334155;
+  display: grid;
+  place-items: center;
+  transition: background 160ms ease, transform 160ms ease;
+}
+
+.modern-week-head-actions > button:hover {
+  background: #eef2f7;
+  transform: rotate(3deg);
+}
+
+.modern-week-legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 4px;
+}
+
+.modern-week-legend span {
+  color: #64748b;
+  font-size: 11px;
+  font-weight: 820;
+}
+
+.modern-week-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 6px;
+  border-radius: 999px;
+}
+
+.modern-week-legend .center::before {
+  background: #14b8a6;
+}
+
+.modern-week-legend .outside::before {
+  background: #f59e0b;
+}
+
+.modern-week-legend .self::before {
+  background: #6366f1;
 }
 
 .modern-week-grid {
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 
 .modern-week-column {
   min-width: 0;
   min-height: 0;
-  padding: 10px;
-  border: 1px solid #d9e1ea;
-  border-radius: 8px;
-  background: #f6f8fb;
+  overflow: hidden;
+  padding: 9px;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: rgba(248, 250, 252, 0.86);
   display: grid;
-  grid-template-rows: 32px repeat(5, minmax(0, 1fr));
-  gap: 7px;
+  grid-template-rows: 52px minmax(0, 1fr);
+  gap: 8px;
 }
 
-.modern-week-column > strong {
+.modern-week-column.today {
+  border-color: rgba(13, 148, 136, 0.55);
+  background: linear-gradient(180deg, #ecfdf9 0%, #f8fafc 38%);
+  box-shadow: inset 0 0 0 1px rgba(13, 148, 136, 0.08);
+}
+
+.modern-week-column.weekend:not(.today) {
+  background: rgba(248, 250, 252, 0.62);
+}
+
+.modern-week-day-head {
+  position: relative;
+  padding: 6px 7px;
+  border-bottom: 1px solid #e8edf3;
+}
+
+.modern-week-day-head > span {
+  display: block;
   color: #0f172a;
-  text-align: center;
-  font-size: 15px;
+  font-size: 14px;
+  line-height: 18px;
   font-weight: 930;
 }
 
-.modern-week-item {
+.modern-week-day-head > strong {
+  display: block;
+  color: #94a3b8;
+  font-size: 10px;
+  line-height: 14px;
+  font-weight: 820;
+}
+
+.modern-week-day-head > em {
+  position: absolute;
+  top: 7px;
+  right: 5px;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #0f766e;
+  color: #ffffff;
+  font-size: 9px;
+  line-height: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.modern-week-items {
   min-height: 0;
-  padding: 9px;
-  border-radius: 8px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-right: 1px;
+}
+
+.modern-week-item {
+  flex: 0 0 auto;
+  min-height: 94px;
+  padding: 11px 10px;
+  border: 1px solid #e5eaf0;
+  border-radius: 12px;
   background: #ffffff;
   display: grid;
-  align-content: center;
-  gap: 5px;
+  align-content: start;
+  gap: 7px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.045);
 }
 
 .modern-week-item.center {
-  border-left: 4px solid #14b8a6;
+  border-top: 3px solid #14b8a6;
 }
 
 .modern-week-item.outside {
-  border-left: 4px solid #f59e0b;
+  border-top: 3px solid #f59e0b;
 }
 
 .modern-week-item.self {
-  border-left: 4px solid #4f46e5;
+  border-top: 3px solid #6366f1;
 }
 
-.modern-week-item span,
-.modern-week-item em {
+.modern-week-item > div {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+}
+
+.modern-week-item span {
   overflow: hidden;
   color: #64748b;
-  font-size: 12px;
-  font-style: normal;
-  font-weight: 850;
+  font-size: 10px;
+  font-weight: 860;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
+.modern-week-item b {
+  flex: 0 0 auto;
+  padding: 3px 5px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 900;
+}
+
 .modern-week-item em {
+  overflow: hidden;
   color: #0f172a;
+  font-size: 12px;
+  line-height: 17px;
+  font-style: normal;
+  font-weight: 900;
+  white-space: normal;
+  text-overflow: ellipsis;
+}
+
+.modern-week-item small {
+  color: #94a3b8;
+  font-size: 9px;
+  line-height: 12px;
+  font-weight: 760;
 }
 
 .modern-week-empty {
-  min-height: 0;
-  padding: 9px;
+  min-height: 112px;
+  padding: 12px;
   border: 1px dashed #cbd5e1;
-  border-radius: 8px;
+  border-radius: 12px;
   color: #94a3b8;
   display: grid;
   place-items: center;
-  font-size: 12px;
+  align-content: center;
+  gap: 7px;
+}
+
+.modern-week-empty span {
+  font-size: 10px;
   font-weight: 850;
 }
 
