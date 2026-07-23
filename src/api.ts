@@ -673,7 +673,7 @@ function penaltyQuery(settings?: PenaltySettings) {
 
 export async function loadPenaltySummary(settings?: PenaltySettings): Promise<{ items: PenaltySummary[]; source: string }> {
   const query = penaltyQuery(settings);
-  const endpoints = [`${penaltyBase}/penalties/summary`, `${penaltyBase}/summary/cumulative`];
+  const endpoints = [`${penaltyBase}/summary/cumulative`, `${penaltyBase}/penalties/summary`];
   for (const endpoint of endpoints) {
     try {
       const payload = await fetchJson<unknown>(

@@ -1020,12 +1020,16 @@ function displaySubject(subject: TimerTab | Subject, subjects: Subject[] = DEFAU
 }
 
 function normalizeStoredSubjects(subjects?: Subject[]) {
-  if (!Array.isArray(subjects) || subjects.length !== DEFAULT_SUBJECTS.length) return DEFAULT_SUBJECTS;
+  if (!Array.isArray(subjects) || !subjects.length) return DEFAULT_SUBJECTS;
+  const normalized = subjects
+    .map((subject) => String(subject ?? '').trim())
+    .filter((subject, index, rows) => subject && rows.indexOf(subject) === index);
+  if (!normalized.length) return DEFAULT_SUBJECTS;
   const previousNames = ['국어', '수학', '영어', '과학', '탐구', '수학논술', '의학논술'];
-  const looksLikePreset = subjects.every((subject, index) => (
+  const looksLikePreset = normalized.length === DEFAULT_SUBJECTS.length && normalized.every((subject, index) => (
     isLikelyBrokenText(subject) || previousNames.includes(subject) || subject === DEFAULT_SUBJECTS[index]
   ));
-  return looksLikePreset ? DEFAULT_SUBJECTS : subjects;
+  return looksLikePreset ? DEFAULT_SUBJECTS : normalized;
 }
 
 function migrateSubjectValue(subject: Subject, sourceSubjects: Subject[] = DEFAULT_SUBJECTS) {
@@ -1035,6 +1039,15 @@ function migrateSubjectValue(subject: Subject, sourceSubjects: Subject[] = DEFAU
   if (subject === '탐구') return '탐구-2';
   if (subject === '수학논술' || subject === '의학논술') return '탐구-3';
   if (subjectAlias[subject] === '탐구') return '탐구-1';
+  return subject;
+}
+
+function mapSubjectToPortal(subject: Subject, storedSubjects: Subject[], portalSubjects: Subject[]) {
+  if (portalSubjects.includes(subject)) return subject;
+  const storedIndex = storedSubjects.indexOf(subject);
+  if (storedIndex >= 0 && portalSubjects[storedIndex]) return portalSubjects[storedIndex];
+  const defaultIndex = DEFAULT_SUBJECTS.indexOf(subject);
+  if (defaultIndex >= 0 && portalSubjects[defaultIndex]) return portalSubjects[defaultIndex];
   return subject;
 }
 
@@ -2754,7 +2767,7 @@ function ModernTasksPage({
       {mentoringError ? <div className="mentoring-board-notice">멘토링 포털 데이터를 불러오지 못했습니다. 관리자 연동 설정을 확인해 주세요.</div> : null}
       <section className="modern-task-layout">
         <div className="modern-task-columns">
-          {subjects.slice(0, 6).map((subject, subjectIndex) => {
+          {subjects.map((subject, subjectIndex) => {
             const subjectTasks = tasks.filter((task) => task.subject === subject);
             return (
               <section className="modern-task-column" key={subject}>
@@ -2812,7 +2825,7 @@ function ModernTasksPage({
               <button type="button" onClick={() => setCurriculumOpen(false)} aria-label="닫기"><X size={25} /></button>
             </div>
             <div className="mentoring-curriculum-grid">
-              {subjects.slice(0, 6).map((subject) => {
+              {subjects.map((subject) => {
                 const item = mentoringCurriculum.find((row) => row.subject === subject);
                 return (
                   <article key={subject} style={{ '--subject-color': subjectColor(subject, subjects) } as React.CSSProperties}>
@@ -2860,7 +2873,6 @@ function ModernAnalysisPage({
   const focusProgress = Math.min(100, Math.round((total / focusGoal) * 100));
   const focusScore = Math.min(100, Math.round((completionRate(tasks) * 0.45) + (focusProgress * 0.4) + (activeSubjectCount ? 15 : 0)));
   const subjectRows = subjects
-    .slice(0, 6)
     .map((subject) => {
       const value = minutesBySubject[subject] ?? 0;
       return {
@@ -4439,9 +4451,11 @@ function BlockEditor({ block, subjects, onSave, onClose }: { block: StudyBlock; 
 
 const KIM_DOYUN_DEMO_DATE = '2026-07-20';
 const KIM_DOYUN_DEMO_SUBJECTS: Subject[] = ['국어', '수학', '영어', '사문', '생윤', '동아시아사'];
+const LEE_HYUNMIN_TEST_DATE = '2026-07-23';
+const LEE_HYUNMIN_PORTAL_SUBJECTS: Subject[] = ['국어', '수학', '영어', '사회문화', '생활과 윤리'];
 
 function seedKimDoyunStudyTime(current: AppData) {
-  if (current.studentId.trim().toLowerCase() !== 'qtf258') return current;
+  if (!['qtf258', 'qlf258'].includes(current.studentId.trim().toLowerCase())) return current;
   const demoSubjects = current.subjectNames.length === 6 ? current.subjectNames : KIM_DOYUN_DEMO_SUBJECTS;
   const existingIds = new Set(current.studyBlocks.map((block) => block.id));
   const demoBlocks: StudyBlock[] = demoSubjects.map((subject, index) => ({
@@ -4458,6 +4472,27 @@ function seedKimDoyunStudyTime(current: AppData) {
   return {
     ...current,
     studentName: '김도윤',
+    studyBlocks: [...current.studyBlocks, ...missingBlocks],
+  };
+}
+
+function seedLeeHyunminStudyTime(current: AppData) {
+  if (current.studentId.trim().toLowerCase() !== 'yhp553') return current;
+  const existingIds = new Set(current.studyBlocks.map((block) => block.id));
+  const testBlocks: StudyBlock[] = LEE_HYUNMIN_PORTAL_SUBJECTS.map((subject, index) => ({
+    id: `lee-hyunmin-test-${LEE_HYUNMIN_TEST_DATE}-${index + 1}`,
+    date: LEE_HYUNMIN_TEST_DATE,
+    startMinute: 8 * 60 + index * 90,
+    durationMinutes: 80,
+    durationSeconds: 80 * 60,
+    subject,
+    taskTitle: '과목별 연동 확인용 공부 기록',
+  }));
+  const missingBlocks = testBlocks.filter((block) => !existingIds.has(block.id));
+  return {
+    ...current,
+    studentName: '이현민',
+    subjectNames: LEE_HYUNMIN_PORTAL_SUBJECTS,
     studyBlocks: [...current.studyBlocks, ...missingBlocks],
   };
 }
@@ -4532,7 +4567,7 @@ export default function App() {
 
   useEffect(() => {
     if (role !== 'user') return;
-    setData((prev) => seedKimDoyunStudyTime(prev));
+    setData((prev) => seedLeeHyunminStudyTime(seedKimDoyunStudyTime(prev)));
   }, [role, data.studentId]);
 
   useEffect(() => {
@@ -4604,14 +4639,9 @@ export default function App() {
       setSchedule(scheduleResult.items);
       setScheduleSource(scheduleResult.source);
       setTaskSource(taskResult.source);
-      const storedSubjects = normalizeStoredSubjects(data.subjectNames);
-      const hasCustomizedSubjects = localStorage.getItem(SUBJECT_NAMES_CUSTOMIZED_KEY) === 'true';
-      const displaySubjects = hasCustomizedSubjects && storedSubjects.length === taskResult.subjects.length
-        ? storedSubjects
-        : taskResult.subjects;
-      const subjectMap = new Map(taskResult.subjects.map((subject, index) => [subject, displaySubjects[index] ?? subject]));
-      const mappedTasks = taskResult.tasks.map((task) => ({ ...task, subject: subjectMap.get(task.subject) ?? task.subject }));
-      const mappedCurriculum = taskResult.curriculum.map((item) => ({ ...item, subject: subjectMap.get(item.subject) ?? item.subject }));
+      const portalSubjects = taskResult.subjects;
+      const mappedTasks = taskResult.tasks;
+      const mappedCurriculum = taskResult.curriculum;
       setMentoringWeeks(taskResult.weeks);
       setSelectedMentoringWeekId(taskResult.selectedWeekId);
       setMentoringCurriculum(mappedCurriculum);
@@ -4619,15 +4649,22 @@ export default function App() {
       setData((prev) => {
         const hiddenTaskIds = new Set(prev.hiddenTaskIds);
         const visibleTasks = mappedTasks.filter((task) => !hiddenTaskIds.has(task.id));
-        const nextSubjects = displaySubjects.length
-          ? displaySubjects
+        const nextSubjects = portalSubjects.length
+          ? portalSubjects
           : visibleTasks.reduce<Subject[]>((result, task) => (result.includes(task.subject) ? result : [...result, task.subject]), []);
         const shouldApplyMentoringResult = taskResult.source.startsWith('medimentors.kr');
         if (!shouldApplyMentoringResult && !visibleTasks.length && !nextSubjects.length) return prev;
+        const storedSubjects = normalizeStoredSubjects(prev.subjectNames);
         return {
           ...prev,
           subjectNames: nextSubjects.length ? nextSubjects : prev.subjectNames,
           tasks: shouldApplyMentoringResult ? visibleTasks : visibleTasks.length ? visibleTasks : prev.tasks,
+          studyBlocks: shouldApplyMentoringResult && nextSubjects.length
+            ? prev.studyBlocks.map((block) => ({
+              ...block,
+              subject: mapSubjectToPortal(block.subject, storedSubjects, nextSubjects),
+            }))
+            : prev.studyBlocks,
         };
       });
     }
