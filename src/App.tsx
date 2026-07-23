@@ -3890,7 +3890,13 @@ function AdminPage({
   const attendedDates = new Set(selectedAttendanceDates);
   const monthAttendance = selectedAttendanceDates.filter((key) => monthDates.includes(key)).length;
   const fullMonth = monthDates.length;
-  const selectedMessages = data.adminMessages.filter((message) => message.recipientId === selectedStudent?.id);
+  const selectedRecipientIds = new Set(
+    [selectedStudent?.id, selectedReport?.studentId].filter((id): id is string => Boolean(id)),
+  );
+  const selectedMessages = data.adminMessages.filter((message) => (
+    selectedRecipientIds.has(message.recipientId)
+    || message.recipientName === selectedStudent?.name
+  ));
   const rewardSteps = attendanceRewardSteps(fullMonth, rewardSettings);
   const visibleSubjects = selectedStudentSubjects.length ? selectedStudentSubjects : subjects;
   const subjectRows = visibleSubjects.map((subject) => {
@@ -3984,7 +3990,12 @@ function AdminPage({
   function sendMessage() {
     const body = messageBody.trim();
     if (!body || !selectedStudent) return;
-    onSendMessage(selectedStudent, body);
+    onSendMessage(
+      selectedReport?.studentId
+        ? { ...selectedStudent, id: selectedReport.studentId }
+        : selectedStudent,
+      body,
+    );
     setMessageBody('');
   }
 
@@ -5141,13 +5152,23 @@ export default function App() {
 
   const students = useMemo(
     () => {
+      const studentMatchKey = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/\s+/g, '');
+      const studentPhoneKey = (value: unknown) => String(value ?? '').replace(/[^\d]/g, '');
       const liveById = new Map(liveStudents.map((student) => [student.id, student]));
+      const liveByName = new Map(liveStudents.map((student) => [studentMatchKey(student.name), student]));
+      const liveByPhone = new Map(
+        liveStudents
+          .map((student) => [studentPhoneKey(student.studentPhone), student] as const)
+          .filter(([phone]) => phone),
+      );
       const roster = medischeduleStudents.length ? medischeduleStudents : liveStudents.length ? liveStudents : demoStudents;
       const rows: StudentStatus[] = roster.map((student, index): StudentStatus => {
         const fallback = demoStudents[index % demoStudents.length] ?? demoStudents[0];
-        const live = liveById.get(student.id);
+        const live = liveById.get(student.id)
+          ?? liveByName.get(studentMatchKey(student.name))
+          ?? liveByPhone.get(studentPhoneKey(student.studentPhone));
         const merged: StudentStatus = {
-          id: live?.id || student.id || fallback.id,
+          id: student.id || live?.id || fallback.id,
           name: live?.name || student.name || fallback.name,
           studentPhone: live?.studentPhone || student.studentPhone || fallback.studentPhone,
           parentPhone: live?.parentPhone || student.parentPhone || fallback.parentPhone,
@@ -5168,8 +5189,16 @@ export default function App() {
           : merged;
       });
       const rowIds = new Set(rows.map((student) => student.id));
+      const rowNames = new Set(rows.map((student) => studentMatchKey(student.name)));
+      const rowPhones = new Set(rows.map((student) => studentPhoneKey(student.studentPhone)).filter(Boolean));
       liveStudents.forEach((student) => {
-        if (!rowIds.has(student.id)) rows.push(student);
+        if (
+          !rowIds.has(student.id)
+          && !rowNames.has(studentMatchKey(student.name))
+          && (!studentPhoneKey(student.studentPhone) || !rowPhones.has(studentPhoneKey(student.studentPhone)))
+        ) {
+          rows.push(student);
+        }
       });
       return rows;
     },
