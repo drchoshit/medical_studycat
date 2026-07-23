@@ -3830,23 +3830,25 @@ function AdminPage({
   students,
   subjects,
   schedule,
+  familyReports,
+  penaltySummaries,
+  realtimeServerTime,
   onSendMessage,
-  onTaskChange,
   onRewardSettingsChange,
   onRewardMapVisibilityChange,
   onPenaltySettingsChange,
-  onFruitChange,
 }: {
   data: AppData;
   students: StudentStatus[];
   subjects: Subject[];
   schedule: ScheduleItem[];
+  familyReports: FamilySyncReport[];
+  penaltySummaries: PenaltySummary[];
+  realtimeServerTime: string;
   onSendMessage: (student: StudentStatus, body: string) => void;
-  onTaskChange: (task: Task) => void;
   onRewardSettingsChange: (settings: RewardSettings) => void;
   onRewardMapVisibilityChange: (visibility: Record<string, boolean>) => void;
   onPenaltySettingsChange: (settings: PenaltySettings) => void;
-  onFruitChange: (delta: number) => void;
 }) {
   const [tab, setTab] = useState<'overview' | 'files' | 'students' | 'learning' | 'rewards' | 'settings' | 'messages'>('overview');
   const [selectedStudentId, setSelectedStudentId] = useState(students[0]?.id ?? data.studentId);
@@ -3865,6 +3867,11 @@ function AdminPage({
   const sorted = [...students].sort((a, b) => b.todayMinutes - a.todayMinutes);
   const adminStudents = useMemo(() => sortStudents(students, studentSort), [students, studentSort]);
   const selectedStudent = students.find((student) => student.id === selectedStudentId) ?? students[0];
+  const selectedReport = familyReports.find((report) => report.studentId === selectedStudent?.id)
+    ?? familyReports.find((report) => report.studentName === selectedStudent?.name);
+  const selectedPenalty = penaltySummaries.find((penalty) => penalty.id === selectedStudent?.id)
+    ?? penaltySummaries.find((penalty) => penalty.name === selectedStudent?.name)
+    ?? selectedReport?.penalty;
   const visibleTasks = selectedStudentTasks;
   const total = students.reduce((sum, student) => sum + student.todayMinutes, 0);
   const studying = students.filter((student) => student.status === 'studying').length;
@@ -3875,15 +3882,24 @@ function AdminPage({
   const selectedTodayDay = selectedTodayIndex === 0 ? weekDays[6] : weekDays[selectedTodayIndex - 1];
   const selectedTodaySchedule = selectedSchedule.filter((item) => item.day === selectedTodayDay).slice(0, 4);
   const monthDates = monthDateKeys();
-  const attendedDates = new Set(data.attendanceDates);
-  const monthAttendance = data.attendanceDates.filter((key) => monthDates.includes(key)).length;
+  const selectedRewards = selectedReport?.rewards;
+  const selectedAttendanceDates = selectedRewards?.attendanceDates ?? [];
+  const selectedClaimedAttendanceRewards = selectedRewards?.claimedAttendanceRewards ?? [];
+  const selectedRewardPurchases = selectedRewards?.rewardPurchases ?? [];
+  const selectedFruits = selectedRewards?.fruits ?? 0;
+  const attendedDates = new Set(selectedAttendanceDates);
+  const monthAttendance = selectedAttendanceDates.filter((key) => monthDates.includes(key)).length;
   const fullMonth = monthDates.length;
   const selectedMessages = data.adminMessages.filter((message) => message.recipientId === selectedStudent?.id);
   const rewardSteps = attendanceRewardSteps(fullMonth, rewardSettings);
   const visibleSubjects = selectedStudentSubjects.length ? selectedStudentSubjects : subjects;
   const subjectRows = visibleSubjects.map((subject) => {
     const subjectTasks = visibleTasks.filter((task) => task.subject === subject);
-    const subjectMinutes = data.studyBlocks.filter((block) => block.subject === subject && block.date === todayKey()).reduce((sum, block) => sum + blockDurationSeconds(block) / 60, 0);
+    const subjectMinutes = selectedReport?.subjectStudy.find((row) => row.subject === subject)?.minutes
+      ?? selectedReport?.studyBlocks
+        .filter((block) => block.subject === subject && block.date === todayKey())
+        .reduce((sum, block) => sum + blockDurationSeconds(block) / 60, 0)
+      ?? 0;
     return {
       subject,
       minutes: subjectMinutes,
@@ -3892,6 +3908,16 @@ function AdminPage({
     };
   });
   const recentMessages = [...data.adminMessages].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 30);
+  const syncedReportCount = new Set(familyReports.map((report) => report.studentId)).size;
+  const realtimeLabel = realtimeServerTime
+    ? new Date(realtimeServerTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+    : '연결 대기';
+
+  useEffect(() => {
+    if (students.length && !students.some((student) => student.id === selectedStudentId)) {
+      setSelectedStudentId(students[0].id);
+    }
+  }, [selectedStudentId, students]);
 
   useEffect(() => {
     if (!selectedStudent?.id) return;
@@ -3903,20 +3929,32 @@ function AdminPage({
         loadSchedule(selectedStudent.id),
       ]);
       if (cancelled) return;
-      const taskSubjects = taskResult.tasks.reduce<Subject[]>((result, task) => (result.includes(task.subject) ? result : [...result, task.subject]), []);
-      setSelectedStudentTasks(taskResult.tasks);
-      setSelectedStudentSubjects(taskResult.subjects.length ? taskResult.subjects : taskSubjects.length ? taskSubjects : subjects);
-      setSelectedTaskSource(taskResult.source);
-      setSelectedSchedule(scheduleResult.items);
-      setSelectedScheduleSource(scheduleResult.source);
+      const reportTasks = selectedReport?.tasks ?? [];
+      const nextTasks = taskResult.tasks.length ? taskResult.tasks : reportTasks;
+      const taskSubjects = nextTasks.reduce<Subject[]>((result, task) => (result.includes(task.subject) ? result : [...result, task.subject]), []);
+      const reportSubjects = selectedReport?.subjectStudy.map((row) => row.subject).filter(Boolean) ?? [];
+      const nextSchedule = selectedReport?.schedules.length ? selectedReport.schedules : scheduleResult.items;
+      setSelectedStudentTasks(nextTasks);
+      setSelectedStudentSubjects(
+        taskResult.subjects.length
+          ? taskResult.subjects
+          : reportSubjects.length
+            ? reportSubjects
+            : taskSubjects.length
+              ? taskSubjects
+              : subjects,
+      );
+      setSelectedTaskSource(taskResult.source || (reportTasks.length ? 'student app 실시간 리포트' : '연결 대기'));
+      setSelectedSchedule(nextSchedule);
+      setSelectedScheduleSource(selectedReport?.schedules.length ? 'student app 실시간 리포트' : scheduleResult.source);
     }
     void refreshSelectedStudentData();
-    const id = window.setInterval(refreshSelectedStudentData, 30000);
+    const id = window.setInterval(refreshSelectedStudentData, 10000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [selectedStudent?.id]);
+  }, [selectedReport?.updatedAt, selectedStudent?.id]);
 
   function updateRewardSetting(key: keyof RewardSettings, value: number) {
     onRewardSettingsChange(normalizeRewardSettings({ ...rewardSettings, [key]: value }));
@@ -3950,6 +3988,17 @@ function AdminPage({
     setMessageBody('');
   }
 
+  async function toggleSelectedTask(task: Task) {
+    const completed = !task.completed;
+    setSelectedStudentTasks((current) => current.map((item) => (
+      item.id === task.id ? { ...item, completed, portalStatus: 'pending' } : item
+    )));
+    const synced = await syncMentoringTaskCompletion(task, completed);
+    setSelectedStudentTasks((current) => current.map((item) => (
+      item.id === task.id ? { ...item, completed, portalStatus: synced ? 'synced' : 'pending' } : item
+    )));
+  }
+
   function rememberLinkedFiles(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
     setLinkedFileNames(files.map((file) => `${file.name} (${Math.max(1, Math.round(file.size / 1024)).toLocaleString('ko-KR')}KB)`));
@@ -3957,7 +4006,11 @@ function AdminPage({
 
   return (
     <div className="page admin-page">
-      <PageTitle label="Admin Console" title="학생 앱 운영 대시보드" right={<div className="session-state live">관리자</div>} />
+      <PageTitle
+        label="Admin Console"
+        title="학생 앱 운영 대시보드"
+        right={<div className="session-state live">실시간 · {realtimeLabel}</div>}
+      />
       <nav className="admin-tabs">
         {[
           ['overview', '현황'],
@@ -3999,16 +4052,16 @@ function AdminPage({
                 <div className="admin-control-grid">
                   <div><CalendarDays size={22} /><span>오늘 일정</span><strong>{selectedTodaySchedule.length}건</strong></div>
                   <div><ClipboardList size={22} /><span>과제 완료</span><strong>{completed}/{visibleTasks.length}</strong></div>
-                  <div><Star size={22} /><span>보유 별</span><strong>{data.fruits}개</strong></div>
+                  <div><Star size={22} /><span>보유 별</span><strong>{selectedFruits}개</strong></div>
                   <div><Trophy size={22} /><span>맵 보상</span><strong>{rewardSettings.stageRewardStars}개</strong></div>
                   <div><Flag size={22} /><span>오픈 맵</span><strong>{openRewardMapCount}/{rewardMapMonths.length}</strong></div>
                   <div><Stamp size={22} /><span>월 출석</span><strong>{monthAttendance}일</strong></div>
-                  <div><MessageSquare size={22} /><span>메시지</span><strong>{data.adminMessages.length}건</strong></div>
+                  <div><MessageSquare size={22} /><span>메시지</span><strong>{selectedMessages.length}건</strong></div>
                 </div>
                 <div className="admin-sync-list">
-                  <div><span>일정 연동</span><strong>medischedule</strong></div>
-                  <div><span>멘토링 연동</span><strong>medimentors</strong></div>
-                  <div><span>냥톡 커뮤니티</span><strong>제거됨</strong></div>
+                  <div><span>학생 명단</span><strong>멘토링 {students.length}명</strong></div>
+                  <div><span>앱 리포트</span><strong>{syncedReportCount}명 실시간</strong></div>
+                  <div><span>마지막 동기화</span><strong>{realtimeLabel}</strong></div>
                 </div>
               </div>
             </div>
@@ -4031,17 +4084,17 @@ function AdminPage({
               </div>
             </div>
             <div className="admin-panel admin-file-status">
-              <div className="admin-panel-head"><h2>현재 연동 상태</h2><span>앱 출시 전 확인</span></div>
+              <div className="admin-panel-head"><h2>현재 연동 상태</h2><span>실시간 서비스 상태</span></div>
               <div className="admin-sync-list">
-                <div><span>학생 명단</span><strong>{students.length ? `${students.length}명 로드` : '대체 데이터'}</strong></div>
+                <div><span>학생 명단</span><strong>{students.length ? `medimentors ${students.length}명` : '연결 대기'}</strong></div>
                 <div><span>일정</span><strong>{selectedScheduleSource}</strong></div>
                 <div><span>과제</span><strong>{selectedTaskSource}</strong></div>
-                <div><span>보상맵</span><strong>기본 좌표 고정</strong></div>
+                <div><span>학생 앱 리포트</span><strong>{syncedReportCount}명 수신</strong></div>
               </div>
               <div className="admin-compact-list">
-                <div><span>medischedule</span><strong>/medischedule-api 프록시</strong></div>
-                <div><span>medimentors</span><strong>/mentoring-api 프록시</strong></div>
-                <div><span>medipenalty</span><strong>/penalty-api 프록시</strong></div>
+                <div><span>app-api</span><strong>연결 · {realtimeLabel}</strong></div>
+                <div><span>medimentors</span><strong>{students.length === 67 ? '정상 · 67명' : `수신 · ${students.length}명`}</strong></div>
+                <div><span>medipenalty</span><strong>{penaltySummaries.length ? `정상 · ${penaltySummaries.length}명` : '연결 대기'}</strong></div>
               </div>
             </div>
           </div>
@@ -4071,11 +4124,14 @@ function AdminPage({
               <div className="admin-panel-head"><h2>{selectedStudent?.name ?? '학생'} 상세</h2><span>{selectedStudent?.status === 'studying' ? '공부중' : selectedStudent?.status === 'break' ? '휴식중' : '오프라인'}</span></div>
               <div className="admin-detail-grid">
                 <div><span>학생 ID</span><strong>{selectedStudent?.id ?? '-'}</strong></div>
-                <div><span>학생 번호</span><strong>{studentPhoneText(selectedStudent)}</strong></div>
-                <div><span>오늘 공부</span><strong>{formatMinuteText(selectedStudent?.todayMinutes ?? 0)}</strong></div>
+                <div><span>학생 번호</span><strong>{selectedReport?.profile.studentPhone || studentPhoneText(selectedStudent)}</strong></div>
+                <div><span>오늘 공부</span><strong>{formatMinuteText(selectedReport?.studySummary.today ?? selectedStudent?.todayMinutes ?? 0)}</strong></div>
                 <div><span>현재 과목</span><strong>{selectedStudent?.subject ?? '-'}</strong></div>
                 <div><span>과제 완료</span><strong>{completed}/{visibleTasks.length}</strong></div>
                 <div><span>최근 메시지</span><strong>{selectedMessages.length}건</strong></div>
+                <div><span>이번 주 공부</span><strong>{formatMinuteText(selectedReport?.studySummary.week ?? 0)}</strong></div>
+                <div><span>이번 달 공부</span><strong>{formatMinuteText(selectedReport?.studySummary.month ?? 0)}</strong></div>
+                <div><span>누적 벌점</span><strong>{selectedPenalty?.points ?? 0}점</strong></div>
               </div>
               <div className="admin-student-task-preview">
                 {selectedTodaySchedule.length ? selectedTodaySchedule.map((item) => (
@@ -4099,7 +4155,7 @@ function AdminPage({
         {tab === 'learning' ? (
           <div className="admin-two-col">
             <div className="admin-panel admin-learning-panel">
-              <div className="admin-panel-head"><h2>{selectedStudent?.name ?? '학생'} 공부 분석</h2><span>오늘 기준</span></div>
+              <div className="admin-panel-head"><h2>{selectedStudent?.name ?? '학생'} 공부 분석</h2><span>{selectedReport ? `실시간 · ${new Date(selectedReport.updatedAt).toLocaleTimeString('ko-KR')}` : '앱 리포트 대기'}</span></div>
               {renderStudentPicker('학습 학생 선택')}
               <div className="admin-subject-list">
                 {subjectRows.map((row) => (
@@ -4112,19 +4168,19 @@ function AdminPage({
               </div>
             </div>
             <div className="admin-panel">
-              <div className="admin-panel-head"><h2>학생별 과제 수정</h2><span>{selectedTaskSource}</span></div>
+              <div className="admin-panel-head"><h2>학생별 과제 실시간</h2><span>{selectedTaskSource}</span></div>
               <div className="admin-task-edit-list">
                 {visibleTasks.map((task) => (
                   <div key={task.id}>
                     <span>{task.subject}</span>
                     <input
                       value={task.title}
-                      onChange={(event) => onTaskChange({ ...task, title: event.target.value, portalStatus: 'pending' })}
+                      readOnly
                       aria-label={`${task.subject} 과제명`}
                     />
                     <button
                       type="button"
-                      onClick={() => onTaskChange({ ...task, completed: !task.completed, portalStatus: 'pending' })}
+                      onClick={() => void toggleSelectedTask(task)}
                     >
                       {task.completed ? '완료' : '진행'}
                     </button>
@@ -4140,15 +4196,15 @@ function AdminPage({
               <div className="admin-panel-head"><h2>{selectedStudent?.name ?? '학생'} 보상</h2><span>학생 페이지 연동</span></div>
               {renderStudentPicker('보상 학생 선택')}
               <div className="admin-detail-grid">
-                <div><span>보유 별</span><strong>{data.fruits}개</strong></div>
+                <div><span>보유 별</span><strong>{selectedFruits}개</strong></div>
                 <div><span>스테이지 기준</span><strong>{formatStudyMinutes(rewardSettings.stageMinutes)}</strong></div>
                 <div><span>월 출석</span><strong>{monthAttendance}/{fullMonth}일</strong></div>
-                <div><span>구매 이력</span><strong>{data.rewardPurchases.length}건</strong></div>
+                <div><span>구매 이력</span><strong>{selectedRewardPurchases.length}건</strong></div>
               </div>
               <div className="admin-fruit-actions">
-                <button type="button" onClick={() => onFruitChange(-1)} disabled={data.fruits <= 0}>별 -1</button>
+                <span>학생 앱 실시간 보유 별</span>
                 <Star size={34} />
-                <button type="button" onClick={() => onFruitChange(1)}>별 +1</button>
+                <strong>{selectedFruits}개</strong>
               </div>
               <div className="admin-reward-rules">
                 <div><span>스테이지 규칙</span><strong>{formatStudyMinutes(rewardSettings.stageMinutes)}마다 이동</strong></div>
@@ -4164,7 +4220,7 @@ function AdminPage({
                   return (
                     <div key={step.threshold}>
                       <span>{step.label}</span>
-                      <strong>{data.claimedAttendanceRewards.includes(step.threshold) ? `별 ${step.fruits}개 지급 완료` : `${Math.max(0, step.threshold - monthAttendance)}일 남음`}</strong>
+                      <strong>{selectedClaimedAttendanceRewards.includes(step.threshold) ? `별 ${step.fruits}개 지급 완료` : `${Math.max(0, step.threshold - monthAttendance)}일 남음`}</strong>
                       <i><b style={{ width: `${percent}%` }} /></i>
                     </div>
                   );
@@ -4178,8 +4234,8 @@ function AdminPage({
                 ))}
               </div>
               <div className="admin-compact-list admin-reward-history">
-                {data.rewardPurchases.slice(0, 3).map((purchase) => <div key={purchase.id}><span>구매</span><strong>{purchase.itemName}</strong></div>)}
-                {!data.rewardPurchases.length ? <div><span>구매</span><strong>교환 내역 없음</strong></div> : null}
+                {selectedRewardPurchases.slice(0, 3).map((purchase) => <div key={purchase.id}><span>구매</span><strong>{purchase.itemName}</strong></div>)}
+                {!selectedRewardPurchases.length ? <div><span>구매</span><strong>교환 내역 없음</strong></div> : null}
               </div>
             </div>
           </div>
@@ -4564,6 +4620,8 @@ export default function App() {
   const [blockEditor, setBlockEditor] = useState<StudyBlock | null>(null);
   const [medischeduleStudents, setMedischeduleStudents] = useState<StudentStatus[]>([]);
   const [liveStudents, setLiveStudents] = useState<LiveStudentStatus[]>([]);
+  const [familyReports, setFamilyReports] = useState<FamilySyncReport[]>([]);
+  const [realtimeServerTime, setRealtimeServerTime] = useState('');
   const [penaltySummaries, setPenaltySummaries] = useState<PenaltySummary[]>([]);
   const [mentoringWeeks, setMentoringWeeks] = useState<MentoringWeekOption[]>([]);
   const [selectedMentoringWeekId, setSelectedMentoringWeekId] = useState('');
@@ -4628,6 +4686,8 @@ export default function App() {
     const applySnapshot = (snapshot: RealtimeSnapshot) => {
       if (cancelled) return;
       setLiveStudents(snapshot.students);
+      setFamilyReports(snapshot.familyReports ?? []);
+      setRealtimeServerTime(snapshot.serverTime);
       setData((prev) => applyRealtimeData(prev, snapshot));
     };
 
@@ -4635,7 +4695,7 @@ export default function App() {
     const unsubscribe = subscribeRealtimeSnapshot(role, data.studentId, applySnapshot);
     const id = window.setInterval(() => {
       void loadRealtimeSnapshot(role, data.studentId).then(applySnapshot);
-    }, 15000);
+    }, 10000);
 
     return () => {
       cancelled = true;
@@ -4652,7 +4712,7 @@ export default function App() {
       if (!cancelled && students.length) setMedischeduleStudents(students);
     }
     void refreshStudents();
-    const id = window.setInterval(refreshStudents, 30000);
+    const id = window.setInterval(refreshStudents, 15000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -4729,7 +4789,7 @@ export default function App() {
       setPenaltySummaries(result.items);
     }
     void refreshPenaltySummary();
-    const id = window.setInterval(refreshPenaltySummary, 30000);
+    const id = window.setInterval(refreshPenaltySummary, 15000);
     return () => {
       cancelled = true;
       window.clearInterval(id);
@@ -5052,13 +5112,6 @@ export default function App() {
     });
   }
 
-  function saveAdminTask(task: Task) {
-    setData((prev) => ({
-      ...prev,
-      tasks: prev.tasks.map((item) => (item.id === task.id ? task : item)),
-    }));
-  }
-
   function saveRewardSettings(rewardSettings: RewardSettings) {
     const normalized = normalizeRewardSettings(rewardSettings);
     setData((prev) => ({ ...prev, rewardSettings: normalized }));
@@ -5075,10 +5128,6 @@ export default function App() {
     const normalized = normalizePenaltySettings(penaltySettings);
     setData((prev) => ({ ...prev, penaltySettings: normalized }));
     void saveRealtimeSettings({ penaltySettings: normalized });
-  }
-
-  function changeFruits(delta: number) {
-    setData((prev) => ({ ...prev, fruits: Math.max(0, prev.fruits + delta) }));
   }
 
   function dismissAdminMessage(messageId: string) {
@@ -5137,12 +5186,13 @@ export default function App() {
         students={students}
         subjects={subjects}
         schedule={schedule}
+        familyReports={familyReports}
+        penaltySummaries={penaltySummaries}
+        realtimeServerTime={realtimeServerTime}
         onSendMessage={sendAdminMessage}
-        onTaskChange={saveAdminTask}
         onRewardSettingsChange={saveRewardSettings}
         onRewardMapVisibilityChange={saveRewardMapVisibility}
         onPenaltySettingsChange={savePenaltySettings}
-        onFruitChange={changeFruits}
       />
     );
   } else if (page === 'home') {

@@ -193,6 +193,7 @@ function snapshotFor(client = {}) {
     serverTime: new Date().toISOString(),
     students: publicStudents(),
     messages: messagesFor(client.role === 'admin' ? undefined : studentId),
+    ...(client.role === 'admin' ? { familyReports: familyReportsFor() } : {}),
     rewardSettings: appState.settings.rewardSettings,
     rewardMapVisibility: appState.settings.rewardMapVisibility,
     penaltySettings: appState.settings.penaltySettings,

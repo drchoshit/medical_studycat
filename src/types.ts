@@ -98,6 +98,7 @@ export type RealtimeSnapshot = {
   serverTime: string;
   students: LiveStudentStatus[];
   messages: AdminMessage[];
+  familyReports?: FamilySyncReport[];
   rewardSettings?: RewardSettings;
   rewardMapVisibility?: Record<string, boolean>;
   penaltySettings?: PenaltySettings;
