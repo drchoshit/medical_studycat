@@ -65,11 +65,15 @@ function authHeaders(kind: 'medischedule' | 'mentoring' | 'mediweekly' | 'penalt
 }
 
 async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 4500): Promise<T> {
+  const requestUrl = new URL(url, window.location.origin);
+  const effectiveTimeoutMs = requestUrl.hostname.endsWith('.onrender.com')
+    ? Math.max(timeoutMs, 65_000)
+    : timeoutMs;
   const controller = new AbortController();
-  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  const timer = window.setTimeout(() => controller.abort(), effectiveTimeoutMs);
   try {
     const res = await fetch(url, {
-      credentials: 'include',
+      credentials: 'same-origin',
       ...init,
       signal: init?.signal ?? controller.signal,
     });
@@ -81,6 +85,9 @@ async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 4500): 
       } catch {
         json = null;
       }
+    }
+    if (text && json === null) {
+      throw new Error(`Expected JSON response from ${requestUrl.pathname}`);
     }
     if (!res.ok) {
       const message = json?.error || json?.message || `HTTP ${res.status}`;
@@ -370,6 +377,7 @@ export type MedimentorsStudentLogin = {
 };
 
 type StaticStudentAccount = MedimentorsStudentLogin & {
+  aliases?: string[];
   iterations: number;
   salt: string;
   passwordHash: string;
@@ -377,8 +385,9 @@ type StaticStudentAccount = MedimentorsStudentLogin & {
 
 const staticStudentAccounts: StaticStudentAccount[] = [
   {
-    id: 'qtf258',
-    username: 'qtf258',
+    id: 'qlf258',
+    username: 'qlf258',
+    aliases: ['qtf258'],
     name: '김도윤',
     active: true,
     iterations: 210_000,
@@ -413,6 +422,7 @@ async function verifyStaticStudentLogin(loginId: string, password: string): Prom
   const account = staticStudentAccounts.find((candidate) => (
     normalizeStudentLoginKey(candidate.username) === normalizeStudentLoginKey(loginId)
     || normalizeStudentLoginKey(candidate.id) === normalizeStudentLoginKey(loginId)
+    || candidate.aliases?.some((alias) => normalizeStudentLoginKey(alias) === normalizeStudentLoginKey(loginId))
   ));
   if (!account) return null;
   if (!account.active) {
@@ -663,7 +673,7 @@ function penaltyQuery(settings?: PenaltySettings) {
 
 export async function loadPenaltySummary(settings?: PenaltySettings): Promise<{ items: PenaltySummary[]; source: string }> {
   const query = penaltyQuery(settings);
-  const endpoints = [`${penaltyBase}/penalties/summary`, `${penaltyBase}/summary/cumulative`];
+  const endpoints = [`${penaltyBase}/summary/cumulative`, `${penaltyBase}/penalties/summary`];
   for (const endpoint of endpoints) {
     try {
       const payload = await fetchJson<unknown>(
