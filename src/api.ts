@@ -1,5 +1,5 @@
 import { DEFAULT_SUBJECTS, demoSchedule, todayKey } from './demoData';
-import type { AdminMessage, FamilySyncReport, LiveStudentStatus, PenaltySettings, PenaltySummary, RealtimeSnapshot, RewardSettings, ScheduleItem, StudentStatus, Subject, Task } from './types';
+import type { AdminMessage, FamilySyncReport, LiveStudentStatus, PenaltySettings, PenaltySummary, RealtimeSnapshot, RewardOrder, RewardSettings, ScheduleItem, StudentStatus, Subject, Task } from './types';
 
 export const weekDays = ['월', '화', '수', '목', '금', '토', '일'];
 
@@ -145,8 +145,10 @@ function normalizeSnapshot(payload: Partial<RealtimeSnapshot> | null | undefined
     students: Array.isArray(payload?.students) ? payload.students : [],
     messages: Array.isArray(payload?.messages) ? payload.messages : [],
     familyReports: Array.isArray(payload?.familyReports) ? payload.familyReports : [],
+    rewardOrders: Array.isArray(payload?.rewardOrders) ? payload.rewardOrders : [],
     rewardSettings: payload?.rewardSettings,
     rewardMapVisibility: payload?.rewardMapVisibility,
+    penaltySettings: payload?.penaltySettings,
   };
 }
 
@@ -224,6 +226,45 @@ export async function sendRealtimeAdminMessage(student: StudentStatus, body: str
     return payload.message ?? null;
   } catch {
     return null;
+  }
+}
+
+export async function submitRewardOrder(order: {
+  studentId: string;
+  studentName: string;
+  itemId: string;
+  itemName: string;
+  starCost: number;
+}): Promise<RewardOrder | null> {
+  try {
+    const payload = await fetchJson<{ order?: RewardOrder }>(
+      appApiUrl('/reward-orders'),
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(order),
+      },
+      5000,
+    );
+    return payload.order ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function acknowledgeRewardOrder(orderId: string): Promise<boolean> {
+  try {
+    await fetchJson(
+      appApiUrl(`/reward-orders/${encodeURIComponent(orderId)}/acknowledge`),
+      {
+        method: 'POST',
+        headers: appApiHeaders(true),
+      },
+      5000,
+    );
+    return true;
+  } catch {
+    return false;
   }
 }
 

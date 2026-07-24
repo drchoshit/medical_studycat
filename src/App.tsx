@@ -4,6 +4,7 @@ import {
   BarChart3,
   Bell,
   BookOpen,
+  Check,
   CalendarDays,
   CheckCircle2,
   ChevronRight,
@@ -12,16 +13,21 @@ import {
   Expand,
   Flag,
   Gift,
+  FlaskConical,
   Home,
   LogOut,
   MessageSquare,
   Pause,
   Pencil,
+  Palette,
   Play,
   Plus,
   Save,
   Send,
   ShieldCheck,
+  Shell,
+  ShoppingBag,
+  Snowflake,
   Sparkles,
   Sprout,
   Square,
@@ -35,6 +41,7 @@ import {
   X,
 } from 'lucide-react';
 import {
+  acknowledgeRewardOrder,
   dismissRealtimeAdminMessage,
   loadMedischeduleStudents,
   loadMentoringTasks,
@@ -45,6 +52,7 @@ import {
   publishStudentStatus,
   saveRealtimeSettings,
   sendRealtimeAdminMessage,
+  submitRewardOrder,
   subscribeRealtimeSnapshot,
   syncMentoringTaskCompletion,
   verifyMedimentorsStudentLogin,
@@ -55,7 +63,7 @@ import {
 import { DEFAULT_SUBJECTS, defaultAppData, defaultRewardSettings, demoSchedule, demoStudents, rewardItems, subjectColor, todayKey } from './demoData';
 import fruitUrl from './assets/tree-fruit.png';
 import treeSceneUrl from './assets/reward-tree-modern.png';
-import type { AdminMessage, AppData, AppTheme, FamilySyncReport, LiveStudentStatus, PageKey, PenaltySettings, PenaltySummary, RealtimeSnapshot, RewardPurchase, RewardSettings, Role, RunningSession, ScheduleItem, StudentStatus, StudyBlock, Subject, Task, TimerSkin } from './types';
+import type { AdminMessage, AppData, AppTheme, FamilySyncReport, LiveStudentStatus, MapAvatar, PageKey, PenaltySettings, PenaltySummary, RealtimeSnapshot, RewardOrder, RewardPurchase, RewardSettings, Role, RunningSession, ScheduleItem, StudentStatus, StudyBlock, Subject, Task, TimerSkin } from './types';
 
 const DESKTOP_FRAME_WIDTH = 1440;
 const DESKTOP_FRAME_HEIGHT = 900;
@@ -210,6 +218,7 @@ const modernRewardItems = [
 ];
 
 type RewardMapTheme = 'august' | 'september' | 'october' | 'november' | 'december';
+type RewardMapToken = 'shell' | 'book' | 'festival' | 'flask' | 'snow';
 type RewardStageNode = { x: number; y: number; label: string };
 const rewardStageStepCount = 20;
 const rewardStageTotal = rewardStageStepCount;
@@ -221,13 +230,28 @@ const rewardStageLabel = (index: number) => {
   return String(index + 1);
 };
 
-const rewardMapMonths: Array<{ key: string; label: string; title: string; subtitle: string; theme: RewardMapTheme }> = [
-  { key: '2026-07', label: '7월', title: 'Blue Coast Run', subtitle: '여름 시즌 해안 맵', theme: 'august' },
-  { key: '2026-08', label: '8월', title: 'Campus Hills', subtitle: '여름 집중 언덕 맵', theme: 'september' },
-  { key: '2026-09', label: '9월', title: 'Night Festival', subtitle: '가을 시작 축제 맵', theme: 'october' },
-  { key: '2026-10', label: '10월', title: 'Crystal Lab', subtitle: '실전 집중 연구소 맵', theme: 'november' },
-  { key: '2026-11', label: '11월', title: 'Snow Finale', subtitle: '시즌 완주 설원 맵', theme: 'december' },
+const rewardMapMonths: Array<{ key: string; label: string; title: string; subtitle: string; theme: RewardMapTheme; token: RewardMapToken; tokenLabel: string }> = [
+  { key: '2026-07', label: '7월', title: 'Blue Coast Run', subtitle: '여름 시즌 해안 맵', theme: 'august', token: 'shell', tokenLabel: '조개' },
+  { key: '2026-08', label: '8월', title: 'Campus Hills', subtitle: '여름 집중 캠퍼스 맵', theme: 'september', token: 'book', tokenLabel: '책' },
+  { key: '2026-09', label: '9월', title: 'Night Festival', subtitle: '가을 시작 축제 맵', theme: 'october', token: 'festival', tokenLabel: '축제 불빛' },
+  { key: '2026-10', label: '10월', title: 'Crystal Lab', subtitle: '실전 집중 연구소 맵', theme: 'november', token: 'flask', tokenLabel: '플라스크' },
+  { key: '2026-11', label: '11월', title: 'Snow Finale', subtitle: '시즌 완주 설원 맵', theme: 'december', token: 'snow', tokenLabel: '눈송이' },
 ];
+
+const defaultMapAvatar: MapAvatar = {
+  skin: 'peach',
+  hair: 'cap',
+  outfit: 'ocean',
+  accessory: 'none',
+};
+
+function normalizeMapAvatar(value?: Partial<MapAvatar>): MapAvatar {
+  const skin = value?.skin === 'warm' || value?.skin === 'tan' || value?.skin === 'deep' ? value.skin : 'peach';
+  const hair = value?.hair === 'bob' || value?.hair === 'spike' || value?.hair === 'bun' ? value.hair : 'cap';
+  const outfit = value?.outfit === 'mint' || value?.outfit === 'sunset' || value?.outfit === 'violet' || value?.outfit === 'charcoal' ? value.outfit : 'ocean';
+  const accessory = value?.accessory === 'glasses' || value?.accessory === 'headphones' || value?.accessory === 'crown' ? value.accessory : 'none';
+  return { skin, hair, outfit, accessory };
+}
 
 const normalizeRewardMapVisibility = (visibility?: Record<string, boolean>): Record<string, boolean> => Object.fromEntries(
   rewardMapMonths.map((month) => [month.key, visibility?.[month.key] !== false]),
@@ -1280,6 +1304,7 @@ function getStoredData() {
       hiddenTaskIds: Array.isArray(parsed.hiddenTaskIds) ? parsed.hiddenTaskIds : [],
       timerSkin,
       appTheme,
+      mapAvatar: normalizeMapAvatar(parsed.mapAvatar),
     };
   } catch {
     return defaultAppData();
@@ -3206,9 +3231,165 @@ function ModernAnalysisPage({
   );
 }
 
-function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppData; onBuyReward: (item: { id: string; name: string; cost: number }) => void; onOpenAttendance: () => void }) {
+function StageTokenIcon({ token, filled, size = 18 }: { token: RewardMapToken; filled: boolean; size?: number }) {
+  const Icon = token === 'shell'
+    ? Shell
+    : token === 'book'
+      ? BookOpen
+      : token === 'festival'
+        ? Sparkles
+        : token === 'flask'
+          ? FlaskConical
+          : Snowflake;
+  return <Icon className={filled ? 'filled' : ''} size={size} />;
+}
+
+function MapAvatarFigure({ avatar, className = '' }: { avatar: MapAvatar; className?: string }) {
+  const skinColors: Record<MapAvatar['skin'], string> = {
+    peach: '#ffd4b8',
+    warm: '#e8ad78',
+    tan: '#bd7b4b',
+    deep: '#75452f',
+  };
+  const outfitColors: Record<MapAvatar['outfit'], string> = {
+    ocean: '#2563eb',
+    mint: '#0f9f8f',
+    sunset: '#f97316',
+    violet: '#7c3aed',
+    charcoal: '#334155',
+  };
+  const skin = skinColors[avatar.skin];
+  const outfit = outfitColors[avatar.outfit];
+  return (
+    <svg className={`map-avatar-figure ${className}`} viewBox="0 0 88 108" role="img" aria-label="내 캐릭터">
+      <ellipse cx="44" cy="101" rx="27" ry="5" fill="rgba(15,23,42,.2)" />
+      <path d="M25 97 31 65h26l7 32H25Z" fill={outfit} />
+      <path d="M31 67c7 8 19 8 26 0" fill="none" stroke="rgba(255,255,255,.52)" strokeWidth="4" />
+      <path d="M31 96v7M57 96v7" stroke="#172033" strokeWidth="8" strokeLinecap="round" />
+      <circle cx="44" cy="42" r="23" fill={skin} />
+      {avatar.hair === 'cap' ? (
+        <>
+          <path d="M23 38c1-19 12-27 25-27 13 0 23 8 23 23-12-5-32-6-48 4Z" fill="#ef4444" />
+          <path d="M47 12c11 1 19 8 21 17-13-3-27-3-39 0 3-10 8-15 18-17Z" fill="#f8fafc" />
+        </>
+      ) : null}
+      {avatar.hair === 'bob' ? <path d="M20 43c0-22 11-33 25-33 17 0 26 13 24 38l-7 13-3-25c-9-8-21-8-30 0l-2 25-7-18Z" fill="#3b2a23" /> : null}
+      {avatar.hair === 'spike' ? <path d="m21 34 5-18 7 7 5-15 7 13 9-14 2 16 12-8-3 23c-13-10-31-11-44-4Z" fill="#263244" /> : null}
+      {avatar.hair === 'bun' ? (
+        <>
+          <circle cx="44" cy="11" r="10" fill="#3b2a23" />
+          <path d="M21 39c1-20 11-29 24-29 14 0 23 10 23 29-12-12-34-12-47 0Z" fill="#3b2a23" />
+        </>
+      ) : null}
+      <circle cx="36" cy="43" r="2.5" fill="#172033" />
+      <circle cx="52" cy="43" r="2.5" fill="#172033" />
+      <path d="M38 53c4 3 8 3 12 0" fill="none" stroke="#9a4e47" strokeWidth="2.5" strokeLinecap="round" />
+      {avatar.accessory === 'glasses' ? (
+        <g fill="none" stroke="#172033" strokeWidth="2">
+          <rect x="29" y="37" width="13" height="10" rx="4" />
+          <rect x="46" y="37" width="13" height="10" rx="4" />
+          <path d="M42 41h4" />
+        </g>
+      ) : null}
+      {avatar.accessory === 'headphones' ? (
+        <g fill="none" stroke="#fbbf24" strokeWidth="4">
+          <path d="M25 42c0-25 38-25 38 0" />
+          <path d="M24 41v12M64 41v12" />
+        </g>
+      ) : null}
+      {avatar.accessory === 'crown' ? <path d="m31 16 3-12 10 8 10-8 3 12Z" fill="#facc15" stroke="#92400e" strokeWidth="2" /> : null}
+    </svg>
+  );
+}
+
+function MapAvatarCustomizer({ avatar, onChange, onClose }: { avatar: MapAvatar; onChange: (avatar: MapAvatar) => void; onClose: () => void }) {
+  const skinOptions: Array<{ key: MapAvatar['skin']; color: string; label: string }> = [
+    { key: 'peach', color: '#ffd4b8', label: '피치' },
+    { key: 'warm', color: '#e8ad78', label: '웜' },
+    { key: 'tan', color: '#bd7b4b', label: '탠' },
+    { key: 'deep', color: '#75452f', label: '딥' },
+  ];
+  const hairOptions: Array<{ key: MapAvatar['hair']; label: string }> = [
+    { key: 'cap', label: '캡' },
+    { key: 'bob', label: '보브' },
+    { key: 'spike', label: '스파이크' },
+    { key: 'bun', label: '번' },
+  ];
+  const outfitOptions: Array<{ key: MapAvatar['outfit']; color: string; label: string }> = [
+    { key: 'ocean', color: '#2563eb', label: '오션' },
+    { key: 'mint', color: '#0f9f8f', label: '민트' },
+    { key: 'sunset', color: '#f97316', label: '선셋' },
+    { key: 'violet', color: '#7c3aed', label: '바이올렛' },
+    { key: 'charcoal', color: '#334155', label: '차콜' },
+  ];
+  const accessoryOptions: Array<{ key: MapAvatar['accessory']; label: string }> = [
+    { key: 'none', label: '없음' },
+    { key: 'glasses', label: '안경' },
+    { key: 'headphones', label: '헤드폰' },
+    { key: 'crown', label: '왕관' },
+  ];
+  return (
+    <div className="modern-modal-layer">
+      <section className="modern-modal-panel avatar-customizer-modal">
+        <div className="avatar-customizer-preview">
+          <span>MY QUEST CHARACTER</span>
+          <MapAvatarFigure avatar={avatar} />
+          <strong>나만의 캐릭터</strong>
+          <p>설정은 자동으로 저장되고 모든 월드맵에 적용됩니다.</p>
+        </div>
+        <div className="avatar-customizer-controls">
+          <div className="modern-modal-head">
+            <div><h2>캐릭터 꾸미기</h2><span>게임처럼 원하는 조합을 골라보세요.</span></div>
+            <button onClick={onClose} type="button" aria-label="닫기"><X size={25} /></button>
+          </div>
+          <fieldset>
+            <legend>피부 톤</legend>
+            <div className="avatar-swatch-list">
+              {skinOptions.map((option) => <button className={avatar.skin === option.key ? 'selected' : ''} style={{ '--swatch': option.color } as React.CSSProperties} key={option.key} onClick={() => onChange({ ...avatar, skin: option.key })} type="button"><i />{option.label}{avatar.skin === option.key ? <Check size={14} /> : null}</button>)}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>헤어</legend>
+            <div className="avatar-option-list">
+              {hairOptions.map((option) => <button className={avatar.hair === option.key ? 'selected' : ''} key={option.key} onClick={() => onChange({ ...avatar, hair: option.key })} type="button">{option.label}</button>)}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>의상</legend>
+            <div className="avatar-swatch-list">
+              {outfitOptions.map((option) => <button className={avatar.outfit === option.key ? 'selected' : ''} style={{ '--swatch': option.color } as React.CSSProperties} key={option.key} onClick={() => onChange({ ...avatar, outfit: option.key })} type="button"><i />{option.label}{avatar.outfit === option.key ? <Check size={14} /> : null}</button>)}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>액세서리</legend>
+            <div className="avatar-option-list">
+              {accessoryOptions.map((option) => <button className={avatar.accessory === option.key ? 'selected' : ''} key={option.key} onClick={() => onChange({ ...avatar, accessory: option.key })} type="button">{option.label}</button>)}
+            </div>
+          </fieldset>
+          <div className="avatar-customizer-actions">
+            <button type="button" onClick={() => onChange(defaultMapAvatar)}>기본으로</button>
+            <button className="primary" type="button" onClick={onClose}>완료</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ModernGardenPage({
+  data,
+  onBuyReward,
+  onOpenAttendance,
+  onAvatarChange,
+}: {
+  data: AppData;
+  onBuyReward: (item: { id: string; name: string; cost: number }) => void;
+  onOpenAttendance: () => void;
+  onAvatarChange: (avatar: MapAvatar) => void;
+}) {
   const [selectedMonthKey, setSelectedMonthKey] = useState(rewardMapMonths[0].key);
   const [stageTab, setStageTab] = useState<'map' | 'rewards'>('map');
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const selectedMonth = rewardMapMonths.find((month) => month.key === selectedMonthKey) ?? rewardMapMonths[0];
   const rewardMapVisibility = normalizeRewardMapVisibility(data.rewardMapVisibility);
   const selectedMapOpen = rewardMapVisibility[selectedMonth.key] !== false;
@@ -3226,11 +3407,12 @@ function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppDa
   const completedPathNodes = stageNodes.slice(0, Math.min(completedStages + 1, stageNodes.length));
 
   return (
+    <>
     <div className="page modern-page modern-garden-page">
       <ModernPageHeader
         eyebrow="Quest Map"
         title="스테이지 보상"
-        description="공부 시간이 쌓이면 캐릭터가 다음 스테이지로 이동하고 별 보상을 받습니다."
+        description={`공부 시간이 쌓이면 ${selectedMonth.tokenLabel} 컬렉션이 채워지고 캐릭터가 다음 스테이지로 이동합니다.`}
         right={<div className="modern-wallet-chip"><Star size={18} /><strong>{data.fruits}개</strong><span>별</span></div>}
       />
       <div className="modern-month-tabs" aria-label="월별 맵 선택">
@@ -3257,11 +3439,12 @@ function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppDa
             <div className="modern-map-title">
               <span>{selectedMonth.subtitle}</span>
               <strong>{selectedMonth.title}</strong>
+              <button className="map-avatar-open" type="button" onClick={() => setAvatarOpen(true)}><Palette size={14} /> 캐릭터 꾸미기</button>
             </div>
             <div className="stage-map-hud">
               <div><span>{selectedMonth.label} 진행률</span><strong>{monthProgress}%</strong></div>
               <div><span>현재</span><strong>{currentNodeIndex + 1}/{rewardStageStepCount}</strong></div>
-              <div><span>다음 이동</span><strong>{nextMinutes ? formatStudyMinutes(nextMinutes) : '완주'}</strong></div>
+              <div className="next-move"><span>다음 이동</span><strong>{nextMinutes ? formatStudyMinutes(nextMinutes) : '완주'}</strong></div>
             </div>
             <svg className="modern-map-path" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
               <path
@@ -3290,16 +3473,16 @@ function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppDa
                 <button type="button" aria-label={`${node.label} 스테이지`}>
                   {node.label}
                 </button>
-                  <div className="stage-star-row" aria-hidden="true">
-                    {Array.from({ length: rewardStageStarsPerStage }, (_, starIndex) => (
-                      <Star className={starIndex < stageStars ? 'filled' : ''} key={starIndex} size={11} />
+                  <div className={`stage-token-row token-${selectedMonth.token}`} aria-label={`${selectedMonth.tokenLabel} ${stageStars}/${rewardStageStarsPerStage}`}>
+                    {Array.from({ length: rewardStageStarsPerStage }, (_, tokenIndex) => (
+                      <StageTokenIcon token={selectedMonth.token} filled={tokenIndex < stageStars} key={tokenIndex} size={17} />
                     ))}
                   </div>
               </div>
               );
             })}
             <div className="stage-runner" style={{ left: `${currentNode.x}%`, top: `${currentNode.y}%` }}>
-              <div><span /></div>
+              <MapAvatarFigure avatar={data.mapAvatar} />
             </div>
             {!selectedMapOpen ? (
               <div className="reward-map-closed-layer">
@@ -3322,7 +3505,7 @@ function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppDa
               </div>
               <div className="stage-summary-grid">
                 <div><span>현재 스테이지</span><strong>{currentNodeIndex + 1}/{rewardStageStepCount}</strong></div>
-                <div><span>다음 이동</span><strong>{nextMinutes ? formatStudyMinutes(nextMinutes) : '완주'}</strong></div>
+                <div className="next-move"><span>다음 이동</span><strong>{nextMinutes ? formatStudyMinutes(nextMinutes) : '완주'}</strong></div>
                 <div><span>스테이지 기준</span><strong>{formatStudyMinutes(stageStepMinutes)}</strong></div>
                 <div><span>도착 보상</span><strong>별 {rewardSettings.stageRewardStars}개</strong></div>
               </div>
@@ -3370,6 +3553,8 @@ function ModernGardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppDa
         </section>
       )}
     </div>
+    {avatarOpen ? <MapAvatarCustomizer avatar={data.mapAvatar} onChange={onAvatarChange} onClose={() => setAvatarOpen(false)} /> : null}
+    </>
   );
 }
 
@@ -3763,6 +3948,61 @@ function ModernAdminMessageModal({ message, onClose }: { message: AdminMessage; 
           <p>{message.body}</p>
         </div>
         <button type="button" onClick={onClose}>확인</button>
+      </section>
+    </div>
+  );
+}
+
+function RewardExchangeConfirmModal({
+  item,
+  currentStars,
+  submitting,
+  error,
+  onConfirm,
+  onClose,
+}: {
+  item: { id: string; name: string; cost: number };
+  currentStars: number;
+  submitting: boolean;
+  error: string;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="modern-modal-layer">
+      <section className="modern-modal-panel reward-confirm-modal">
+        <div className="reward-confirm-icon"><ShoppingBag size={31} /></div>
+        <span>상품 교환 확인</span>
+        <h2>{item.name}</h2>
+        <p>별 {item.cost}개를 사용해 이 상품을 주문할까요?</p>
+        <div className="reward-confirm-balance">
+          <div><span>현재</span><strong>{currentStars}개</strong></div>
+          <ChevronRight size={18} />
+          <div><span>교환 후</span><strong>{Math.max(0, currentStars - item.cost)}개</strong></div>
+        </div>
+        <em className={error ? 'error' : ''}>{error || '주문하면 관리자에게 학생 이름과 상품명이 즉시 전달됩니다.'}</em>
+        <div className="reward-confirm-actions">
+          <button type="button" onClick={onClose} disabled={submitting}>취소</button>
+          <button className="primary" type="button" onClick={onConfirm} disabled={submitting}>{submitting ? '전송 중…' : '교환 신청'}</button>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function AdminRewardOrderModal({ order, onClose }: { order: RewardOrder; onClose: () => void }) {
+  return (
+    <div className="modern-modal-layer">
+      <section className="modern-modal-panel admin-order-modal">
+        <div className="admin-order-icon"><Gift size={32} /></div>
+        <span>새 상품 주문</span>
+        <h2>{order.studentName} 학생이<br /><strong>{order.itemName}</strong>을 주문했습니다.</h2>
+        <div>
+          <span>사용 별</span>
+          <strong>{order.starCost}개</strong>
+        </div>
+        <p>{new Date(order.createdAt).toLocaleString('ko-KR')}</p>
+        <button type="button" onClick={onClose}>확인했어요</button>
       </section>
     </div>
   );
@@ -4632,6 +4872,11 @@ export default function App() {
   const [medischeduleStudents, setMedischeduleStudents] = useState<StudentStatus[]>([]);
   const [liveStudents, setLiveStudents] = useState<LiveStudentStatus[]>([]);
   const [familyReports, setFamilyReports] = useState<FamilySyncReport[]>([]);
+  const [rewardOrders, setRewardOrders] = useState<RewardOrder[]>([]);
+  const [pendingReward, setPendingReward] = useState<{ id: string; name: string; cost: number } | null>(null);
+  const [rewardSubmitting, setRewardSubmitting] = useState(false);
+  const [rewardOrderError, setRewardOrderError] = useState('');
+  const [adminRewardOrder, setAdminRewardOrder] = useState<RewardOrder | null>(null);
   const [realtimeServerTime, setRealtimeServerTime] = useState('');
   const [penaltySummaries, setPenaltySummaries] = useState<PenaltySummary[]>([]);
   const [mentoringWeeks, setMentoringWeeks] = useState<MentoringWeekOption[]>([]);
@@ -4698,6 +4943,7 @@ export default function App() {
       if (cancelled) return;
       setLiveStudents(snapshot.students);
       setFamilyReports(snapshot.familyReports ?? []);
+      setRewardOrders(snapshot.rewardOrders ?? []);
       setRealtimeServerTime(snapshot.serverTime);
       setData((prev) => applyRealtimeData(prev, snapshot));
     };
@@ -4714,6 +4960,12 @@ export default function App() {
       window.clearInterval(id);
     };
   }, [role, data.studentId]);
+
+  useEffect(() => {
+    if (role !== 'admin' || adminRewardOrder) return;
+    const pending = rewardOrders.find((order) => order.status === 'pending');
+    if (pending) setAdminRewardOrder(pending);
+  }, [adminRewardOrder, rewardOrders, role]);
 
   useEffect(() => {
     if (!role) return;
@@ -5051,6 +5303,10 @@ export default function App() {
     setData((prev) => ({ ...prev, appTheme }));
   }
 
+  function setMapAvatar(mapAvatar: MapAvatar) {
+    setData((prev) => ({ ...prev, mapAvatar: normalizeMapAvatar(mapAvatar) }));
+  }
+
   function saveTask(task: Task) {
     setData((prev) => {
       const exists = prev.tasks.some((item) => item.id === task.id);
@@ -5093,16 +5349,55 @@ export default function App() {
   }
 
   function buyReward(item: { id: string; name: string; cost: number }) {
-    setData((prev) => {
-      if (prev.fruits < item.cost) return prev;
-      const purchase: RewardPurchase = {
-        id: `purchase-${Date.now()}`,
-        itemName: item.name,
-        fruitCost: item.cost,
-        purchasedAt: new Date().toISOString(),
-      };
-      return { ...prev, fruits: prev.fruits - item.cost, rewardPurchases: [purchase, ...prev.rewardPurchases] };
+    if (data.fruits < item.cost) return;
+    setRewardOrderError('');
+    setPendingReward(item);
+  }
+
+  async function confirmRewardPurchase() {
+    const item = pendingReward;
+    if (!item || data.fruits < item.cost) {
+      setPendingReward(null);
+      return;
+    }
+    setRewardSubmitting(true);
+    setRewardOrderError('');
+    const purchasedAt = new Date().toISOString();
+    const purchase: RewardPurchase = {
+      id: `purchase-${Date.now()}`,
+      itemName: item.name,
+      fruitCost: item.cost,
+      purchasedAt,
+    };
+    const order = await submitRewardOrder({
+      studentId: data.studentId,
+      studentName: data.studentName,
+      itemId: item.id,
+      itemName: item.name,
+      starCost: item.cost,
     });
+    setRewardSubmitting(false);
+    if (!order) {
+      setRewardOrderError('주문 전송에 실패했습니다. 연결 상태를 확인하고 다시 시도해 주세요.');
+      return;
+    }
+    setData((prev) => ({
+      ...prev,
+      fruits: Math.max(0, prev.fruits - item.cost),
+      rewardPurchases: [purchase, ...prev.rewardPurchases],
+    }));
+    setPendingReward(null);
+    setRewardOrders((current) => [order, ...current.filter((existing) => existing.id !== order.id)]);
+  }
+
+  function closeAdminRewardOrder() {
+    const order = adminRewardOrder;
+    if (!order) return;
+    setAdminRewardOrder(null);
+    setRewardOrders((current) => current.map((item) => (
+      item.id === order.id ? { ...item, status: 'acknowledged', acknowledgedAt: new Date().toISOString() } : item
+    )));
+    void acknowledgeRewardOrder(order.id);
   }
 
   function sendAdminMessage(student: StudentStatus, body: string) {
@@ -5279,7 +5574,7 @@ export default function App() {
       />
     );
   } else if (page === 'garden') {
-    content = <ModernGardenPage data={data} onBuyReward={buyReward} onOpenAttendance={openAttendanceModal} />;
+    content = <ModernGardenPage data={data} onBuyReward={buyReward} onOpenAttendance={openAttendanceModal} onAvatarChange={setMapAvatar} />;
   } else {
     content = <ModernCenterPage students={students} subjects={subjects} />;
   }
@@ -5322,6 +5617,20 @@ export default function App() {
         ) : null}
         {attendanceOpen ? <ModernAttendanceModal data={data} animatedDate={animatedAttendanceDate} onClose={closeAttendanceModal} onHideToday={hideAttendanceToday} /> : null}
         {unreadMessage ? <ModernAdminMessageModal message={unreadMessage} onClose={() => dismissAdminMessage(unreadMessage.id)} /> : null}
+        {pendingReward ? (
+          <RewardExchangeConfirmModal
+            item={pendingReward}
+            currentStars={data.fruits}
+            submitting={rewardSubmitting}
+            error={rewardOrderError}
+            onConfirm={() => void confirmRewardPurchase()}
+            onClose={() => {
+              setPendingReward(null);
+              setRewardOrderError('');
+            }}
+          />
+        ) : null}
+        {adminRewardOrder ? <AdminRewardOrderModal order={adminRewardOrder} onClose={closeAdminRewardOrder} /> : null}
         {taskEditor ? <ModernTaskEditor task={taskEditor.task} subjects={subjects} initialSubject={taskEditor.subject} onSave={saveTask} onClose={() => setTaskEditor(null)} /> : null}
         {blockEditor ? <ModernBlockEditor block={blockEditor} subjects={subjects} onSave={saveBlock} onClose={() => setBlockEditor(null)} /> : null}
       </div>
