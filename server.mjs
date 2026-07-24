@@ -46,6 +46,7 @@ let appState = {
   students: {},
   familyReports: {},
   messages: [],
+  rewardOrders: [],
   settings: {},
   pushTokens: {},
   updatedAt: new Date().toISOString(),
@@ -110,6 +111,7 @@ async function loadAppState() {
       students: parsed.students && typeof parsed.students === 'object' ? parsed.students : {},
       familyReports: parsed.familyReports && typeof parsed.familyReports === 'object' ? parsed.familyReports : {},
       messages: Array.isArray(parsed.messages) ? parsed.messages : [],
+      rewardOrders: Array.isArray(parsed.rewardOrders) ? parsed.rewardOrders : [],
       settings: parsed.settings && typeof parsed.settings === 'object' ? parsed.settings : {},
       pushTokens: parsed.pushTokens && typeof parsed.pushTokens === 'object' ? parsed.pushTokens : {},
       updatedAt: parsed.updatedAt || new Date().toISOString(),
@@ -194,6 +196,7 @@ function snapshotFor(client = {}) {
     students: publicStudents(),
     messages: messagesFor(client.role === 'admin' ? undefined : studentId),
     ...(client.role === 'admin' ? { familyReports: familyReportsFor() } : {}),
+    ...(client.role === 'admin' ? { rewardOrders: appState.rewardOrders.slice(0, 200) } : {}),
     rewardSettings: appState.settings.rewardSettings,
     rewardMapVisibility: appState.settings.rewardMapVisibility,
     penaltySettings: appState.settings.penaltySettings,
@@ -704,6 +707,51 @@ async function handleAppApi(req, res, url) {
     touchState();
     broadcastAll();
     sendJson(res, 201, { message: publicMessage(message) });
+    return;
+  }
+
+  if (url.pathname === '/app-api/reward-orders' && req.method === 'POST') {
+    const body = await readJsonBody(req);
+    const studentId = normalizeText(body.studentId);
+    const studentName = normalizeText(body.studentName, studentId);
+    const itemId = normalizeText(body.itemId);
+    const itemName = normalizeText(body.itemName);
+    const starCost = Math.max(0, Math.floor(numberValue(body.starCost)));
+    if (!studentId || !itemId || !itemName) {
+      sendJson(res, 400, { error: 'studentId, itemId and itemName are required' });
+      return;
+    }
+    const order = {
+      id: `reward-order-${Date.now()}-${Math.round(Math.random() * 1_000_000)}`,
+      studentId,
+      studentName,
+      itemId,
+      itemName: itemName.slice(0, 200),
+      starCost,
+      createdAt: new Date().toISOString(),
+      status: 'pending',
+    };
+    appState.rewardOrders = [order, ...appState.rewardOrders].slice(0, 500);
+    touchState();
+    broadcastAll();
+    sendJson(res, 201, { order });
+    return;
+  }
+
+  const rewardOrderAckMatch = url.pathname.match(/^\/app-api\/reward-orders\/([^/]+)\/acknowledge$/);
+  if (rewardOrderAckMatch && req.method === 'POST') {
+    if (!requireAdmin(req, res, url)) return;
+    const orderId = decodeURIComponent(rewardOrderAckMatch[1]);
+    const order = appState.rewardOrders.find((item) => item.id === orderId);
+    if (!order) {
+      sendJson(res, 404, { error: 'Reward order not found' });
+      return;
+    }
+    order.status = 'acknowledged';
+    order.acknowledgedAt = new Date().toISOString();
+    touchState();
+    broadcastAll();
+    sendJson(res, 200, { order });
     return;
   }
 

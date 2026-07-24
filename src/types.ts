@@ -77,6 +77,25 @@ export type RewardPurchase = {
   purchasedAt: string;
 };
 
+export type RewardOrder = {
+  id: string;
+  studentId: string;
+  studentName: string;
+  itemId: string;
+  itemName: string;
+  starCost: number;
+  createdAt: string;
+  status: 'pending' | 'acknowledged';
+  acknowledgedAt?: string;
+};
+
+export type MapAvatar = {
+  skin: 'peach' | 'warm' | 'tan' | 'deep';
+  hair: 'cap' | 'bob' | 'spike' | 'bun';
+  outfit: 'ocean' | 'mint' | 'sunset' | 'violet' | 'charcoal';
+  accessory: 'none' | 'glasses' | 'headphones' | 'crown';
+};
+
 export type RewardSettings = {
   stageMinutes: number;
   stageRewardStars: number;
@@ -99,6 +118,7 @@ export type RealtimeSnapshot = {
   students: LiveStudentStatus[];
   messages: AdminMessage[];
   familyReports?: FamilySyncReport[];
+  rewardOrders?: RewardOrder[];
   rewardSettings?: RewardSettings;
   rewardMapVisibility?: Record<string, boolean>;
   penaltySettings?: PenaltySettings;
@@ -187,6 +207,7 @@ export type AppData = {
   hiddenTaskIds: string[];
   timerSkin: TimerSkin;
   appTheme: AppTheme;
+  mapAvatar: MapAvatar;
 };
 
 export type RunningSession = {

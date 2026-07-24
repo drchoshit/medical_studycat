@@ -97,6 +97,12 @@ export function defaultAppData(name = '학생', id = 'student-demo'): AppData {
     hiddenTaskIds: [],
     timerSkin: 'pure',
     appTheme: 'modern',
+    mapAvatar: {
+      skin: 'peach',
+      hair: 'cap',
+      outfit: 'ocean',
+      accessory: 'none',
+    },
   };
 }
 
