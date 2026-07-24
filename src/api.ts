@@ -914,9 +914,18 @@ function isSubjectKey(key: string, knownSubjects: Subject[] = []) {
 }
 
 function readTaskTitle(raw: unknown, fallback: string) {
-  if (typeof raw === 'string') return raw.trim();
+  if (typeof raw === 'string') {
+    const text = raw.trim();
+    return text.includes('[object Object]') ? fallback : text;
+  }
   const item = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
-  return String(item.title || item.text || item.name || item.assignment || item.content || item.memo || fallback).trim();
+  const candidates = [item.title, item.text, item.name, item.assignment, item.memo, item.content];
+  for (const candidate of candidates) {
+    if (typeof candidate !== 'string' && typeof candidate !== 'number') continue;
+    const text = String(candidate).trim();
+    if (text && !text.includes('[object Object]')) return text;
+  }
+  return fallback;
 }
 
 function readTaskDone(raw: unknown) {
@@ -940,7 +949,13 @@ function normalizeTask(raw: unknown, index: number, subject: Subject, meta: Part
 function isTaskLike(value: unknown) {
   if (!value || typeof value !== 'object') return false;
   const item = value as Record<string, unknown>;
-  return ['title', 'text', 'name', 'assignment', 'content', 'memo', 'done', 'completed', 'checked'].some((key) => key in item);
+  const hasScalarTitle = [item.title, item.text, item.name, item.assignment, item.memo, item.content]
+    .some((candidate) => (
+      (typeof candidate === 'string' || typeof candidate === 'number')
+      && String(candidate).trim()
+      && !String(candidate).includes('[object Object]')
+    ));
+  return hasScalarTitle;
 }
 
 function shouldSkipMentoringKey(key: string) {
@@ -972,7 +987,7 @@ function walkMentoringTasks(
     parsed
       .split('\n')
       .map((line) => line.trim())
-      .filter(Boolean)
+      .filter((line) => Boolean(line) && !line.includes('[object Object]'))
       .forEach((line, index) => {
         const subject = context.subject ?? toSubject(context.path.at(-1));
         tasks.push(normalizeTask(line, tasks.length + index, subject, {
@@ -1130,7 +1145,19 @@ export async function loadMentoringTasks(studentId: string, requestedWeekId?: st
 }
 
 function updateTaskCompletionInValue(value: unknown, title: string, completed: boolean): { value: unknown; changed: boolean } {
-  const parsed = parseMaybeJson(value);
+  if (typeof value === 'string') {
+    const parsedString = parseMaybeJson(value);
+    if (parsedString !== value) {
+      const updated = updateTaskCompletionInValue(parsedString, title, completed);
+      return {
+        value: updated.changed ? JSON.stringify(updated.value) : value,
+        changed: updated.changed,
+      };
+    }
+    return { value, changed: false };
+  }
+
+  const parsed = value;
   if (Array.isArray(parsed)) {
     let changed = false;
     const next = parsed.map((item) => {
@@ -1145,13 +1172,15 @@ function updateTaskCompletionInValue(value: unknown, title: string, completed: b
 
   const object = parsed as Record<string, unknown>;
   if (isTaskLike(object) && readTaskTitle(object, '') === title) {
+    const next = { ...object };
+    if ('completed' in object) next.completed = completed;
+    if ('checked' in object) next.checked = completed;
+    if ('status' in object) next.status = completed ? 'completed' : 'pending';
+    if ('done' in object || !('completed' in object) && !('checked' in object) && !('status' in object)) {
+      next.done = completed;
+    }
     return {
-      value: {
-        ...object,
-        done: completed,
-        completed,
-        status: completed ? 'completed' : 'pending',
-      },
+      value: next,
       changed: true,
     };
   }
@@ -1166,8 +1195,18 @@ function updateTaskCompletionInValue(value: unknown, title: string, completed: b
   return { value: next, changed };
 }
 
+function isUnsafeMentoringTaskValue(value: unknown) {
+  if (typeof value === 'string') return value.includes('[object Object]');
+  try {
+    return JSON.stringify(value).includes('[object Object]');
+  } catch {
+    return true;
+  }
+}
+
 export async function syncMentoringTaskCompletion(task: Task, completed: boolean): Promise<boolean> {
   if (!task.mentorStudentId || !task.mentorWeekId || !task.mentorField) return false;
+  if (!task.title || task.title.includes('[object Object]')) return false;
   const headers = authHeaders('mentoring', true);
 
   try {
@@ -1181,8 +1220,10 @@ export async function syncMentoringTaskCompletion(task: Task, completed: boolean
       const subjectRecords = payload.subject_records ?? payload.subjectRecords ?? [];
       const subjectRecord = subjectRecords.find((row) => String(row.id ?? '') === task.mentorSubjectRecordId);
       if (!subjectRecord) return false;
-      const updated = updateTaskCompletionInValue(subjectRecord[task.mentorField], task.title, completed);
-      if (!updated.changed) return false;
+      const current = subjectRecord[task.mentorField];
+      if (isUnsafeMentoringTaskValue(current)) return false;
+      const updated = updateTaskCompletionInValue(current, task.title, completed);
+      if (!updated.changed || isUnsafeMentoringTaskValue(updated.value)) return false;
       await fetchJson(
         `${mentoringBase}/api/mentoring/subject-record/${encodeURIComponent(task.mentorSubjectRecordId)}`,
         {
@@ -1197,8 +1238,9 @@ export async function syncMentoringTaskCompletion(task: Task, completed: boolean
     if (!task.mentorWeekRecordId) return false;
     const weekRecord = (payload.week_record ?? payload.weekRecord ?? {}) as Record<string, unknown>;
     const current = weekRecord[task.mentorField];
+    if (isUnsafeMentoringTaskValue(current)) return false;
     const updated = updateTaskCompletionInValue(current, task.title, completed);
-    if (!updated.changed) return false;
+    if (!updated.changed || isUnsafeMentoringTaskValue(updated.value)) return false;
 
     await fetchJson(
       `${mentoringBase}/api/mentoring/week-record/${encodeURIComponent(task.mentorWeekRecordId)}`,
