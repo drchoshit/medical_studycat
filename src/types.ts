@@ -90,10 +90,17 @@ export type RewardOrder = {
 };
 
 export type MapAvatar = {
+  species: 'human' | 'cat' | 'dog' | 'rabbit' | 'bear' | 'fox' | 'panda' | 'hamster' | 'penguin' | 'dinosaur';
   skin: 'peach' | 'warm' | 'tan' | 'deep';
-  hair: 'cap' | 'bob' | 'spike' | 'bun';
-  outfit: 'ocean' | 'mint' | 'sunset' | 'violet' | 'charcoal';
-  accessory: 'none' | 'glasses' | 'headphones' | 'crown';
+  fur: 'cream' | 'peach' | 'caramel' | 'cocoa' | 'charcoal' | 'snow' | 'mint' | 'lavender';
+  hair: 'cap' | 'bob' | 'spike' | 'bun' | 'short' | 'curl' | 'ponytail' | 'part';
+  eyes: 'dot' | 'round' | 'sparkle' | 'sleepy';
+  expression: 'smile' | 'happy' | 'curious' | 'playful' | 'calm';
+  marking: 'none' | 'cheeks' | 'mask' | 'spot' | 'stripe';
+  outfitStyle: 'hoodie' | 'sailor' | 'explorer' | 'school' | 'wizard' | 'sport';
+  outfit: 'ocean' | 'mint' | 'sunset' | 'violet' | 'charcoal' | 'rose' | 'sunny' | 'sky';
+  accessory: 'none' | 'glasses' | 'headphones' | 'crown' | 'bow' | 'beanie' | 'flower' | 'halo';
+  aura: 'none' | 'stars' | 'hearts' | 'bubbles' | 'leaves';
 };
 
 export type RewardSettings = {

@@ -98,10 +98,17 @@ export function defaultAppData(name = '학생', id = 'student-demo'): AppData {
     timerSkin: 'pure',
     appTheme: 'modern',
     mapAvatar: {
+      species: 'human',
       skin: 'peach',
+      fur: 'cream',
       hair: 'cap',
+      eyes: 'dot',
+      expression: 'smile',
+      marking: 'none',
+      outfitStyle: 'hoodie',
       outfit: 'ocean',
       accessory: 'none',
+      aura: 'none',
     },
   };
 }
