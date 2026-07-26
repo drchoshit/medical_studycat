@@ -16266,6 +16266,218 @@ body {
   }
 }
 
+/* Character workshop polish: richer preview stage and real SVG option cards. */
+.avatar-customizer-modal {
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  background: linear-gradient(145deg, #ffffff 0%, #fbfdff 55%, #f3f8fb 100%);
+  box-shadow:
+    0 40px 110px rgba(2, 20, 32, 0.38),
+    0 1px 0 rgba(255, 255, 255, 0.9) inset;
+}
+
+.avatar-customizer-preview {
+  border-right: 1px solid rgba(255, 255, 255, 0.64);
+  background:
+    radial-gradient(circle at 18% 15%, rgba(255, 255, 255, 0.94), transparent 16%),
+    radial-gradient(circle at 84% 24%, rgba(255, 255, 255, 0.48), transparent 22%),
+    radial-gradient(ellipse at 50% 86%, rgba(37, 99, 235, 0.2), transparent 36%),
+    linear-gradient(155deg, #baf7eb 0%, #bce9fa 48%, #d8d5ff 100%);
+}
+
+.avatar-customizer-preview::before {
+  width: 278px;
+  height: 278px;
+  top: 132px;
+  left: 55px;
+  border: 1px solid rgba(255, 255, 255, 0.68);
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow:
+    0 0 0 22px rgba(255, 255, 255, 0.08),
+    0 30px 60px rgba(39, 102, 147, 0.15);
+  backdrop-filter: blur(2px);
+}
+
+.avatar-customizer-preview::after {
+  width: 226px;
+  height: 36px;
+  top: auto;
+  bottom: 184px;
+  left: 81px;
+  border: 0;
+  background: radial-gradient(ellipse, rgba(22, 55, 82, 0.22), transparent 70%);
+  filter: blur(3px);
+}
+
+.avatar-customizer-preview > span {
+  padding: 7px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.62);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.34);
+  letter-spacing: 0.19em;
+  backdrop-filter: blur(8px);
+}
+
+.avatar-customizer-preview .map-avatar-figure {
+  width: 254px;
+  height: 292px;
+  margin: -12px 0 -11px;
+  filter:
+    drop-shadow(0 4px 0 rgba(255, 255, 255, 0.42))
+    drop-shadow(0 22px 16px rgba(31, 65, 94, 0.26));
+}
+
+.avatar-customizer-preview > strong {
+  letter-spacing: -0.04em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.55);
+}
+
+.avatar-customizer-preview p {
+  color: #3e5b70;
+}
+
+.avatar-combination-badge {
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 8px 20px rgba(37, 99, 235, 0.08);
+}
+
+.avatar-customizer-controls {
+  background:
+    radial-gradient(circle at 100% 0, rgba(20, 184, 166, 0.06), transparent 29%),
+    transparent;
+}
+
+.avatar-customizer-tabs {
+  border: 1px solid #e7edf3;
+  background: rgba(241, 245, 249, 0.82);
+}
+
+.avatar-customizer-tabs button {
+  transition: color 0.18s ease, background 0.18s ease, transform 0.18s ease;
+}
+
+.avatar-customizer-tabs button:hover {
+  color: #0f766e;
+  transform: translateY(-1px);
+}
+
+.avatar-customizer-tabs button.selected {
+  background: linear-gradient(180deg, #ffffff, #f8fffd);
+  box-shadow:
+    0 5px 14px rgba(15, 23, 42, 0.08),
+    0 -2px 0 #16b8a5 inset;
+}
+
+.avatar-customizer-scroll {
+  padding-top: 7px;
+}
+
+.avatar-customizer-controls legend {
+  padding-left: 2px;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+}
+
+.avatar-species-grid {
+  gap: 9px;
+}
+
+.avatar-species-grid button {
+  min-height: 96px;
+  padding: 3px 4px 8px;
+  overflow: hidden;
+  border-color: #dfe7ef;
+  background:
+    radial-gradient(circle at 50% 25%, #ffffff, transparent 54%),
+    linear-gradient(160deg, #fbfdff, #f3f7fa);
+  box-shadow:
+    0 5px 12px rgba(15, 23, 42, 0.035),
+    0 1px 0 #ffffff inset;
+}
+
+.avatar-species-grid button.selected {
+  border-color: #12b7a5;
+  background:
+    radial-gradient(circle at 50% 24%, #ffffff, transparent 53%),
+    linear-gradient(150deg, #eafff9, #edf7ff);
+  box-shadow:
+    0 0 0 3px rgba(20, 184, 166, 0.1),
+    0 8px 18px rgba(13, 148, 136, 0.09);
+}
+
+.avatar-species-grid .avatar-option-figure {
+  position: static;
+  width: 54px;
+  height: 67px;
+  margin: -5px 0 -5px;
+  overflow: visible;
+  filter: drop-shadow(0 5px 4px rgba(15, 23, 42, 0.16));
+  transition: transform 0.2s cubic-bezier(.2, .8, .2, 1);
+}
+
+.avatar-species-grid button:hover .avatar-option-figure,
+.avatar-species-grid button.selected .avatar-option-figure {
+  transform: translateY(-2px) scale(1.06);
+}
+
+.avatar-species-grid button span {
+  position: relative;
+  z-index: 2;
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.avatar-detail-grid button,
+.avatar-style-grid button {
+  border-color: #dfe7ef;
+  background: linear-gradient(160deg, #ffffff, #f5f8fb);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.035);
+}
+
+.avatar-detail-grid button.selected,
+.avatar-style-grid button.selected {
+  background: linear-gradient(150deg, #ebfff9, #eff7ff);
+}
+
+.avatar-swatch-list button,
+.avatar-option-list button {
+  border-color: #dfe7ef;
+  background: linear-gradient(180deg, #ffffff, #f7f9fb);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.025);
+  transition: transform 0.16s ease, border-color 0.16s ease;
+}
+
+.avatar-swatch-list button:hover,
+.avatar-option-list button:hover {
+  transform: translateY(-1px);
+  border-color: #94d8d1;
+}
+
+.avatar-swatch-list button i {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ffffff;
+  box-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.15),
+    0 2px 5px rgba(15, 23, 42, 0.12);
+}
+
+.avatar-customizer-actions button {
+  min-height: 42px;
+  padding-inline: 18px;
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.04);
+}
+
+.avatar-customizer-actions button.primary {
+  background: linear-gradient(135deg, #13a896, #087c73);
+  box-shadow: 0 8px 18px rgba(15, 143, 131, 0.22);
+}
+
+.avatar-customizer-actions button.random {
+  background: linear-gradient(135deg, #faf7ff, #f0eaff);
+  box-shadow: 0 5px 14px rgba(109, 40, 217, 0.08);
+}
+
 @media (max-width: 640px) {
   .pulse-clock-shell {
     width: min(94vw, 680px);
