@@ -2373,7 +2373,7 @@ function GardenPage({ data, onBuyReward, onOpenAttendance }: { data: AppData; on
           </button>
           <div className="purchase-list">
             {data.rewardPurchases.slice(0, 4).map((purchase) => (
-              <div key={purchase.id}><span>{purchase.itemName}</span><strong>-{purchase.fruitCost}개</strong></div>
+              <div key={purchase.id}><span>{purchase.itemName}</span><strong>{purchase.fruitCost}개</strong></div>
             ))}
             {!data.rewardPurchases.length ? <div className="empty-state">교환 내역 없음</div> : null}
           </div>
@@ -3286,7 +3286,8 @@ function MapAvatarFigure({ avatar, className = '' }: { avatar: MapAvatar; classN
     sky: '#38bdf8',
   };
   const isHuman = avatar.species === 'human';
-  const face = isHuman ? skinColors[avatar.skin] : furColors[avatar.fur];
+  const selectedFace = isHuman ? skinColors[avatar.skin] : furColors[avatar.fur];
+  const face = avatar.species === 'panda' ? '#f8fafc' : avatar.species === 'penguin' ? '#273449' : selectedFace;
   const outfit = outfitColors[avatar.outfit];
   const dark = avatar.fur === 'charcoal' || avatar.fur === 'cocoa' || (isHuman && avatar.skin === 'deep');
   const ink = dark ? '#f8fafc' : '#172033';
@@ -3341,19 +3342,24 @@ function MapAvatarFigure({ avatar, className = '' }: { avatar: MapAvatar; classN
       {avatar.aura === 'hearts' ? <g fill="#fb7185"><path d="M5 33c0-5 7-5 7 0 0-5 7-5 7 0 0 4-7 9-7 9S5 37 5 33Z" /><path d="M72 18c0-4 6-4 6 0 0-4 6-4 6 0 0 3-6 7-6 7s-6-4-6-7Z" /></g> : null}
       {avatar.aura === 'bubbles' ? <g fill="none" stroke="#38bdf8" strokeWidth="2"><circle cx="9" cy="31" r="5" /><circle cx="78" cy="18" r="4" /><circle cx="80" cy="54" r="6" /></g> : null}
       {avatar.aura === 'leaves' ? <g fill="#4ade80"><ellipse cx="10" cy="34" rx="4" ry="8" transform="rotate(-35 10 34)" /><ellipse cx="79" cy="25" rx="4" ry="8" transform="rotate(35 79 25)" /></g> : null}
-      <ellipse cx="45" cy="103" rx="28" ry="5" fill="rgba(15,23,42,.2)" />
+      <ellipse cx="45" cy="103" rx="28" ry="5" fill="rgba(15,23,42,.18)" />
       {avatar.species === 'fox' ? <path d="M65 76c22-13 25 15 6 20 9-9 3-15-7-10Z" fill={face} stroke="#704532" strokeWidth="2" /> : null}
       {avatar.species === 'dinosaur' ? <path d="M64 79c19-5 19 10 2 15Z" fill={face} stroke="#52715f" strokeWidth="2" /> : null}
-      <path d="M25 99 31 66h28l7 33H25Z" fill={outfit} />
+      <path d="M27 97 30 73q1-9 10-10h10q9 1 10 10l3 24q-18 7-36 0Z" fill={outfit} stroke="#172033" strokeWidth="2.2" strokeLinejoin="round" />
+      <path d="M31 74q-9 9-8 20M59 74q9 9 8 20" fill="none" stroke={outfit} strokeWidth="9" strokeLinecap="round" />
+      <circle cx="23" cy="94" r="5" fill={face} stroke="#172033" strokeWidth="1.8" />
+      <circle cx="67" cy="94" r="5" fill={face} stroke="#172033" strokeWidth="1.8" />
       {avatar.outfitStyle === 'hoodie' ? <><path d="M30 68q15 13 30 0" fill="none" stroke="rgba(255,255,255,.65)" strokeWidth="4" /><path d="M42 77v12M50 77v12" stroke="#fff" strokeWidth="1.5" /></> : null}
       {avatar.outfitStyle === 'sailor' ? <><path d="m31 67 14 15 14-15" fill="#f8fafc" /><path d="M45 82v16" stroke="#ef4444" strokeWidth="5" /></> : null}
       {avatar.outfitStyle === 'explorer' ? <><path d="M45 67v32M31 82h28" stroke="#d6a44c" strokeWidth="3" /><rect x="32" y="74" width="9" height="8" rx="2" fill="#f8fafc" opacity=".7" /><rect x="49" y="74" width="9" height="8" rx="2" fill="#f8fafc" opacity=".7" /></> : null}
       {avatar.outfitStyle === 'school' ? <><path d="m31 67 14 13 14-13" fill="#f8fafc" /><path d="m45 78-5 13h10Z" fill="#ef4444" /></> : null}
       {avatar.outfitStyle === 'wizard' ? <><path d="M31 68q14 12 28 0" fill="#facc15" /><g fill="#facc15"><circle cx="36" cy="83" r="2" /><path d="m54 84 1 3 3 1-3 1-1 3-1-3-3-1 3-1Z" /></g></> : null}
       {avatar.outfitStyle === 'sport' ? <><path d="M45 67v32" stroke="#fff" strokeWidth="3" /><circle cx="51" cy="82" r="7" fill="#fff" opacity=".9" /><text x="51" y="86" textAnchor="middle" fill={outfit} fontSize="10" fontWeight="900">7</text></> : null}
-      <path d="M32 98v6M58 98v6" stroke="#172033" strokeWidth="8" strokeLinecap="round" />
-      <circle cx="45" cy="43" r="24" fill={face} />
-      {renderSpeciesDetails()}
+      <path d="M34 97v7M56 97v7" stroke="#172033" strokeWidth="9" strokeLinecap="round" />
+      {!isHuman ? renderSpeciesDetails() : null}
+      <circle cx="45" cy="43" r="24" fill={face} stroke="#172033" strokeWidth="2.2" />
+      <path d="M29 35q7-13 20-14" fill="none" stroke="#fff" strokeWidth="3.4" strokeLinecap="round" opacity=".28" />
+      {isHuman ? renderSpeciesDetails() : null}
       {avatar.species === 'panda' ? <><ellipse cx="35" cy="44" rx="7" ry="9" fill="#263244" transform="rotate(25 35 44)" /><ellipse cx="55" cy="44" rx="7" ry="9" fill="#263244" transform="rotate(-25 55 44)" /></> : null}
       {avatar.species === 'penguin' ? <path d="M28 42c1-15 8-22 17-22s16 7 17 22c-7-6-12-8-17-8s-10 2-17 8Z" fill="#f8fafc" /> : null}
       {avatar.marking === 'mask' && avatar.species !== 'panda' ? <path d="M27 40q18-13 36 0l-4 13q-14-8-28 0Z" fill={dark ? '#1e293b' : '#a86647'} opacity=".65" /> : null}
@@ -3525,7 +3531,7 @@ function MapAvatarCustomizer({ avatar, onChange, onClose }: { avatar: MapAvatar;
               <fieldset>
                 <legend>어떤 친구와 모험할까요?</legend>
                 <div className="avatar-species-grid">
-                  {speciesOptions.map((option) => <button className={avatar.species === option.key ? 'selected' : ''} key={option.key} onClick={() => onChange({ ...avatar, species: option.key })} type="button"><b>{option.emoji}</b><span>{option.label}</span>{avatar.species === option.key ? <Check size={14} /> : null}</button>)}
+                  {speciesOptions.map((option) => <button className={avatar.species === option.key ? 'selected' : ''} key={option.key} onClick={() => onChange({ ...avatar, species: option.key })} type="button"><MapAvatarFigure avatar={{ ...avatar, species: option.key, accessory: 'none', aura: 'none' }} className="avatar-option-figure" /><span>{option.label}</span>{avatar.species === option.key ? <Check size={14} /> : null}</button>)}
                 </div>
               </fieldset>
               <fieldset>
@@ -3722,13 +3728,13 @@ function ModernGardenPage({
               <div className="modern-panel-title compact">
                 <Star size={18} />
                 <div>
-                  <span>최근 교환</span>
+                  <span>{selectedMonth.label} 내역</span>
                   <strong>교환한 상품</strong>
                 </div>
               </div>
               <div className="modern-purchase-list compact">
                 {data.rewardPurchases.slice(0, 4).map((purchase) => (
-                  <div key={purchase.id}><span>{purchase.itemName}</span><strong>-{purchase.fruitCost}개</strong></div>
+                  <div key={purchase.id}><span>{purchase.itemName}</span><strong>{purchase.fruitCost}개</strong></div>
                 ))}
                 {!data.rewardPurchases.length ? <div className="modern-empty-state">교환 내역이 없습니다</div> : null}
               </div>
