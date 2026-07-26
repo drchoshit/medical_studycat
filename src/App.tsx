@@ -1274,6 +1274,12 @@ function formatMinuteText(minutes: number) {
   return `${m}분`;
 }
 
+function formatLiveStudentTime(student: Pick<StudentStatus, 'status' | 'todayMinutes' | 'todaySeconds'>) {
+  const seconds = Math.max(0, Math.floor(student.todaySeconds ?? student.todayMinutes * 60));
+  if (student.status === 'studying' && seconds < 60) return `${seconds}초`;
+  return formatMinuteText(seconds / 60);
+}
+
 function getStoredData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -2414,7 +2420,7 @@ function CenterPage({ students, subjects }: { students: StudentStatus[]; subject
             <article className={`student-card ${student.status}`} key={student.id} style={{ '--student-color': subjectColor(student.subject, subjects) } as React.CSSProperties}>
               <div className="student-status-badge">{statusLabel[student.status]}</div>
               <h3>{student.id}</h3>
-              <strong>{formatMinuteText(student.todayMinutes)}</strong>
+              <strong>{formatLiveStudentTime(student)}</strong>
               <span>{student.status === 'studying' ? `${student.subject} 공부 중` : student.status === 'break' ? '잠시 휴식 중' : '오늘 접속 대기'}</span>
             </article>
           ))}
@@ -2425,7 +2431,7 @@ function CenterPage({ students, subjects }: { students: StudentStatus[]; subject
             <div className="leader-row" key={student.id}>
               <strong>{index + 1}</strong>
               <span>{student.id}</span>
-              <em>{formatMinuteText(student.todayMinutes)}</em>
+              <em>{formatLiveStudentTime(student)}</em>
             </div>
           ))}
         </div>
@@ -3780,7 +3786,7 @@ function ModernCenterPage({ students, subjects }: { students: StudentStatus[]; s
             <article className={`modern-student-card ${student.status}`} key={student.id} style={{ '--student-color': subjectColor(student.subject, subjects) } as React.CSSProperties}>
               <div className="modern-student-state">{statusLabel[student.status]}</div>
               <h3>{student.name} <small>{student.id}</small></h3>
-              <strong>{formatStudyMinutes(student.todayMinutes)}</strong>
+              <strong>{formatLiveStudentTime(student)}</strong>
               <span>{student.status === 'studying' ? `${displaySubject(student.subject, subjects)} 공부 중` : student.status === 'break' ? '잠시 휴식 중' : '접속 대기'}</span>
             </article>
           ))}
@@ -3798,7 +3804,7 @@ function ModernCenterPage({ students, subjects }: { students: StudentStatus[]; s
               <div className="modern-leader-row" key={student.id}>
                 <strong>{index + 1}</strong>
                 <span>{student.name}</span>
-                <em>{formatStudyMinutes(student.todayMinutes)}</em>
+                <em>{formatLiveStudentTime(student)}</em>
               </div>
             ))}
           </div>
@@ -4484,7 +4490,7 @@ function AdminPage({
                       <i />
                       <span>{student.name}</span>
                       <em>{student.status === 'studying' ? student.subject : student.status === 'break' ? '휴식중' : '오프라인'}</em>
-                      <strong>{formatMinuteText(student.todayMinutes)}</strong>
+                      <strong>{formatLiveStudentTime(student)}</strong>
                     </div>
                   ))}
                 </div>
@@ -5081,7 +5087,8 @@ export default function App() {
   const fullscreenElapsedSeconds =
     (fullscreenSubjectTotals[fullscreenSubject] ?? 0)
     + (runningSession?.subject === fullscreenSubject ? subjectElapsedSeconds : 0);
-  const actualTodayMinutes = Math.floor((totalSecondsFromBlocks(todayBlocks(data.studyBlocks)) + (runningSession ? subjectElapsedSeconds : 0)) / 60);
+  const actualTodaySeconds = Math.floor(totalSecondsFromBlocks(todayBlocks(data.studyBlocks)) + (runningSession ? subjectElapsedSeconds : 0));
+  const actualTodayMinutes = Math.floor(actualTodaySeconds / 60);
   const studentMessages = useMemo(
     () => data.adminMessages.filter((message) => message.recipientId === data.studentId || message.recipientId === 'all').sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [data.adminMessages, data.studentId],
@@ -5258,6 +5265,7 @@ export default function App() {
         name: data.studentName,
         status: runningSession ? (runningSession.paused ? 'break' : 'studying') : 'offline',
         todayMinutes: actualTodayMinutes,
+        todaySeconds: actualTodaySeconds,
         subject: runningSession?.subject ?? selectedSubject,
         running: Boolean(runningSession),
       });
@@ -5275,7 +5283,7 @@ export default function App() {
     publish();
     const id = window.setInterval(publish, 10000);
     return () => window.clearInterval(id);
-  }, [actualTodayMinutes, currentPenalty, data, role, runningSession, schedule, selectedSubject, subjectElapsedSeconds, subjects]);
+  }, [actualTodayMinutes, actualTodaySeconds, currentPenalty, data, role, runningSession, schedule, selectedSubject, subjectElapsedSeconds, subjects]);
 
   function markAttendance() {
     const today = todayKey();
@@ -5660,6 +5668,7 @@ export default function App() {
           parentPhone: live?.parentPhone || student.parentPhone || fallback.parentPhone,
           status: live?.status ?? student.status ?? fallback.status,
           todayMinutes: live?.todayMinutes ?? student.todayMinutes ?? fallback.todayMinutes,
+          todaySeconds: live?.todaySeconds ?? student.todaySeconds,
           subject: live?.subject || student.subject || fallback.subject,
         };
         const isLiveUser = role === 'user' && (student.id === data.studentId || (!medischeduleStudents.length && !liveStudents.length && index === 0));
@@ -5670,6 +5679,7 @@ export default function App() {
               name: data.studentName,
               status: runningSession ? (runningSession.paused ? 'break' : 'studying') : 'offline',
               todayMinutes: actualTodayMinutes,
+              todaySeconds: actualTodaySeconds,
               subject: runningSession?.subject ?? selectedSubject,
             }
           : merged;
@@ -5688,7 +5698,7 @@ export default function App() {
       });
       return rows;
     },
-    [actualTodayMinutes, data.studentId, data.studentName, liveStudents, medischeduleStudents, role, runningSession, selectedSubject],
+    [actualTodayMinutes, actualTodaySeconds, data.studentId, data.studentName, liveStudents, medischeduleStudents, role, runningSession, selectedSubject],
   );
 
   let content: React.ReactNode = null;

@@ -149,17 +149,53 @@ function normalizeStatus(value) {
   return ['studying', 'break', 'offline'].includes(value) ? value : 'offline';
 }
 
+function seoulDateKey(date = new Date()) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Seoul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+function normalizeStudyDate(value) {
+  const text = normalizeText(value);
+  return /^\d{4}-\d{2}-\d{2}$/.test(text) ? text : seoulDateKey();
+}
+
 function publicStudent(row) {
-  const lastSeenAt = row.lastSeenAt || row.updatedAt || new Date(0).toISOString();
-  const stale = Date.now() - Date.parse(lastSeenAt) > staleStudentMs;
+  const today = seoulDateKey();
+  const sessions = Object.values(row.sessions && typeof row.sessions === 'object' ? row.sessions : {})
+    .filter((session) => session && typeof session === 'object')
+    .filter((session) => normalizeStudyDate(session.studyDate) === today)
+    .filter((session) => Date.now() - Date.parse(session.lastSeenAt || session.updatedAt || 0) <= staleStudentMs);
+  const statusPriority = { studying: 3, break: 2, offline: 1 };
+  const selectedSession = [...sessions].sort((a, b) => {
+    const priorityDiff = statusPriority[normalizeStatus(b.status)] - statusPriority[normalizeStatus(a.status)];
+    if (priorityDiff) return priorityDiff;
+    return String(b.lastSeenAt || b.updatedAt || '').localeCompare(String(a.lastSeenAt || a.updatedAt || ''));
+  })[0];
+  const sessionLastSeenAt = sessions
+    .map((session) => session.lastSeenAt || session.updatedAt)
+    .filter(Boolean)
+    .sort()
+    .at(-1);
+  const lastSeenAt = sessionLastSeenAt || row.lastSeenAt || row.updatedAt || new Date(0).toISOString();
+  const stale = !sessions.length && Date.now() - Date.parse(lastSeenAt) > staleStudentMs;
+  const rowIsToday = normalizeStudyDate(row.studyDate) === today;
+  const todaySeconds = Math.max(
+    rowIsToday ? Number(row.todaySeconds || Number(row.todayMinutes || 0) * 60) : 0,
+    ...sessions.map((session) => Number(session.todaySeconds || Number(session.todayMinutes || 0) * 60)),
+  );
   return {
     id: row.id,
     name: row.name,
     studentPhone: row.studentPhone,
     parentPhone: row.parentPhone,
-    status: stale ? 'offline' : normalizeStatus(row.status),
-    todayMinutes: Number.isFinite(Number(row.todayMinutes)) ? Math.max(0, Math.floor(Number(row.todayMinutes))) : 0,
-    subject: row.subject || '',
+    status: stale ? 'offline' : normalizeStatus(selectedSession?.status ?? row.status),
+    todayMinutes: Number.isFinite(todaySeconds) ? Math.max(0, Math.floor(todaySeconds / 60)) : 0,
+    todaySeconds: Number.isFinite(todaySeconds) ? Math.max(0, Math.floor(todaySeconds)) : 0,
+    subject: selectedSession?.subject || row.subject || '',
     lastSeenAt,
     updatedAt: row.updatedAt || lastSeenAt,
     stale,
@@ -659,6 +695,39 @@ async function handleAppApi(req, res, url) {
     }
     const now = new Date().toISOString();
     const previous = appState.students[id] || {};
+    const sessionId = normalizeText(body.sessionId, 'legacy').slice(0, 120);
+    const studyDate = normalizeStudyDate(body.studyDate);
+    const previousSessions = previous.sessions && typeof previous.sessions === 'object' ? previous.sessions : {};
+    const sessions = Object.fromEntries(
+      Object.entries(previousSessions)
+        .filter(([, session]) => session && typeof session === 'object')
+        .filter(([, session]) => Date.now() - Date.parse(session.lastSeenAt || session.updatedAt || 0) <= Math.max(staleStudentMs * 4, 10 * 60_000))
+        .slice(-24),
+    );
+    const previousSession = sessions[sessionId] || {};
+    const incomingStatus = normalizeStatus(body.status);
+    const keepLegacyStudyState = sessionId === 'legacy'
+      && normalizeStatus(previousSession.status) === 'studying'
+      && incomingStatus === 'offline'
+      && Date.now() - Date.parse(previousSession.lastSeenAt || 0) <= staleStudentMs;
+    const incomingTodaySeconds = Number.isFinite(Number(body.todaySeconds))
+      ? Math.max(0, Math.floor(Number(body.todaySeconds)))
+      : Math.max(0, Math.floor(Number(body.todayMinutes || 0) * 60));
+    const session = {
+      ...previousSession,
+      sessionId,
+      status: keepLegacyStudyState ? 'studying' : incomingStatus,
+      todayMinutes: Number.isFinite(Number(body.todayMinutes)) ? Math.max(0, Math.floor(Number(body.todayMinutes))) : 0,
+      todaySeconds: normalizeStudyDate(previousSession.studyDate) === studyDate
+        ? Math.max(Number(previousSession.todaySeconds || 0), incomingTodaySeconds)
+        : incomingTodaySeconds,
+      subject: keepLegacyStudyState ? previousSession.subject : normalizeText(body.subject, previous.subject),
+      running: keepLegacyStudyState ? true : Boolean(body.running),
+      studyDate,
+      lastSeenAt: now,
+      updatedAt: now,
+    };
+    sessions[sessionId] = session;
     const next = {
       ...previous,
       id,
@@ -667,8 +736,11 @@ async function handleAppApi(req, res, url) {
       parentPhone: normalizeText(body.parentPhone, previous.parentPhone),
       status: normalizeStatus(body.status),
       todayMinutes: Number.isFinite(Number(body.todayMinutes)) ? Math.max(0, Math.floor(Number(body.todayMinutes))) : Number(previous.todayMinutes || 0),
+      todaySeconds: session.todaySeconds,
       subject: normalizeText(body.subject, previous.subject),
       running: Boolean(body.running),
+      studyDate,
+      sessions,
       lastSeenAt: now,
       updatedAt: now,
     };

@@ -50,6 +50,7 @@ export type StudentStatus = {
   parentPhone?: string;
   status: 'studying' | 'break' | 'offline';
   todayMinutes: number;
+  todaySeconds?: number;
   subject: Subject;
 };
 
