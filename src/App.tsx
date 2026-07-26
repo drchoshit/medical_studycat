@@ -102,6 +102,7 @@ function useDesktopFrameScale() {
 
 const STORAGE_KEY = 'medical-roadmap-study-v3';
 const ROLE_KEY = 'medical-roadmap-role-v1';
+const RUNNING_SESSION_KEY_PREFIX = 'medical-studycat-running-session-v1';
 const ATTENDANCE_HIDE_KEY = 'medical-roadmap-attendance-hide-date-v1';
 const SUBJECT_NAMES_CUSTOMIZED_KEY = 'medical-roadmap-subject-names-customized-v1';
 type TimerTab = 'main' | Subject;
@@ -1278,6 +1279,46 @@ function formatLiveStudentTime(student: Pick<StudentStatus, 'status' | 'todayMin
   const seconds = Math.max(0, Math.floor(student.todaySeconds ?? student.todayMinutes * 60));
   if (student.status === 'studying' && seconds < 60) return `${seconds}초`;
   return formatMinuteText(seconds / 60);
+}
+
+function runningSessionStorageKey(studentId: string) {
+  return `${RUNNING_SESSION_KEY_PREFIX}:${studentId.trim().toLowerCase() || 'student-demo'}`;
+}
+
+function getStoredRunningSession(studentId: string): RunningSession | null {
+  const storageKey = runningSessionStorageKey(studentId);
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as Partial<RunningSession>;
+    const now = Date.now();
+    const startedAtMs = Number(value.startedAtMs);
+    const subjectStartedAtMs = Number(value.subjectStartedAtMs);
+    if (
+      typeof value.subject !== 'string'
+      || !value.subject.trim()
+      || !Number.isFinite(startedAtMs)
+      || !Number.isFinite(subjectStartedAtMs)
+      || startedAtMs > now + 60_000
+      || subjectStartedAtMs > now + 60_000
+      || Math.min(startedAtMs, subjectStartedAtMs) < now - 48 * 60 * 60 * 1000
+    ) {
+      localStorage.removeItem(storageKey);
+      return null;
+    }
+    return {
+      subject: value.subject,
+      taskId: typeof value.taskId === 'string' ? value.taskId : undefined,
+      startedAtMs,
+      accumulatedSeconds: Math.max(0, Math.floor(Number(value.accumulatedSeconds) || 0)),
+      subjectStartedAtMs,
+      subjectAccumulatedSeconds: Math.max(0, Math.floor(Number(value.subjectAccumulatedSeconds) || 0)),
+      paused: Boolean(value.paused),
+    };
+  } catch {
+    localStorage.removeItem(storageKey);
+    return null;
+  }
 }
 
 function getStoredData() {
@@ -5056,7 +5097,7 @@ export default function App() {
   const subjects = normalizeStoredSubjects(data.subjectNames);
   const [selectedSubject, setSelectedSubject] = useState<Subject>(subjects[1] ?? '수학');
   const [timerTab, setTimerTab] = useState<TimerTab>('main');
-  const [runningSession, setRunningSession] = useState<RunningSession | null>(null);
+  const [runningSession, setRunningSession] = useState<RunningSession | null>(() => getStoredRunningSession(data.studentId));
   const [nowMs, setNowMs] = useState(Date.now());
   const [weekOpen, setWeekOpen] = useState(false);
   const [timerOpen, setTimerOpen] = useState(false);
@@ -5120,6 +5161,22 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   }, [data]);
+
+  useEffect(() => {
+    const storageKey = runningSessionStorageKey(data.studentId);
+    if (runningSession) localStorage.setItem(storageKey, JSON.stringify(runningSession));
+    else localStorage.removeItem(storageKey);
+  }, [data.studentId, runningSession]);
+
+  useEffect(() => {
+    const syncRunningSession = (event: StorageEvent) => {
+      if (event.key !== runningSessionStorageKey(data.studentId)) return;
+      setRunningSession(getStoredRunningSession(data.studentId));
+      setNowMs(Date.now());
+    };
+    window.addEventListener('storage', syncRunningSession);
+    return () => window.removeEventListener('storage', syncRunningSession);
+  }, [data.studentId]);
 
   useEffect(() => {
     if (role !== 'user') return;
