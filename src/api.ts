@@ -12,6 +12,17 @@ const mentoringBase = import.meta.env.VITE_MENTORING_API_BASE || '/mentoring-api
 const mediweeklyBase = import.meta.env.VITE_MEDIWEEKLY_API_BASE || '/mediweekly-api';
 const penaltyBase = import.meta.env.VITE_MEDIPENALTY_API_BASE || '/penalty-api';
 const appApiBase = import.meta.env.VITE_APP_API_BASE || '/app-api';
+const realtimeSessionId = (() => {
+  if (typeof sessionStorage === 'undefined') return `runtime-${Date.now()}`;
+  const storageKey = 'medical-studycat-realtime-session-v1';
+  const existing = sessionStorage.getItem(storageKey);
+  if (existing) return existing;
+  const created = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
+    : `session-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  sessionStorage.setItem(storageKey, created);
+  return created;
+})();
 
 function thisWeekStart(date = new Date()) {
   const d = new Date(date);
@@ -179,8 +190,11 @@ export async function publishStudentStatus(student: StudentStatus & { running?: 
           parentPhone: student.parentPhone,
           status: student.status,
           todayMinutes: student.todayMinutes,
+          todaySeconds: student.todaySeconds,
           subject: student.subject,
           running: student.running,
+          sessionId: realtimeSessionId,
+          studyDate: todayKey(),
         }),
       },
       5000,
