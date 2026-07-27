@@ -95,7 +95,9 @@ export type MapAvatar = {
   skin: 'peach' | 'warm' | 'tan' | 'deep';
   fur: 'cream' | 'peach' | 'caramel' | 'cocoa' | 'charcoal' | 'snow' | 'mint' | 'lavender';
   hair: 'cap' | 'bob' | 'spike' | 'bun' | 'short' | 'curl' | 'ponytail' | 'part';
+  hairColor: 'espresso' | 'chestnut' | 'honey' | 'ash' | 'midnight' | 'rose' | 'silver' | 'lavender';
   eyes: 'dot' | 'round' | 'sparkle' | 'sleepy';
+  eyeColor: 'chocolate' | 'ocean' | 'forest' | 'violet' | 'graphite';
   expression: 'smile' | 'happy' | 'curious' | 'playful' | 'calm';
   marking: 'none' | 'cheeks' | 'mask' | 'spot' | 'stripe';
   outfitStyle: 'hoodie' | 'sailor' | 'explorer' | 'school' | 'wizard' | 'sport';
