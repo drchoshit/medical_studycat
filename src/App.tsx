@@ -3340,6 +3340,86 @@ function MapAvatarFigure({ avatar, className = '' }: { avatar: MapAvatar; classN
   const ink = dark ? '#f8fafc' : '#172033';
   const muzzle = avatar.fur === 'snow' ? '#e8edf5' : '#fff4df';
 
+  if (isHuman) {
+    const skin = skinColors[avatar.skin];
+    const facialInk = '#202938';
+    const hair = '#342820';
+    const hairLight = '#594238';
+    const humanEyes = avatar.eyes === 'sleepy'
+      ? <g fill="none" stroke={facialInk} strokeWidth="2" strokeLinecap="round"><path d="M39 46q4 3 8 0" /><path d="M57 46q4 3 8 0" /></g>
+      : avatar.eyes === 'sparkle'
+        ? <g fill={facialInk}><path d="m43 41 1.3 3.2 3.2 1.3-3.2 1.3-1.3 3.2-1.3-3.2-3.2-1.3 3.2-1.3Z" /><path d="m61 41 1.3 3.2 3.2 1.3-3.2 1.3-1.3 3.2-1.3-3.2-3.2-1.3 3.2-1.3Z" /></g>
+        : <g><ellipse cx="43" cy="46" rx={avatar.eyes === 'round' ? 3.2 : 2.3} ry={avatar.eyes === 'round' ? 4 : 3} fill={facialInk} /><ellipse cx="61" cy="46" rx={avatar.eyes === 'round' ? 3.2 : 2.3} ry={avatar.eyes === 'round' ? 4 : 3} fill={facialInk} />{avatar.eyes === 'round' ? <><circle cx="44" cy="44.7" r="1" fill="#fff" /><circle cx="62" cy="44.7" r="1" fill="#fff" /></> : null}</g>;
+    const humanMouth = avatar.expression === 'happy'
+      ? <path d="M46 57q6 7 12 0Z" fill="#d86b7a" stroke="#853e4b" strokeWidth="1.2" />
+      : avatar.expression === 'curious'
+        ? <ellipse cx="52" cy="59" rx="2.6" ry="3.2" fill="none" stroke="#9e4f59" strokeWidth="1.7" />
+        : avatar.expression === 'playful'
+          ? <><path d="M46 57q6 4 12 0" fill="none" stroke="#a74d5d" strokeWidth="1.8" strokeLinecap="round" /><path d="M52 60q3 4 5 0" fill="#f28b9b" /></>
+          : avatar.expression === 'calm'
+            ? <path d="M48 58h8" stroke="#95505a" strokeWidth="1.7" strokeLinecap="round" />
+            : <path d="M46 56q6 5 12 0" fill="none" stroke="#a74d5d" strokeWidth="2" strokeLinecap="round" />;
+    return (
+      <svg className={`map-avatar-figure species-human ${className}`} viewBox="0 0 104 150" role="img" aria-label="사람형 퀘스트 캐릭터">
+        {avatar.aura === 'stars' ? <g fill="#fde047" stroke="#a16207" strokeWidth=".7"><path d="m13 38 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z" /><path d="m91 57 2 5 5 2-5 2-2 5-2-5-5-2 5-2Z" /></g> : null}
+        {avatar.aura === 'hearts' ? <g fill="#fb7185"><path d="M5 45c0-5 7-5 7 0 0-5 7-5 7 0 0 4-7 9-7 9S5 49 5 45Z" /><path d="M85 29c0-4 6-4 6 0 0-4 6-4 6 0 0 3-6 7-6 7s-6-4-6-7Z" /></g> : null}
+        {avatar.aura === 'bubbles' ? <g fill="none" stroke="#67e8f9" strokeWidth="1.8"><circle cx="12" cy="47" r="5" /><circle cx="91" cy="31" r="4" /><circle cx="92" cy="76" r="6" /></g> : null}
+        {avatar.aura === 'leaves' ? <g fill="#4ade80"><ellipse cx="12" cy="47" rx="4" ry="8" transform="rotate(-35 12 47)" /><ellipse cx="91" cy="37" rx="4" ry="8" transform="rotate(35 91 37)" /></g> : null}
+        <ellipse cx="52" cy="144" rx="32" ry="5" fill="rgba(15,23,42,.22)" />
+
+        {avatar.hair === 'bob' ? <path d="M27 43q0-34 25-34t25 34v35l-13-8H40l-13 8Z" fill={hair} stroke="#1f2937" strokeWidth="1.6" /> : null}
+        {avatar.hair === 'ponytail' ? <><path d="M72 23q21 7 9 35-6 11-15 14 9-18 0-35Z" fill={hair} stroke="#1f2937" strokeWidth="1.6" /><ellipse cx="79" cy="58" rx="9" ry="19" fill={hairLight} /></> : null}
+        {avatar.hair === 'bun' ? <circle cx="52" cy="11" r="12" fill={hair} stroke="#1f2937" strokeWidth="1.5" /> : null}
+        {avatar.hair === 'curl' ? <g fill={hair} stroke="#1f2937" strokeWidth="1.1"><circle cx="34" cy="22" r="10" /><circle cx="47" cy="14" r="11" /><circle cx="61" cy="15" r="11" /><circle cx="72" cy="26" r="10" /><circle cx="29" cy="42" r="8" /><circle cx="75" cy="43" r="8" /></g> : null}
+
+        <path d="M42 67h20v17H42Z" fill={skin} stroke="#2b3443" strokeWidth="1.6" />
+        <path d="M36 77q16-8 32 0l12 9-5 37q-23 7-46 0l-5-37Z" fill={outfit} stroke="#1f2937" strokeWidth="2" strokeLinejoin="round" />
+        <path d="M27 87 19 117M77 87l8 30" fill="none" stroke={outfit} strokeWidth="10" strokeLinecap="round" />
+        <path d="M20 114q-3 10 5 12 7 0 7-8" fill={skin} stroke="#1f2937" strokeWidth="2" strokeLinecap="round" />
+        <path d="M84 114q3 10-5 12-7 0-7-8" fill={skin} stroke="#1f2937" strokeWidth="2" strokeLinecap="round" />
+        <path d="M36 121v20M68 121v20" stroke="#263348" strokeWidth="12" strokeLinecap="round" />
+        <path d="M30 140h14M60 140h14" stroke="#172033" strokeWidth="7" strokeLinecap="round" />
+        <path d="M34 80q18 12 36 0" fill="none" stroke="rgba(255,255,255,.38)" strokeWidth="2" />
+
+        {avatar.outfitStyle === 'hoodie' ? <><path d="M37 78q15 15 30 0" fill="none" stroke="rgba(255,255,255,.7)" strokeWidth="3" /><path d="M48 92v17M57 92v17" stroke="#fff" strokeWidth="1.5" /><rect x="40" y="108" width="24" height="11" rx="5" fill="rgba(255,255,255,.13)" /></> : null}
+        {avatar.outfitStyle === 'sailor' ? <><path d="m37 78 15 18 15-18" fill="#f8fafc" stroke="#cbd5e1" strokeWidth="1" /><path d="M52 94v28" stroke="#ef4444" strokeWidth="4" /></> : null}
+        {avatar.outfitStyle === 'explorer' ? <><path d="M52 77v46M31 98h43" stroke="#d8aa57" strokeWidth="2.5" /><rect x="34" y="86" width="12" height="12" rx="2" fill="#f8fafc" opacity=".68" /><rect x="59" y="86" width="12" height="12" rx="2" fill="#f8fafc" opacity=".68" /></> : null}
+        {avatar.outfitStyle === 'school' ? <><path d="m37 78 15 14 15-14" fill="#f8fafc" /><path d="m52 91-5 15h10Z" fill="#b91c1c" /><path d="M39 77 31 91M65 77l8 14" stroke="#172033" strokeWidth="1.5" /></> : null}
+        {avatar.outfitStyle === 'wizard' ? <><path d="M35 80q17 14 34 0" fill="none" stroke="#facc15" strokeWidth="3" /><g fill="#facc15"><circle cx="42" cy="105" r="2" /><path d="m64 99 1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5Z" /></g></> : null}
+        {avatar.outfitStyle === 'sport' ? <><path d="M52 77v46" stroke="#fff" strokeWidth="3" /><circle cx="62" cy="98" r="9" fill="#fff" opacity=".92" /><text x="62" y="102" textAnchor="middle" fill={outfit} fontSize="11" fontWeight="900">7</text></> : null}
+
+        <ellipse cx="52" cy="42" rx="23" ry="30" fill={skin} stroke="#1f2937" strokeWidth="2" />
+        <path d="M35 30q7-15 22-15" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" opacity=".22" />
+        <path d="M50 49q2 4 4 0" fill="none" stroke="rgba(91,55,45,.55)" strokeWidth="1.2" strokeLinecap="round" />
+        <path d="M38 39q5-3 10 0M56 39q5-3 10 0" fill="none" stroke={facialInk} strokeWidth="1.3" strokeLinecap="round" opacity=".72" />
+
+        {avatar.hair === 'cap' ? <><path d="M29 36Q31 8 54 8q23 1 24 27-24-7-49 1Z" fill="#ef4444" stroke="#991b1b" strokeWidth="1.5" /><path d="M52 10q17 1 22 18-20-5-39 1 5-16 17-19Z" fill="#f8fafc" /></> : null}
+        {avatar.hair === 'bob' ? <path d="M29 36Q30 10 52 10q23 0 24 27-8-13-17-17-4 13-24 20l-6 24Z" fill={hair} /> : null}
+        {avatar.hair === 'spike' ? <path d="m29 35 3-19 8 6 4-15 9 12 10-14 1 16 13-8-2 25Q52 21 29 35Z" fill="#263244" stroke="#172033" strokeWidth="1.5" /> : null}
+        {avatar.hair === 'bun' ? <path d="M29 36Q30 11 52 11t23 25Q52 21 29 36Z" fill={hair} /> : null}
+        {avatar.hair === 'short' ? <path d="M29 36Q30 10 52 10q23 0 24 27-8-11-18-15-8 11-24 16Z" fill={hair} /> : null}
+        {avatar.hair === 'curl' ? <path d="M29 38Q30 18 43 13q15-6 29 8l4 18q-8-13-18-16-9 10-24 15Z" fill={hair} /> : null}
+        {avatar.hair === 'ponytail' ? <path d="M29 36Q30 10 52 10q23 0 24 27-8-13-18-16-7 11-24 17Z" fill={hair} /> : null}
+        {avatar.hair === 'part' ? <><path d="M29 38Q30 11 51 10v13Q39 25 29 38Z" fill={hair} /><path d="M51 10q23 1 25 28-9-11-25-15Z" fill={hairLight} /></> : null}
+
+        {avatar.marking === 'cheeks' ? <><ellipse cx="36" cy="55" rx="5" ry="2.5" fill="#fb7185" opacity=".45" /><ellipse cx="68" cy="55" rx="5" ry="2.5" fill="#fb7185" opacity=".45" /></> : null}
+        {avatar.marking === 'mask' ? <path d="M33 42q19-10 38 0l-4 12q-15-7-30 0Z" fill="#475569" opacity=".34" /> : null}
+        {avatar.marking === 'spot' ? <ellipse cx="68" cy="32" rx="5" ry="4" fill="#8b5a43" opacity=".4" /> : null}
+        {avatar.marking === 'stripe' ? <g stroke="#8b5a43" strokeWidth="1.4" strokeLinecap="round" opacity=".48"><path d="m47 18 1 7M52 17v8M57 18l-1 7" /></g> : null}
+        {humanEyes}
+        {humanMouth}
+
+        {avatar.accessory === 'glasses' ? <g fill="none" stroke="#1e293b" strokeWidth="1.7"><rect x="36" y="41" width="13" height="10" rx="4" /><rect x="55" y="41" width="13" height="10" rx="4" /><path d="M49 45h6" /></g> : null}
+        {avatar.accessory === 'headphones' ? <g fill="none" stroke="#fbbf24" strokeWidth="3.5"><path d="M29 45Q30 13 52 12q23 1 24 33" /><path d="M29 43v15M76 43v15" /></g> : null}
+        {avatar.accessory === 'crown' ? <path d="m38 16 3-13 11 8 11-8 3 13Z" fill="#facc15" stroke="#92400e" strokeWidth="1.7" /> : null}
+        {avatar.accessory === 'bow' ? <g transform="translate(32 24)"><path d="M0 0c-13-8-13 9 0 10l7-5Z" fill="#ec4899" /><path d="M14 0c13-8 13 9 0 10L7 5Z" fill="#ec4899" /><circle cx="7" cy="5" r="4" fill="#f9a8d4" /></g> : null}
+        {avatar.accessory === 'beanie' ? <><path d="M30 31Q32 4 52 4t22 27Z" fill="#38bdf8" /><rect x="29" y="25" width="46" height="9" rx="4" fill="#0284c7" /><circle cx="52" cy="4" r="5" fill="#f8fafc" /></> : null}
+        {avatar.accessory === 'flower' ? <g transform="translate(72 25)"><g fill="#fb7185"><circle cy="-5" r="4.5" /><circle cx="5" r="4.5" /><circle cy="5" r="4.5" /><circle cx="-5" r="4.5" /></g><circle r="3.5" fill="#facc15" /></g> : null}
+        {avatar.accessory === 'halo' ? <ellipse cx="52" cy="4" rx="18" ry="4.5" fill="none" stroke="#facc15" strokeWidth="3.5" /> : null}
+      </svg>
+    );
+  }
+
   const renderEyes = () => {
     if (avatar.eyes === 'sleepy') {
       return <g fill="none" stroke={ink} strokeWidth="2.6" strokeLinecap="round"><path d="M32 45q4 4 8 0" /><path d="M50 45q4 4 8 0" /></g>;
