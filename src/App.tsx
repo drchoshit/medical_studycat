@@ -63,6 +63,8 @@ import {
 import { DEFAULT_SUBJECTS, defaultAppData, defaultRewardSettings, demoSchedule, demoStudents, rewardItems, subjectColor, todayKey } from './demoData';
 import fruitUrl from './assets/tree-fruit.png';
 import treeSceneUrl from './assets/reward-tree-modern.png';
+import humanAvatarAtlasUrl from './assets/avatars/human-look-atlas.png';
+import animalAvatarAtlasUrl from './assets/avatars/animal-companion-atlas.png';
 import type { AdminMessage, AppData, AppTheme, FamilySyncReport, LiveStudentStatus, MapAvatar, PageKey, PenaltySettings, PenaltySummary, RealtimeSnapshot, RewardOrder, RewardPurchase, RewardSettings, Role, RunningSession, ScheduleItem, StudentStatus, StudyBlock, Subject, Task, TimerSkin } from './types';
 
 const DESKTOP_FRAME_WIDTH = 1440;
@@ -3529,7 +3531,7 @@ function shiftAvatarColor(hex: string, amount: number) {
   return `#${[channel(0), channel(2), channel(4)].map((part) => part.toString(16).padStart(2, '0')).join('')}`;
 }
 
-function MapAvatarFigure({ avatar, className = '' }: { avatar: MapAvatar; className?: string }) {
+function VectorMapAvatarFigure({ avatar, className = '' }: { avatar: MapAvatar; className?: string }) {
   const rawId = useId().replace(/:/g, '');
   const ids = {
     skin: `avatar-skin-${rawId}`,
@@ -3737,6 +3739,77 @@ function MapAvatarFigure({ avatar, className = '' }: { avatar: MapAvatar; classN
   );
 }
 
+function MapAvatarFigure({ avatar, className = '' }: { avatar: MapAvatar; className?: string }) {
+  const humanLooks: Record<MapAvatar['hair'], number> = {
+    cap: 0,
+    bob: 1,
+    spike: 2,
+    ponytail: 3,
+    curl: 4,
+    bun: 5,
+    part: 6,
+    short: 7,
+  };
+  const animalLooks: Record<Exclude<MapAvatar['species'], 'human'>, number> = {
+    cat: 0,
+    dog: 1,
+    rabbit: 2,
+    bear: 3,
+    fox: 4,
+    panda: 5,
+    hamster: 6,
+    penguin: 7,
+    dinosaur: 8,
+  };
+  const accentColors: Record<MapAvatar['outfit'], string> = {
+    ocean: '#2d74d8',
+    mint: '#13a594',
+    sunset: '#ed7545',
+    violet: '#7958db',
+    charcoal: '#46536a',
+    rose: '#dc568d',
+    sunny: '#d9a61e',
+    sky: '#38a9d5',
+  };
+  const isHuman = avatar.species === 'human';
+  const index = avatar.species === 'human' ? humanLooks[avatar.hair] : animalLooks[avatar.species];
+  const columns = isHuman ? 4 : 3;
+  const rows = isHuman ? 2 : 3;
+  const column = index % columns;
+  const row = Math.floor(index / columns);
+  const x = column / (columns - 1) * 100;
+  const y = row / (rows - 1) * 100;
+  const accessoryGlyph: Record<MapAvatar['accessory'], string> = {
+    none: '',
+    glasses: '♢',
+    headphones: '◖◗',
+    crown: '♛',
+    bow: '✦',
+    beanie: '●',
+    flower: '✿',
+    halo: '◯',
+  };
+  return (
+    <div
+      className={`map-avatar-figure atlas-avatar-figure species-${avatar.species} aura-${avatar.aura} accessory-${avatar.accessory} ${className}`}
+      style={{ '--avatar-accent': accentColors[avatar.outfit] } as React.CSSProperties}
+      role="img"
+      aria-label={isHuman ? '프리미엄 사람 아바타' : `프리미엄 ${avatar.species} 동반자`}
+    >
+      <span
+        className={`avatar-atlas-sprite ${isHuman ? 'human' : 'animal'}`}
+        style={{
+          backgroundImage: `url(${isHuman ? humanAvatarAtlasUrl : animalAvatarAtlasUrl})`,
+          backgroundSize: `${columns * 100}% ${rows * 100}%`,
+          backgroundPosition: `${x}% ${y}%`,
+        }}
+      />
+      {avatar.aura !== 'none' ? <span className="atlas-avatar-aura" aria-hidden="true"><i /><i /><i /><i /></span> : null}
+      {avatar.accessory !== 'none' ? <span className="atlas-avatar-accessory" aria-hidden="true">{accessoryGlyph[avatar.accessory]}</span> : null}
+    </div>
+  );
+}
+
 function MapAvatarCustomizer({ avatar, onChange, onClose }: { avatar: MapAvatar; onChange: (avatar: MapAvatar) => void; onClose: () => void }) {
   const [activeTab, setActiveTab] = useState<'character' | 'face' | 'style' | 'extras'>('character');
   const speciesOptions: Array<{ key: MapAvatar['species']; emoji: string; label: string }> = [
@@ -3768,14 +3841,14 @@ function MapAvatarCustomizer({ avatar, onChange, onClose }: { avatar: MapAvatar;
     { key: 'lavender', color: '#aaa0dd', label: '라벤더' },
   ];
   const hairOptions: Array<{ key: MapAvatar['hair']; label: string }> = [
-    { key: 'cap', label: '캡' },
-    { key: 'bob', label: '보브' },
-    { key: 'spike', label: '스파이크' },
-    { key: 'bun', label: '번' },
-    { key: 'short', label: '숏컷' },
-    { key: 'curl', label: '몽글 컬' },
-    { key: 'ponytail', label: '포니테일' },
-    { key: 'part', label: '가르마' },
+    { key: 'cap', label: '시티 블랙' },
+    { key: 'bob', label: '클래식 보브' },
+    { key: 'spike', label: '실버 엘리트' },
+    { key: 'ponytail', label: '모던 포니' },
+    { key: 'curl', label: '스트리트 컬' },
+    { key: 'bun', label: '프레피 번' },
+    { key: 'part', label: '애쉬 댄디' },
+    { key: 'short', label: '라벤더 웨이브' },
   ];
   const hairColorOptions: Array<{ key: MapAvatar['hairColor']; color: string; label: string }> = [
     { key: 'espresso', color: '#30231f', label: '에스프레소' },
@@ -3850,10 +3923,10 @@ function MapAvatarCustomizer({ avatar, onChange, onClose }: { avatar: MapAvatar;
     { key: 'leaves', emoji: '🍃', label: '새싹' },
   ];
   const tabs = [
-    { key: 'character' as const, label: '캐릭터', hint: '종족 · 컬러', Icon: UserRound },
-    { key: 'face' as const, label: '얼굴', hint: '눈 · 표정', Icon: Sparkles },
-    { key: 'style' as const, label: '패션', hint: '의상 · 색상', Icon: Palette },
-    { key: 'extras' as const, label: '포인트', hint: '소품 · 효과', Icon: Gift },
+    { key: 'character' as const, label: '캐릭터', hint: '사람 · 동물', Icon: UserRound },
+    { key: 'face' as const, label: '스타일 룩', hint: '8가지 프리셋', Icon: Sparkles },
+    { key: 'style' as const, label: '무드', hint: '컬러 톤', Icon: Palette },
+    { key: 'extras' as const, label: '이펙트', hint: '소품 · 오라', Icon: Gift },
   ];
   const pick = <T,>(options: T[]) => options[Math.floor(Math.random() * options.length)];
   const randomize = () => onChange({
@@ -3872,28 +3945,30 @@ function MapAvatarCustomizer({ avatar, onChange, onClose }: { avatar: MapAvatar;
     aura: pick(auraOptions).key,
   });
   const speciesLabel = speciesOptions.find((option) => option.key === avatar.species)?.label ?? '캐릭터';
-  const outfitStyleLabel = outfitStyleOptions.find((option) => option.key === avatar.outfitStyle)?.label ?? '의상';
+  const selectedLookLabel = avatar.species === 'human'
+    ? hairOptions.find((option) => option.key === avatar.hair)?.label ?? '스타일 룩'
+    : '어드벤처 룩';
   return (
     <div className="modern-modal-layer">
       <section className="modern-modal-panel avatar-customizer-modal">
         <div className="avatar-customizer-preview">
           <div className="avatar-preview-status">
-            <span><i /> STYLE PREVIEW</span>
-            <em>{speciesLabel} · {outfitStyleLabel}</em>
+            <span><i /> ART PREVIEW</span>
+            <em>{speciesLabel} · {selectedLookLabel}</em>
           </div>
           <div className="avatar-preview-character-stage">
             <MapAvatarFigure avatar={avatar} />
           </div>
           <strong>나만의 {speciesLabel} 친구</strong>
           <p>선택하는 순간 자동 저장되어 모든 월드맵에서 함께 달려요.</p>
-          <div className="avatar-combination-badge"><Sparkles size={14} /> HIGH DETAIL AVATAR</div>
+          <div className="avatar-combination-badge"><Sparkles size={14} /> ORIGINAL GAME ART</div>
         </div>
         <div className="avatar-customizer-controls">
           <div className="modern-modal-head">
             <div>
-              <div className="avatar-workshop-kicker"><Palette size={13} /> PREMIUM CHARACTER STUDIO</div>
-              <h2>아바타 스튜디오</h2>
-              <span>예쁜 사람부터 사랑스러운 동물까지, 취향대로 완성해보세요.</span>
+              <div className="avatar-workshop-kicker"><Palette size={13} /> QUEST CHARACTER COLLECTION</div>
+              <h2>캐릭터 라운지</h2>
+              <span>패션 캐릭터와 동물 동반자 중 나만의 모험 파트너를 골라보세요.</span>
             </div>
             <button onClick={onClose} type="button" aria-label="닫기"><X size={25} /></button>
           </div>
@@ -3903,31 +3978,19 @@ function MapAvatarCustomizer({ avatar, onChange, onClose }: { avatar: MapAvatar;
           <div className="avatar-customizer-scroll">
             {activeTab === 'character' ? <>
               <fieldset>
-                <legend>어떤 친구와 모험할까요?</legend>
+                <legend>누구와 모험할까요?</legend>
                 <div className="avatar-species-grid">
                   {speciesOptions.map((option) => <button className={avatar.species === option.key ? 'selected' : ''} key={option.key} onClick={() => onChange({ ...avatar, species: option.key })} type="button"><MapAvatarFigure avatar={{ ...avatar, species: option.key, accessory: 'none', aura: 'none' }} className="avatar-option-figure" /><span>{option.label}</span>{avatar.species === option.key ? <Check size={14} /> : null}</button>)}
                 </div>
               </fieldset>
-              <fieldset>
-                <legend>{avatar.species === 'human' ? '피부 톤' : '털 · 바디 컬러'}</legend>
-                <div className="avatar-swatch-list">
-                  {(avatar.species === 'human' ? skinOptions : furOptions).map((option) => <button className={(avatar.species === 'human' ? avatar.skin : avatar.fur) === option.key ? 'selected' : ''} style={{ '--swatch': option.color } as React.CSSProperties} key={option.key} onClick={() => avatar.species === 'human' ? onChange({ ...avatar, skin: option.key as MapAvatar['skin'] }) : onChange({ ...avatar, fur: option.key as MapAvatar['fur'] })} type="button"><i />{option.label}</button>)}
-                </div>
-              </fieldset>
-              {avatar.species === 'human' ? <>
-                <fieldset><legend>헤어스타일</legend><div className="avatar-visual-option-grid">{hairOptions.map((option) => <button className={avatar.hair === option.key ? 'selected' : ''} key={option.key} onClick={() => onChange({ ...avatar, hair: option.key })} type="button"><MapAvatarFigure avatar={{ ...avatar, hair: option.key, accessory: 'none', aura: 'none' }} /><span>{option.label}</span></button>)}</div></fieldset>
-                <fieldset><legend>헤어 컬러</legend><div className="avatar-swatch-list">{hairColorOptions.map((option) => <button className={avatar.hairColor === option.key ? 'selected' : ''} style={{ '--swatch': option.color } as React.CSSProperties} key={option.key} onClick={() => onChange({ ...avatar, hairColor: option.key })} type="button"><i />{option.label}</button>)}</div></fieldset>
-              </> : null}
+              <div className="avatar-art-note"><Sparkles size={17} /><span><strong>전 캐릭터 신규 원화</strong><small>각 종의 체형과 표정, 의상을 따로 디자인했습니다.</small></span></div>
             </> : null}
-            {activeTab === 'face' ? <>
-              <fieldset><legend>눈 모양</legend><div className="avatar-detail-grid">{eyeOptions.map((option) => <button className={avatar.eyes === option.key ? 'selected' : ''} key={option.key} onClick={() => onChange({ ...avatar, eyes: option.key })} type="button"><b>{option.emoji}</b><span>{option.label}</span></button>)}</div></fieldset>
-              <fieldset><legend>눈동자 컬러</legend><div className="avatar-swatch-list">{eyeColorOptions.map((option) => <button className={avatar.eyeColor === option.key ? 'selected' : ''} style={{ '--swatch': option.color } as React.CSSProperties} key={option.key} onClick={() => onChange({ ...avatar, eyeColor: option.key })} type="button"><i />{option.label}</button>)}</div></fieldset>
-              <fieldset><legend>표정</legend><div className="avatar-detail-grid">{expressionOptions.map((option) => <button className={avatar.expression === option.key ? 'selected' : ''} key={option.key} onClick={() => onChange({ ...avatar, expression: option.key })} type="button"><b>{option.emoji}</b><span>{option.label}</span></button>)}</div></fieldset>
-              <fieldset><legend>얼굴 무늬</legend><div className="avatar-detail-grid">{markingOptions.map((option) => <button className={avatar.marking === option.key ? 'selected' : ''} key={option.key} onClick={() => onChange({ ...avatar, marking: option.key })} type="button"><b>{option.emoji}</b><span>{option.label}</span></button>)}</div></fieldset>
-            </> : null}
+            {activeTab === 'face' ? avatar.species === 'human' ? <>
+              <fieldset><legend>패션 캐릭터 룩</legend><div className="avatar-visual-option-grid avatar-look-presets">{hairOptions.map((option) => <button className={avatar.hair === option.key ? 'selected' : ''} key={option.key} onClick={() => onChange({ ...avatar, hair: option.key })} type="button"><MapAvatarFigure avatar={{ ...avatar, hair: option.key, accessory: 'none', aura: 'none' }} /><span>{option.label}</span></button>)}</div></fieldset>
+            </> : <div className="avatar-companion-feature"><MapAvatarFigure avatar={{ ...avatar, accessory: 'none', aura: 'none' }} /><div><strong>{speciesLabel} 고유 어드벤처 룩</strong><p>털과 체형, 표정, 의상 디테일까지 이 동반자만을 위해 제작된 디자인입니다.</p><button type="button" onClick={() => setActiveTab('character')}>다른 동반자 보기</button></div></div> : null}
             {activeTab === 'style' ? <>
-              <fieldset><legend>의상 스타일</legend><div className="avatar-visual-option-grid outfit">{outfitStyleOptions.map((option) => <button className={avatar.outfitStyle === option.key ? 'selected' : ''} key={option.key} onClick={() => onChange({ ...avatar, outfitStyle: option.key })} type="button"><MapAvatarFigure avatar={{ ...avatar, outfitStyle: option.key, accessory: 'none', aura: 'none' }} /><span>{option.label}</span></button>)}</div></fieldset>
-              <fieldset><legend>의상 컬러</legend><div className="avatar-swatch-list">{outfitOptions.map((option) => <button className={avatar.outfit === option.key ? 'selected' : ''} style={{ '--swatch': option.color } as React.CSSProperties} key={option.key} onClick={() => onChange({ ...avatar, outfit: option.key })} type="button"><i />{option.label}</button>)}</div></fieldset>
+              <fieldset><legend>캐릭터 무드 컬러</legend><div className="avatar-mood-grid">{outfitOptions.map((option) => <button className={avatar.outfit === option.key ? 'selected' : ''} style={{ '--swatch': option.color } as React.CSSProperties} key={option.key} onClick={() => onChange({ ...avatar, outfit: option.key })} type="button"><i /><span>{option.label}</span><small>GLOW</small></button>)}</div></fieldset>
+              <div className="avatar-art-note mood"><Palette size={17} /><span><strong>월드맵에서도 이어지는 컬러</strong><small>선택한 컬러가 캐릭터의 무드 라이트와 이동 효과에 적용됩니다.</small></span></div>
             </> : null}
             {activeTab === 'extras' ? <>
               <fieldset><legend>머리 위 포인트</legend><div className="avatar-style-grid">{accessoryOptions.map((option) => <button className={avatar.accessory === option.key ? 'selected' : ''} key={option.key} onClick={() => onChange({ ...avatar, accessory: option.key })} type="button"><b>{option.emoji}</b><span>{option.label}</span></button>)}</div></fieldset>
