@@ -3535,10 +3535,10 @@ function MapAvatarCustomizer({ avatar, onChange, onClose }: { avatar: MapAvatar;
     { key: 'leaves', emoji: '🍃', label: '새싹' },
   ];
   const tabs = [
-    { key: 'character' as const, label: '캐릭터', hint: '종족 · 컬러' },
-    { key: 'face' as const, label: '얼굴', hint: '눈 · 표정' },
-    { key: 'style' as const, label: '패션', hint: '의상 · 색상' },
-    { key: 'extras' as const, label: '포인트', hint: '소품 · 효과' },
+    { key: 'character' as const, label: '캐릭터', hint: '종족 · 컬러', Icon: UserRound },
+    { key: 'face' as const, label: '얼굴', hint: '눈 · 표정', Icon: Sparkles },
+    { key: 'style' as const, label: '패션', hint: '의상 · 색상', Icon: Palette },
+    { key: 'extras' as const, label: '포인트', hint: '소품 · 효과', Icon: Gift },
   ];
   const pick = <T,>(options: T[]) => options[Math.floor(Math.random() * options.length)];
   const randomize = () => onChange({
@@ -3555,23 +3555,33 @@ function MapAvatarCustomizer({ avatar, onChange, onClose }: { avatar: MapAvatar;
     aura: pick(auraOptions).key,
   });
   const speciesLabel = speciesOptions.find((option) => option.key === avatar.species)?.label ?? '캐릭터';
+  const outfitStyleLabel = outfitStyleOptions.find((option) => option.key === avatar.outfitStyle)?.label ?? '의상';
   return (
     <div className="modern-modal-layer">
       <section className="modern-modal-panel avatar-customizer-modal">
         <div className="avatar-customizer-preview">
-          <span>MY QUEST BUDDY</span>
-          <MapAvatarFigure avatar={avatar} />
+          <div className="avatar-preview-status">
+            <span><i /> LIVE PREVIEW</span>
+            <em>{speciesLabel} · {outfitStyleLabel}</em>
+          </div>
+          <div className="avatar-preview-character-stage">
+            <MapAvatarFigure avatar={avatar} />
+          </div>
           <strong>나만의 {speciesLabel} 친구</strong>
           <p>선택하는 순간 자동 저장되어 모든 월드맵에서 함께 달려요.</p>
           <div className="avatar-combination-badge"><Sparkles size={14} /> 수십억 가지 조합</div>
         </div>
         <div className="avatar-customizer-controls">
           <div className="modern-modal-head">
-            <div><h2>캐릭터 공방</h2><span>귀여운 친구를 세상에 하나뿐인 모습으로 꾸며보세요.</span></div>
+            <div>
+              <div className="avatar-workshop-kicker"><Palette size={13} /> CHARACTER ATELIER</div>
+              <h2>캐릭터 공방</h2>
+              <span>귀여운 친구를 세상에 하나뿐인 모습으로 꾸며보세요.</span>
+            </div>
             <button onClick={onClose} type="button" aria-label="닫기"><X size={25} /></button>
           </div>
           <div className="avatar-customizer-tabs">
-            {tabs.map((tab) => <button className={activeTab === tab.key ? 'selected' : ''} key={tab.key} onClick={() => setActiveTab(tab.key)} type="button"><strong>{tab.label}</strong><span>{tab.hint}</span></button>)}
+            {tabs.map((tab) => <button className={activeTab === tab.key ? 'selected' : ''} key={tab.key} onClick={() => setActiveTab(tab.key)} type="button"><tab.Icon size={16} /><span><strong>{tab.label}</strong><small>{tab.hint}</small></span></button>)}
           </div>
           <div className="avatar-customizer-scroll">
             {activeTab === 'character' ? <>
@@ -3605,6 +3615,7 @@ function MapAvatarCustomizer({ avatar, onChange, onClose }: { avatar: MapAvatar;
           </div>
           <div className="avatar-customizer-actions">
             <button type="button" onClick={() => onChange(defaultMapAvatar)}>기본으로</button>
+            <span className="avatar-autosave"><Check size={14} /> 자동 저장됨</span>
             <button className="random" type="button" onClick={randomize}><Sparkles size={15} /> 랜덤 꾸미기</button>
             <button className="primary" type="button" onClick={onClose}>완료</button>
           </div>
