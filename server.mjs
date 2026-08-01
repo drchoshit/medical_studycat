@@ -500,6 +500,47 @@ async function fetchMentorStudentUsers() {
   return normalizeMentorStudentUsers(extractRows(payload));
 }
 
+async function authenticateMentorStudentLogin(loginId, password) {
+  const target = new URL(`${proxyTargets['/mentoring-api'].replace(/\/$/, '')}/api/auth/login`);
+  const upstream = await fetch(target, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username: loginId, password }),
+  });
+  const text = await upstream.text();
+  let payload = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = null;
+  }
+  if (!upstream.ok) {
+    const error = new Error(payload?.error || payload?.message || (upstream.status === 401 ? '학생 ID 또는 비밀번호가 맞지 않습니다.' : `medimentors HTTP ${upstream.status}`));
+    error.statusCode = upstream.status;
+    throw error;
+  }
+  const token = normalizeText(payload?.token);
+  if (!token) {
+    const error = new Error('Medimentors 로그인 토큰을 받지 못했습니다.');
+    error.statusCode = 502;
+    throw error;
+  }
+  const user = payload?.user && typeof payload.user === 'object'
+    ? payload.user
+    : { username: loginId, external_id: loginId, name: loginId };
+  const student = publicMentorStudentUser({
+    ...user,
+    username: user.username ?? loginId,
+    external_id: user.external_id ?? loginId,
+  });
+  if (!student.active) {
+    const error = new Error('비활성화된 학생 계정입니다.');
+    error.statusCode = 401;
+    throw error;
+  }
+  return { student, token };
+}
+
 async function verifyMentorStudentLogin(loginId, password) {
   const cleanId = normalizeText(loginId);
   const cleanPassword = normalizeText(password);
@@ -509,25 +550,8 @@ async function verifyMentorStudentLogin(loginId, password) {
     throw error;
   }
   const localStudent = await verifyLocalStudentLogin(cleanId, cleanPassword);
-  if (localStudent) return localStudent;
-  const users = await fetchMentorStudentUsers();
-  const student = users.find((row) => normalizeLoginKey(row.username) === normalizeLoginKey(cleanId) || normalizeLoginKey(row.id) === normalizeLoginKey(cleanId));
-  if (!student) {
-    const error = new Error('등록된 학생 ID가 아닙니다.');
-    error.statusCode = 401;
-    throw error;
-  }
-  if (!student.active) {
-    const error = new Error('비활성화된 학생 계정입니다.');
-    error.statusCode = 401;
-    throw error;
-  }
-  if (!student.password || student.password !== cleanPassword) {
-    const error = new Error('학생 비밀번호가 맞지 않습니다.');
-    error.statusCode = 401;
-    throw error;
-  }
-  return publicMentorStudentUser(student);
+  if (localStudent) return { student: localStudent, token: '' };
+  return authenticateMentorStudentLogin(cleanId, cleanPassword);
 }
 
 function handleRealtimeEvents(req, res, url) {
@@ -619,8 +643,12 @@ async function handleAppApi(req, res, url) {
   if (url.pathname === '/app-api/student-login/verify' && req.method === 'POST') {
     const body = await readJsonBody(req, 20_000);
     try {
-      const student = await verifyMentorStudentLogin(body.loginId || body.id || body.username, body.password);
-      sendJson(res, 200, { student, source: 'medimentors 계정 실시간' });
+      const result = await verifyMentorStudentLogin(body.loginId || body.id || body.username, body.password);
+      sendJson(res, 200, {
+        student: result.student,
+        mentoringToken: result.token || undefined,
+        source: result.token ? 'medimentors 계정 직접 인증' : '로컬 학생 계정',
+      });
     } catch (error) {
       sendJson(res, error.statusCode || 500, { error: error instanceof Error ? error.message : String(error), source: 'medimentors 계정 인증 필요' });
     }

@@ -539,7 +539,7 @@ export async function verifyMedimentorsStudentLogin(loginId: string, password: s
   if (staticResult) return staticResult;
 
   try {
-    const payload = await fetchJson<{ student?: MedimentorsStudentLogin; source?: string }>(
+    const payload = await fetchJson<{ student?: MedimentorsStudentLogin; source?: string; mentoringToken?: string }>(
       appApiUrl('/student-login/verify'),
       {
         method: 'POST',
@@ -550,6 +550,11 @@ export async function verifyMedimentorsStudentLogin(loginId: string, password: s
     );
     if (!payload?.student) {
       return { ok: false, source: payload?.source || 'medimentors 계정 인증 필요', error: 'medimentors 학생 계정 확인에 실패했습니다.' };
+    }
+    const mentoringToken = String(payload.mentoringToken ?? '').trim();
+    if (mentoringToken) {
+      localStorage.setItem('medical-study-mentor-token', mentoringToken);
+      localStorage.setItem('mentorToken', mentoringToken);
     }
     return { ok: true, source: payload.source || 'medimentors 계정 실시간', student: payload.student };
   } catch (error) {
