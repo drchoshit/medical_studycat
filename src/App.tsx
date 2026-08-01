@@ -1799,11 +1799,17 @@ function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: stri
     const cleanMediweeklyToken = mediweeklyToken.trim().replace(/^Bearer\s+/i, '');
     const cleanMedipenaltyToken = medipenaltyToken.trim().replace(/^Bearer\s+/i, '');
     const cleanAppAdminToken = appAdminToken.trim().replace(/^Bearer\s+/i, '');
-    if (cleanMedischeduleToken) localStorage.setItem('medical-study-medischedule-token', cleanMedischeduleToken);
-    if (cleanMentorToken) localStorage.setItem('medical-study-mentor-token', cleanMentorToken);
-    if (cleanMediweeklyToken) localStorage.setItem('medical-study-mediweekly-token', cleanMediweeklyToken);
-    if (cleanMedipenaltyToken) localStorage.setItem('medical-study-medipenalty-token', cleanMedipenaltyToken);
-    if (cleanAppAdminToken) localStorage.setItem('medical-study-app-admin-token', cleanAppAdminToken);
+    const tokens = [
+      ['medical-study-medischedule-token', cleanMedischeduleToken],
+      ['medical-study-mentor-token', cleanMentorToken],
+      ['medical-study-mediweekly-token', cleanMediweeklyToken],
+      ['medical-study-medipenalty-token', cleanMedipenaltyToken],
+      ['medical-study-app-admin-token', cleanAppAdminToken],
+    ] as const;
+    tokens.forEach(([key, value]) => {
+      if (value) localStorage.setItem(key, value);
+      else localStorage.removeItem(key);
+    });
   }
 
   async function submitLogin() {

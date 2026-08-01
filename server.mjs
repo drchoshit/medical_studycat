@@ -909,7 +909,10 @@ async function proxyRequest(req, res, prefix, targetBase) {
     );
     return;
   }
-  if (!headers.authorization && proxyTokens[prefix]) {
+  // Integration credentials belong to this proxy. Always prefer the configured
+  // server credential so a stale browser token cannot shadow a valid deployment
+  // token and turn every upstream request into a 401.
+  if (proxyTokens[prefix]) {
     headers.authorization = `Bearer ${proxyTokens[prefix]}`;
   }
 
