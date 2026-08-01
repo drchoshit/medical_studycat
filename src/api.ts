@@ -1085,6 +1085,31 @@ function findMentoringStudentId(payload: unknown, requestedId: string) {
   return String(match?.id ?? match?.student_id ?? match?.studentId ?? requestedId).trim();
 }
 
+type ParentOverviewItem = {
+  student?: Record<string, unknown>;
+  weeks?: Array<Record<string, unknown>>;
+};
+
+function findParentOverviewItem(payload: unknown, requestedId: string): ParentOverviewItem | undefined {
+  if (!payload || typeof payload !== 'object') return undefined;
+  const items = Array.isArray((payload as { items?: unknown[] }).items)
+    ? (payload as { items: ParentOverviewItem[] }).items
+    : [];
+  const requestedKey = normalizedAccountKey(requestedId);
+  const matched = items.find((item) => {
+    const student = item.student ?? {};
+    return [
+      student.external_id,
+      student.externalId,
+      student.username,
+      student.student_id,
+      student.studentId,
+      student.id,
+    ].some((value) => normalizedAccountKey(value) === requestedKey);
+  });
+  return matched ?? (items.length === 1 ? items[0] : undefined);
+}
+
 export async function loadMentoringTasks(studentId: string, requestedWeekId?: string): Promise<MentoringTasksResult> {
   const headers = authHeaders('mentoring');
   const emptyResult: MentoringTasksResult = {
@@ -1097,13 +1122,18 @@ export async function loadMentoringTasks(studentId: string, requestedWeekId?: st
   };
 
   try {
-    const [weeksPayload, studentsPayload] = await Promise.all([
+    const [weeksPayload, parentOverviewPayload] = await Promise.all([
       fetchJson<{ weeks?: Array<Record<string, unknown>> }>(`${mentoringBase}/api/weeks`, { headers }, 5000),
-      fetchJson<unknown>(`${mentoringBase}/api/students`, { headers }, 5000),
+      fetchJson<unknown>(`${mentoringBase}/api/parent/overview`, { headers }, 5000).catch(() => null),
     ]);
+    const parentOverviewItem = findParentOverviewItem(parentOverviewPayload, studentId);
+    const allowedParentWeekIds = parentOverviewItem
+      ? new Set((parentOverviewItem.weeks ?? []).map((week) => String(week.id ?? '').trim()).filter(Boolean))
+      : null;
     const weeks = [...(weeksPayload.weeks ?? [])]
       .map(normalizeMentoringWeek)
       .filter((week) => week.id)
+      .filter((week) => !allowedParentWeekIds || allowedParentWeekIds.has(week.id))
       .sort((a, b) => (
         (b.startDate || b.endDate).localeCompare(a.startDate || a.endDate)
         || Number(b.id) - Number(a.id)
@@ -1112,9 +1142,23 @@ export async function loadMentoringTasks(studentId: string, requestedWeekId?: st
     const selectedWeekId = weeks.some((week) => week.id === requestedWeekId)
       ? String(requestedWeekId)
       : weeks[0]?.id;
-    if (!selectedWeekId) throw new Error('선택 가능한 멘토링 회차가 없습니다.');
+    if (!selectedWeekId) {
+      throw new Error(parentOverviewItem ? '아직 학부모에게 공유된 멘토링 회차가 없습니다.' : '선택 가능한 멘토링 회차가 없습니다.');
+    }
 
-    const mentoringStudentId = findMentoringStudentId(studentsPayload, studentId);
+    let mentoringStudentId = '';
+    if (parentOverviewItem?.student) {
+      mentoringStudentId = String(
+        parentOverviewItem.student.id
+        ?? parentOverviewItem.student.student_id
+        ?? parentOverviewItem.student.studentId
+        ?? '',
+      ).trim();
+    } else {
+      const studentsPayload = await fetchJson<unknown>(`${mentoringBase}/api/students`, { headers }, 5000);
+      mentoringStudentId = findMentoringStudentId(studentsPayload, studentId);
+    }
+    if (!mentoringStudentId) throw new Error('연결된 Medimentors 학생 정보를 찾지 못했습니다.');
     const record = await fetchJson<RemoteMentoringRecord>(
       `${mentoringBase}/api/mentoring/record?studentId=${encodeURIComponent(mentoringStudentId)}&weekId=${encodeURIComponent(selectedWeekId)}`,
       { headers },

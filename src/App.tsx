@@ -5665,7 +5665,7 @@ export default function App() {
   }, [adminRewardOrder, rewardOrders, role]);
 
   useEffect(() => {
-    if (!role) return;
+    if (role !== 'admin') return;
     let cancelled = false;
     async function refreshStudents() {
       const students = await loadMedischeduleStudents();
@@ -5692,16 +5692,18 @@ export default function App() {
   }, [selectedSubject, subjects, timerTab]);
 
   useEffect(() => {
-    if (!role) return;
+    if (!role || mentoringError) return;
     let cancelled = false;
     async function refreshLinkedData() {
       const [scheduleResult, taskResult] = await Promise.all([
-        loadSchedule(data.studentId),
+        page === 'home' ? loadSchedule(data.studentId) : Promise.resolve(null),
         loadMentoringTasks(data.studentId, selectedMentoringWeekId),
       ]);
       if (cancelled) return;
-      setSchedule(scheduleResult.items);
-      setScheduleSource(scheduleResult.source);
+      if (scheduleResult) {
+        setSchedule(scheduleResult.items);
+        setScheduleSource(scheduleResult.source);
+      }
       setTaskSource(taskResult.source);
       const portalSubjects = taskResult.subjects;
       const mappedTasks = taskResult.tasks;
@@ -5738,7 +5740,7 @@ export default function App() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [role, data.studentId, selectedMentoringWeekId, mentoringRefreshNonce]);
+  }, [role, page, data.studentId, selectedMentoringWeekId, mentoringRefreshNonce, mentoringError]);
 
   async function reconnectMentoring(username: string, password: string) {
     const result = await loginMentoringPortal(username, password);
