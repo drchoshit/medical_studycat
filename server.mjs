@@ -900,6 +900,33 @@ async function proxyRequest(req, res, prefix, targetBase) {
   const target = new URL(`${targetBase.replace(/\/$/, '')}${path}`);
   const headers = { ...req.headers, host: target.host };
   delete headers.connection;
+  const isMentoringLogin = prefix === '/mentoring-api' && target.pathname.endsWith('/api/auth/login');
+  if (isMentoringLogin && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req, 20_000);
+      const upstream = await fetch(target, {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          username: normalizeText(body.username),
+          password: String(body.password ?? ''),
+        }),
+      });
+      const text = await upstream.text();
+      send(
+        res,
+        upstream.status,
+        text,
+        corsHeaders({ 'content-type': upstream.headers.get('content-type') || 'application/json; charset=utf-8' }),
+      );
+    } catch (error) {
+      sendJson(res, 502, { error: 'Medimentors login proxy failed', detail: error instanceof Error ? error.message : String(error) });
+    }
+    return;
+  }
   if (prefix === '/mentoring-api' && path.startsWith('/api/users/parents') && !headers.authorization) {
     send(
       res,
@@ -911,7 +938,7 @@ async function proxyRequest(req, res, prefix, targetBase) {
   }
   // A current client credential must be allowed to override a stale deployment
   // credential. Fall back to the server token only when the client sent none.
-  if (!headers.authorization && proxyTokens[prefix]) {
+  if (!isMentoringLogin && !headers.authorization && proxyTokens[prefix]) {
     headers.authorization = `Bearer ${proxyTokens[prefix]}`;
   }
 

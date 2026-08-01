@@ -18159,10 +18159,50 @@ body .stage-summary-grid .next-move strong {
   color: #9a3412;
   font-size: 12px;
   font-weight: 800;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mentoring-board-notice > span {
+  margin-right: auto;
+}
+
+.mentoring-board-notice input {
+  width: 170px;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid #fdba74;
+  border-radius: 7px;
+  background: #fff;
+  color: #431407;
+  font: inherit;
+}
+
+.mentoring-board-notice button {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: #c2410c;
+  color: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.mentoring-board-notice button:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+
+.mentoring-board-notice em {
+  flex-basis: 100%;
+  font-style: normal;
 }
 
 .modern-tasks-page.mentoring-error .modern-task-layout {
-  padding-top: 36px;
+  padding-top: 76px;
 }
 
 .mentoring-curriculum-modal {
