@@ -47,24 +47,24 @@ function authHeaders(kind: 'medischedule' | 'mentoring' | 'mediweekly' | 'penalt
   const token = (() => {
     if (kind === 'medischedule') {
       return getStoredToken(
-        ['medical-study-medischedule-token', 'adminToken', 'studentToken', 'token'],
+        ['medical-study-medischedule-token'],
         import.meta.env.VITE_MEDISCHEDULE_TOKEN || import.meta.env.VITE_MEDISCHECHEDULE_TOKEN,
       );
     }
     if (kind === 'mentoring') {
       return getStoredToken(
-        ['medical-study-mentor-token', 'mentorToken', 'token'],
+        ['medical-study-mentor-token'],
         import.meta.env.VITE_MENTORING_TOKEN,
       );
     }
     if (kind === 'mediweekly') {
       return getStoredToken(
-        ['medical-study-mediweekly-token', 'mediweeklyToken', 'token'],
+        ['medical-study-mediweekly-token'],
         import.meta.env.VITE_MEDIWEEKLY_TOKEN,
       );
     }
     return getStoredToken(
-      ['medical-study-medipenalty-token', 'medipenaltyToken', 'token'],
+      ['medical-study-medipenalty-token'],
       import.meta.env.VITE_MEDIPENALTY_TOKEN,
     );
   })();
@@ -121,7 +121,7 @@ function appApiUrl(path: string, params: Record<string, string | undefined> = {}
 }
 
 function getAppAdminToken() {
-  return getStoredToken(['medical-study-app-admin-token', 'adminToken', 'token'], import.meta.env.VITE_APP_ADMIN_TOKEN);
+  return getStoredToken(['medical-study-app-admin-token'], import.meta.env.VITE_APP_ADMIN_TOKEN);
 }
 
 function appApiHeaders(contentType = false): HeadersInit {
