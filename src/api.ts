@@ -1158,6 +1158,32 @@ export async function loadMentoringTasks(studentId: string, requestedWeekId?: st
   }
 }
 
+export async function loginMentoringPortal(username: string, password: string): Promise<{ ok: boolean; error?: string }> {
+  const cleanUsername = username.trim();
+  if (!cleanUsername || !password) return { ok: false, error: 'Medimentors 아이디와 비밀번호를 입력하세요.' };
+  try {
+    const payload = await fetchJson<{ token?: string }>(
+      `${mentoringBase}/api/auth/login`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: cleanUsername, password }),
+      },
+      10_000,
+    );
+    const token = String(payload.token ?? '').trim();
+    if (!token) return { ok: false, error: 'Medimentors에서 인증 토큰을 받지 못했습니다.' };
+    localStorage.setItem('medical-study-mentor-token', token);
+    localStorage.setItem('mentorToken', token);
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : 'Medimentors 로그인에 실패했습니다.',
+    };
+  }
+}
+
 function updateTaskCompletionInValue(value: unknown, title: string, completed: boolean): { value: unknown; changed: boolean } {
   if (typeof value === 'string') {
     const parsedString = parseMaybeJson(value);

@@ -44,6 +44,7 @@ import {
   acknowledgeRewardOrder,
   dismissRealtimeAdminMessage,
   loadMedischeduleStudents,
+  loginMentoringPortal,
   loadMentoringTasks,
   loadPenaltySummary,
   loadRealtimeSnapshot,
@@ -2795,6 +2796,7 @@ function ModernTasksPage({
   selectedMentoringWeekId,
   mentoringCurriculum,
   mentoringError,
+  onMentoringReconnect,
   onMentoringWeekChange,
   onRenameSubject,
   onCompleteTask,
@@ -2809,6 +2811,7 @@ function ModernTasksPage({
   selectedMentoringWeekId: string;
   mentoringCurriculum: MentoringCurriculumItem[];
   mentoringError: string;
+  onMentoringReconnect: (username: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   onMentoringWeekChange: (weekId: string) => void;
   onRenameSubject: (index: number, name: string) => void;
   onCompleteTask: (task: Task) => void;
@@ -2820,6 +2823,24 @@ function ModernTasksPage({
   const [curriculumOpen, setCurriculumOpen] = useState(false);
   const [editingSubjectIndex, setEditingSubjectIndex] = useState<number | null>(null);
   const [subjectDraft, setSubjectDraft] = useState('');
+  const [mentorUsername, setMentorUsername] = useState('');
+  const [mentorPassword, setMentorPassword] = useState('');
+  const [mentorLoginError, setMentorLoginError] = useState('');
+  const [mentorLoginBusy, setMentorLoginBusy] = useState(false);
+
+  async function reconnectMentoring(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (mentorLoginBusy) return;
+    setMentorLoginBusy(true);
+    setMentorLoginError('');
+    const result = await onMentoringReconnect(mentorUsername, mentorPassword);
+    setMentorLoginBusy(false);
+    if (!result.ok) {
+      setMentorLoginError(result.error || 'Medimentors 로그인에 실패했습니다.');
+      return;
+    }
+    setMentorPassword('');
+  }
 
   function beginSubjectRename(index: number, subject: Subject) {
     setEditingSubjectIndex(index);
@@ -2862,7 +2883,26 @@ function ModernTasksPage({
           </div>
         )}
       />
-      {mentoringError ? <div className="mentoring-board-notice">멘토링 포털 데이터를 불러오지 못했습니다. 관리자 연동 설정을 확인해 주세요.</div> : null}
+      {mentoringError ? (
+        <form className="mentoring-board-notice" onSubmit={reconnectMentoring}>
+          <span>연동 토큰이 만료됐습니다. Medimentors 계정으로 다시 연결하세요.</span>
+          <input
+            value={mentorUsername}
+            onChange={(event) => setMentorUsername(event.target.value)}
+            placeholder="Medimentors 아이디"
+            autoComplete="username"
+          />
+          <input
+            value={mentorPassword}
+            onChange={(event) => setMentorPassword(event.target.value)}
+            placeholder="비밀번호"
+            type="password"
+            autoComplete="current-password"
+          />
+          <button type="submit" disabled={mentorLoginBusy}>{mentorLoginBusy ? '연결 중…' : '다시 연결'}</button>
+          {mentorLoginError ? <em>{mentorLoginError}</em> : null}
+        </form>
+      ) : null}
       <section className="modern-task-layout">
         <div className="modern-task-columns">
           {subjects.map((subject, subjectIndex) => {
@@ -5522,6 +5562,7 @@ export default function App() {
   const [selectedMentoringWeekId, setSelectedMentoringWeekId] = useState('');
   const [mentoringCurriculum, setMentoringCurriculum] = useState<MentoringCurriculumItem[]>([]);
   const [mentoringError, setMentoringError] = useState('');
+  const [mentoringRefreshNonce, setMentoringRefreshNonce] = useState(0);
   const totalElapsedSeconds = sessionSeconds(runningSession, nowMs);
   const subjectElapsedSeconds = subjectSessionSeconds(runningSession, nowMs);
   const fullscreenSubject = timerTab === 'main' ? selectedSubject : timerTab;
@@ -5697,7 +5738,16 @@ export default function App() {
       cancelled = true;
       window.clearInterval(id);
     };
-  }, [role, data.studentId, selectedMentoringWeekId]);
+  }, [role, data.studentId, selectedMentoringWeekId, mentoringRefreshNonce]);
+
+  async function reconnectMentoring(username: string, password: string) {
+    const result = await loginMentoringPortal(username, password);
+    if (result.ok) {
+      setMentoringError('');
+      setMentoringRefreshNonce((value) => value + 1);
+    }
+    return result;
+  }
 
   useEffect(() => {
     if (!role) return;
@@ -6213,6 +6263,7 @@ export default function App() {
         selectedMentoringWeekId={selectedMentoringWeekId}
         mentoringCurriculum={mentoringCurriculum}
         mentoringError={mentoringError}
+        onMentoringReconnect={reconnectMentoring}
         onMentoringWeekChange={setSelectedMentoringWeekId}
         onRenameSubject={renameSubject}
         onCompleteTask={completeTask}
