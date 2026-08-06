@@ -91,7 +91,8 @@ export type RewardOrder = {
 };
 
 export type MapAvatar = {
-  species: 'human' | 'cat' | 'dog' | 'rabbit' | 'bear' | 'fox' | 'panda' | 'hamster' | 'penguin' | 'dinosaur';
+  character: 'human-cap' | 'human-bob' | 'human-spike' | 'human-ponytail' | 'human-curl' | 'human-bun' | 'human-part' | 'human-short' | 'cat' | 'dog' | 'rabbit' | 'bear' | 'fox' | 'panda' | 'hamster' | 'penguin' | 'dinosaur' | 'otter' | 'red-panda' | 'owl' | 'koala' | 'hedgehog' | 'axolotl' | 'seal' | 'deer';
+  species: 'human' | 'cat' | 'dog' | 'rabbit' | 'bear' | 'fox' | 'panda' | 'hamster' | 'penguin' | 'dinosaur' | 'koala' | 'hedgehog' | 'axolotl' | 'seal' | 'deer';
   skin: 'peach' | 'warm' | 'tan' | 'deep';
   fur: 'cream' | 'peach' | 'caramel' | 'cocoa' | 'charcoal' | 'snow' | 'mint' | 'lavender';
   hair: 'cap' | 'bob' | 'spike' | 'bun' | 'short' | 'curl' | 'ponytail' | 'part';
@@ -102,7 +103,7 @@ export type MapAvatar = {
   marking: 'none' | 'cheeks' | 'mask' | 'spot' | 'stripe';
   outfitStyle: 'hoodie' | 'sailor' | 'explorer' | 'school' | 'wizard' | 'sport';
   outfit: 'ocean' | 'mint' | 'sunset' | 'violet' | 'charcoal' | 'rose' | 'sunny' | 'sky';
-  accessory: 'none' | 'glasses' | 'headphones' | 'crown' | 'bow' | 'beanie' | 'flower' | 'halo';
+  accessory: 'none' | 'glasses' | 'sunglasses' | 'headphones' | 'crown' | 'bow' | 'beanie' | 'flower' | 'halo' | 'tophat' | 'stethoscope' | 'scarf';
   aura: 'none' | 'stars' | 'hearts' | 'bubbles' | 'leaves';
 };
 

@@ -16451,17 +16451,27 @@ body .avatar-customizer-preview {
 }
 
 body .avatar-customizer-preview::before {
+  left: 102px;
+}
+
+body .avatar-customizer-preview::before {
   width: 326px;
   height: 326px;
   top: 126px;
   left: 64px;
-  border: 1px solid rgba(255, 255, 255, 0.9);
+  border: 1px solid color-mix(in srgb, var(--avatar-mood, #2563eb) 34%, #ffffff);
   background:
-    radial-gradient(circle at 50% 38%, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0.16) 58%, transparent 59%);
+    radial-gradient(
+      circle at 50% 38%,
+      color-mix(in srgb, var(--avatar-mood, #2563eb) 9%, #ffffff) 0%,
+      color-mix(in srgb, var(--avatar-mood, #2563eb) 18%, rgba(255, 255, 255, 0.52)) 58%,
+      color-mix(in srgb, var(--avatar-mood, #2563eb) 10%, transparent) 59%
+    );
   box-shadow:
-    0 0 0 22px rgba(255, 255, 255, 0.22),
-    0 0 0 44px rgba(255, 255, 255, 0.11),
-    0 38px 80px rgba(60, 70, 86, 0.16);
+    0 0 0 22px color-mix(in srgb, var(--avatar-mood, #2563eb) 8%, rgba(255, 255, 255, 0.2)),
+    0 0 0 44px color-mix(in srgb, var(--avatar-mood, #2563eb) 5%, rgba(255, 255, 255, 0.1)),
+    0 38px 80px color-mix(in srgb, var(--avatar-mood, #2563eb) 22%, rgba(60, 70, 86, 0.15));
+  transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
 }
 
 body .avatar-customizer-preview::after {
@@ -16488,7 +16498,7 @@ body .avatar-preview-status span i {
 body .avatar-preview-character-stage {
   width: 340px;
   height: 390px;
-  margin: -8px 0 -35px;
+  margin: -8px 0 -17px;
 }
 
 body .avatar-preview-character-stage::before {
@@ -16505,9 +16515,11 @@ body .avatar-customizer-preview .avatar-preview-character-stage .atlas-avatar-fi
   height: 370px;
   margin: -12px 0 0;
   filter: none;
+  transform: translateX(-4%);
 }
 
 body .avatar-customizer-preview > strong {
+  margin-top: 12px;
   color: #1d2939;
   font-family: ui-sans-serif, system-ui, sans-serif;
   font-size: 29px;
@@ -16741,6 +16753,501 @@ body .reward-map-zero .stage-runner .atlas-avatar-figure {
   background: transparent;
   box-shadow: none;
   filter: none;
+}
+
+/* Definitive runner reset: prevent the legacy red/white mascot skin from
+   styling the spans used by the selected character sprite. */
+body .reward-map-zero .stage-runner .atlas-avatar-figure > span,
+body .reward-map-zero .stage-runner .atlas-avatar-figure span {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+}
+
+body .reward-map-zero .stage-runner .atlas-avatar-figure > .avatar-atlas-body {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  transform: translate(var(--character-offset-x, 0%), var(--character-offset-y, 0%)) !important;
+}
+
+body .reward-map-zero .stage-runner .avatar-atlas-body > .avatar-atlas-sprite {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  transform: none !important;
+}
+
+/* All character families share one centered axis and one visual baseline. */
+body .avatar-customizer-preview .avatar-preview-character-stage .atlas-avatar-figure {
+  margin-inline: auto;
+  transform: none !important;
+}
+
+body .avatar-customizer-preview .avatar-atlas-body,
+body .avatar-character-grid .avatar-atlas-body,
+body .reward-map-zero .stage-runner .avatar-atlas-body {
+  place-self: end center;
+  transform-origin: center bottom;
+  transform: translate(var(--character-offset-x, 0%), var(--character-offset-y, 0%)) !important;
+}
+
+body .atlas-avatar-figure .avatar-atlas-body.new-animal {
+  width: auto;
+  height: 100%;
+  aspect-ratio: 87 / 100;
+}
+
+body .avatar-customizer-preview .avatar-atlas-body.human {
+  height: 94%;
+}
+
+body .avatar-customizer-preview .avatar-atlas-body.animal {
+  width: 94%;
+}
+
+body .avatar-customizer-preview .avatar-atlas-body.new-animal {
+  height: 94%;
+}
+
+/* Character-only picker. */
+.atlas-avatar-figure .avatar-atlas-body.new-animal {
+  width: auto;
+  height: 100%;
+  aspect-ratio: 2 / 3;
+  align-self: end;
+}
+
+.avatar-atlas-sprite.new-animal {
+  width: 100%;
+  height: 100%;
+}
+
+body .avatar-customizer-controls {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+body .avatar-character-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body .avatar-character-grid button {
+  min-height: 132px;
+}
+
+body .avatar-character-grid .atlas-avatar-figure {
+  width: 78px;
+  height: 98px;
+}
+
+body .avatar-customizer-preview .atlas-avatar-figure,
+body .avatar-character-grid .atlas-avatar-figure,
+body .reward-map-zero .stage-runner .atlas-avatar-figure {
+  --avatar-accent: #2d74d8;
+}
+
+@media (max-width: 900px) {
+  body .avatar-character-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Final avatar alignment: restrained accessories and a clean map character. */
+body .atlas-avatar-figure .avatar-atlas-body {
+  place-self: end center;
+}
+
+body .atlas-avatar-figure .avatar-atlas-body > .atlas-avatar-accessory {
+  left: 50%;
+  width: 24%;
+  max-width: 52px;
+}
+
+body .accessory-glasses .avatar-atlas-body.animal > .atlas-avatar-accessory,
+body .accessory-sunglasses .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 49%;
+  width: 23%;
+  max-width: 44px;
+}
+
+body .accessory-headphones .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 40%;
+  width: 31%;
+  max-width: 58px;
+}
+
+body .accessory-crown .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 29%;
+  width: 23%;
+  max-width: 46px;
+}
+
+body .accessory-bow .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  left: 64%;
+  top: 38%;
+  width: 16%;
+  max-width: 34px;
+}
+
+body .accessory-beanie .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 30%;
+  width: 25%;
+  max-width: 50px;
+}
+
+body .accessory-flower .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  left: 64%;
+  top: 40%;
+  width: 14%;
+  max-width: 29px;
+}
+
+body .accessory-halo .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 29%;
+  width: 33%;
+  max-width: 64px;
+}
+
+body .accessory-tophat .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 27%;
+  width: 23%;
+  max-width: 47px;
+}
+
+body .accessory-stethoscope .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 66%;
+  width: 24%;
+  max-width: 49px;
+}
+
+body .accessory-scarf .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 61%;
+  width: 25%;
+  max-width: 51px;
+}
+
+body .species-human.accessory-glasses .avatar-atlas-body > .atlas-avatar-accessory,
+body .species-human.accessory-sunglasses .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 25%;
+  width: 22%;
+  max-width: 42px;
+}
+
+body .species-human.accessory-headphones .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 22%;
+  width: 31%;
+  max-width: 58px;
+}
+
+body .species-human.accessory-crown .avatar-atlas-body > .atlas-avatar-accessory,
+body .species-human.accessory-tophat .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 8%;
+  width: 23%;
+  max-width: 47px;
+}
+
+body .species-human.accessory-bow .avatar-atlas-body > .atlas-avatar-accessory,
+body .species-human.accessory-flower .avatar-atlas-body > .atlas-avatar-accessory {
+  left: 64%;
+  top: 19%;
+  width: 15%;
+  max-width: 31px;
+}
+
+body .species-human.accessory-beanie .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 12%;
+  width: 25%;
+  max-width: 50px;
+}
+
+body .species-human.accessory-halo .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 7%;
+  width: 32%;
+  max-width: 62px;
+}
+
+body .species-human.accessory-stethoscope .avatar-atlas-body > .atlas-avatar-accessory,
+body .species-human.accessory-scarf .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 52%;
+  width: 24%;
+  max-width: 49px;
+}
+
+body .avatar-companion-feature.compact {
+  background:
+    radial-gradient(circle at 50% 46%, #ffffff 0, #ffffff 29%, transparent 30%),
+    linear-gradient(145deg, #f5f1e9, #eaf2f1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  text-align: center;
+}
+
+body .avatar-companion-feature.compact .atlas-avatar-figure {
+  margin: 0 auto;
+}
+
+body .reward-map-zero .stage-runner,
+body .reward-map-zero .stage-runner .atlas-avatar-figure,
+body .reward-map-zero .stage-runner .avatar-atlas-body {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+body .reward-map-zero .stage-runner .atlas-avatar-figure::before,
+body .reward-map-zero .stage-runner .atlas-avatar-figure::after {
+  content: none !important;
+  display: none !important;
+}
+
+/* Anchor every decoration to the visible sprite instead of the outer card. */
+.atlas-avatar-figure .avatar-atlas-body {
+  position: relative;
+  z-index: 2;
+  display: block;
+}
+
+.atlas-avatar-figure .avatar-atlas-body.human {
+  width: auto;
+  height: 100%;
+  aspect-ratio: 3 / 4;
+}
+
+.atlas-avatar-figure .avatar-atlas-body.animal {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  align-self: end;
+}
+
+.atlas-avatar-figure .avatar-atlas-body > .avatar-atlas-sprite {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.atlas-avatar-figure .avatar-atlas-body > .atlas-avatar-accessory {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: 30%;
+  width: 30%;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  display: block;
+  filter: drop-shadow(0 4px 3px rgba(15, 23, 42, 0.28));
+  box-shadow: none;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+  pointer-events: none;
+}
+
+.atlas-avatar-accessory .atlas-accessory-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* Animal companion coordinates. */
+.accessory-glasses .avatar-atlas-body.animal > .atlas-avatar-accessory,
+.accessory-sunglasses .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 48%;
+  width: 30%;
+}
+
+.accessory-headphones .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 39%;
+  width: 42%;
+}
+
+.accessory-crown .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 27%;
+  width: 31%;
+}
+
+.accessory-bow .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  left: 68%;
+  top: 35%;
+  width: 22%;
+  transform: translate(-50%, -50%) rotate(10deg);
+}
+
+.accessory-beanie .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 27%;
+  width: 35%;
+  transform: translate(-50%, -50%) rotate(-5deg);
+}
+
+.accessory-flower .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  left: 68%;
+  top: 37%;
+  width: 19%;
+}
+
+.accessory-tophat .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 24%;
+  width: 32%;
+  transform: translate(-50%, -50%) rotate(-4deg);
+}
+
+.accessory-stethoscope .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 67%;
+  width: 34%;
+}
+
+.accessory-scarf .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 61%;
+  width: 34%;
+}
+
+.accessory-halo .avatar-atlas-body.animal > .atlas-avatar-accessory {
+  top: 25%;
+  width: 43%;
+}
+
+/* Human character coordinates. */
+.species-human.accessory-glasses .avatar-atlas-body > .atlas-avatar-accessory,
+.species-human.accessory-sunglasses .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 24%;
+  width: 29%;
+}
+
+.species-human.accessory-headphones .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 21%;
+  width: 40%;
+}
+
+.species-human.accessory-crown .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 7%;
+  width: 30%;
+}
+
+.species-human.accessory-bow .avatar-atlas-body > .atlas-avatar-accessory,
+.species-human.accessory-flower .avatar-atlas-body > .atlas-avatar-accessory {
+  left: 69%;
+  top: 17%;
+  width: 20%;
+}
+
+.species-human.accessory-beanie .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 10%;
+  width: 34%;
+}
+
+.species-human.accessory-tophat .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 6%;
+  width: 31%;
+}
+
+.species-human.accessory-stethoscope .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 55%;
+  width: 33%;
+}
+
+.species-human.accessory-scarf .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 47%;
+  width: 34%;
+}
+
+.species-human.accessory-halo .avatar-atlas-body > .atlas-avatar-accessory {
+  top: 5%;
+  width: 42%;
+}
+
+.atlas-avatar-figure .avatar-atlas-body > .atlas-avatar-aura {
+  z-index: 5;
+  inset: 8% -5% 7%;
+}
+
+/* Keep the original character art while making item choices easy to compare. */
+body .avatar-item-previews {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+body .avatar-item-previews button {
+  height: 158px;
+}
+
+body .avatar-item-previews .atlas-avatar-figure {
+  width: 92px;
+  height: 124px;
+  margin: -7px 0 -12px;
+}
+
+body .avatar-companion-feature.compact {
+  min-height: 280px;
+  grid-template-columns: 1fr;
+  place-items: center;
+}
+
+body .avatar-companion-feature.compact .atlas-avatar-figure {
+  width: 190px;
+  height: 230px;
+}
+
+/* Compact study-time reference shown directly on the world map. */
+.map-study-meta {
+  position: absolute;
+  right: 18px;
+  bottom: 16px;
+  z-index: 11;
+  display: flex;
+  gap: 7px;
+  pointer-events: none;
+}
+
+.map-study-meta > span {
+  min-width: 100px;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.map-study-meta small,
+.map-study-meta strong {
+  display: block;
+  white-space: nowrap;
+}
+
+.map-study-meta small {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 850;
+}
+
+.map-study-meta strong {
+  margin-top: 1px;
+  color: #0f172a;
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 950;
+}
+
+.theme-october .map-study-meta > span {
+  border-color: rgba(253, 230, 138, 0.3);
+  background: rgba(30, 27, 75, 0.76);
+}
+
+.theme-october .map-study-meta small,
+.theme-october .map-study-meta strong {
+  color: #fff7ed;
 }
 
 body .stage-runner .atlas-avatar-figure > .avatar-atlas-sprite {
@@ -17732,6 +18239,27 @@ body .avatar-customizer-actions button.random {
 
 body .avatar-customizer-actions button.primary {
   min-width: 82px;
+}
+
+/* Keep every character on the mood-light axis and lift it just above the base. */
+body .avatar-customizer-preview::before {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+body .avatar-customizer-preview .avatar-preview-character-stage .map-avatar-figure {
+  margin-top: -34px;
+}
+
+.atlas-avatar-figure .avatar-atlas-body.standalone-animal {
+  width: 100%;
+  height: 100%;
+  place-self: end center;
+}
+
+.avatar-atlas-sprite.standalone-animal {
+  width: 100%;
+  height: 100%;
 }
 
 @media (max-width: 900px) {
@@ -18766,7 +19294,7 @@ body .avatar-customizer-preview::after {
 body .avatar-preview-character-stage {
   width: 340px;
   height: 390px;
-  margin: -8px 0 -35px;
+  margin: -8px 0 -17px;
 }
 
 body .avatar-customizer-preview .avatar-preview-character-stage .atlas-avatar-figure {
@@ -18776,7 +19304,16 @@ body .avatar-customizer-preview .avatar-preview-character-stage .atlas-avatar-fi
   filter: none;
 }
 
+body .avatar-customizer-preview .avatar-preview-character-stage .atlas-avatar-figure::before {
+  bottom: -2%;
+}
+
+body .avatar-customizer-preview .avatar-preview-character-stage .atlas-avatar-figure::after {
+  bottom: -1.5%;
+}
+
 body .avatar-customizer-preview > strong {
+  margin-top: 12px;
   color: #1d2939;
   font-size: 29px;
   text-shadow: none;

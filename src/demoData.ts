@@ -98,6 +98,7 @@ export function defaultAppData(name = '학생', id = 'student-demo'): AppData {
     timerSkin: 'pure',
     appTheme: 'modern',
     mapAvatar: {
+      character: 'human-cap',
       species: 'human',
       skin: 'peach',
       fur: 'cream',
