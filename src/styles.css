@@ -16755,6 +16755,50 @@ body .reward-map-zero .stage-runner .atlas-avatar-figure {
   filter: none;
 }
 
+body .avatar-customizer-preview > .avatar-preview-title {
+  margin-top: 10px;
+  display: grid;
+  place-items: center;
+  gap: 3px;
+  line-height: 1.12;
+  text-align: center;
+  text-shadow: none;
+}
+
+body .avatar-preview-title > span {
+  color: #5f6f78;
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+body .avatar-preview-title > span b {
+  color: #243342;
+  font-size: 20px;
+  font-weight: 950;
+}
+
+body .avatar-preview-title > em {
+  color: #087f77;
+  background: linear-gradient(100deg, #087f77 4%, #0ba69a 48%, #4069a8 96%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  font-size: 28px;
+  font-style: normal;
+  font-weight: 950;
+  letter-spacing: -0.055em;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 7px 14px rgba(15, 118, 110, 0.12));
+}
+
+body .avatar-preview-title > em::after {
+  content: "✦";
+  margin-left: 7px;
+  font-size: 12px;
+  vertical-align: 0.45em;
+  -webkit-text-fill-color: #d59b31;
+}
+
 /* Definitive runner reset: prevent the legacy red/white mascot skin from
    styling the spans used by the selected character sprite. */
 body .reward-map-zero .stage-runner .atlas-avatar-figure > span,

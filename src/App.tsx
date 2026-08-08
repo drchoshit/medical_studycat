@@ -2902,6 +2902,10 @@ function ModernTasksPage({
   const [mentorPassword, setMentorPassword] = useState('');
   const [mentorLoginError, setMentorLoginError] = useState('');
   const [mentorLoginBusy, setMentorLoginBusy] = useState(false);
+  const selectedMentoringWeek = mentoringWeeks.find((week) => week.id === selectedMentoringWeekId);
+  const selectedMentoringWeekRange = selectedMentoringWeek?.startDate && selectedMentoringWeek?.endDate
+    ? ` · ${selectedMentoringWeek.startDate} ~ ${selectedMentoringWeek.endDate}`
+    : '';
 
   async function reconnectMentoring(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -3033,7 +3037,7 @@ function ModernTasksPage({
               <div>
                 <span>Mentoring Curriculum</span>
                 <h2>학습 커리큘럼</h2>
-                <p>{mentoringWeeks.find((week) => week.id === selectedMentoringWeekId)?.label ?? '선택 회차'} 기준</p>
+                <p>{selectedMentoringWeek?.label ?? '선택 회차'}{selectedMentoringWeekRange} 기준</p>
               </div>
               <button type="button" onClick={() => setCurriculumOpen(false)} aria-label="닫기"><X size={25} /></button>
             </div>
@@ -3965,7 +3969,10 @@ function MapAvatarCustomizer({ avatar, onChange, onClose }: { avatar: MapAvatar;
           <div className="avatar-preview-character-stage">
             <MapAvatarFigure avatar={avatar} />
           </div>
-          <strong>나만의 {selected.label} 친구</strong>
+          <strong className="avatar-preview-title">
+            <span>나만의 <b>{selected.label} 친구</b>를</span>
+            <em>{selected.label}로 선택하기!</em>
+          </strong>
         </div>
         <div className="avatar-customizer-controls">
           <div className="modern-modal-head">
@@ -5501,6 +5508,7 @@ export default function App() {
   const [penaltySummaries, setPenaltySummaries] = useState<PenaltySummary[]>([]);
   const [mentoringWeeks, setMentoringWeeks] = useState<MentoringWeekOption[]>([]);
   const [selectedMentoringWeekId, setSelectedMentoringWeekId] = useState('');
+  const [mentoringFollowLatest, setMentoringFollowLatest] = useState(true);
   const [mentoringCurriculum, setMentoringCurriculum] = useState<MentoringCurriculumItem[]>([]);
   const [mentoringError, setMentoringError] = useState('');
   const [mentoringRefreshNonce, setMentoringRefreshNonce] = useState(0);
@@ -5633,12 +5641,12 @@ export default function App() {
   }, [selectedSubject, subjects, timerTab]);
 
   useEffect(() => {
-    if (!role || mentoringError) return;
+    if (!role) return;
     let cancelled = false;
     async function refreshLinkedData() {
       const [scheduleResult, taskResult] = await Promise.all([
         page === 'home' ? loadSchedule(data.studentId) : Promise.resolve(null),
-        loadMentoringTasks(data.studentId, selectedMentoringWeekId),
+        loadMentoringTasks(data.studentId, mentoringFollowLatest ? undefined : selectedMentoringWeekId),
       ]);
       if (cancelled) return;
       if (scheduleResult) {
@@ -5651,6 +5659,9 @@ export default function App() {
       const mappedCurriculum = taskResult.curriculum;
       setMentoringWeeks(taskResult.weeks);
       setSelectedMentoringWeekId(taskResult.selectedWeekId);
+      if (!mentoringFollowLatest && taskResult.selectedWeekId !== selectedMentoringWeekId) {
+        setMentoringFollowLatest(true);
+      }
       setMentoringCurriculum(mappedCurriculum);
       setMentoringError(taskResult.error ?? '');
       setData((prev) => {
@@ -5677,11 +5688,24 @@ export default function App() {
     }
     void refreshLinkedData();
     const id = window.setInterval(refreshLinkedData, 30000);
+    const refreshOnFocus = () => void refreshLinkedData();
+    const refreshOnVisibility = () => {
+      if (document.visibilityState === 'visible') void refreshLinkedData();
+    };
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', refreshOnVisibility);
     return () => {
       cancelled = true;
       window.clearInterval(id);
+      window.removeEventListener('focus', refreshOnFocus);
+      document.removeEventListener('visibilitychange', refreshOnVisibility);
     };
-  }, [role, page, data.studentId, selectedMentoringWeekId, mentoringRefreshNonce, mentoringError]);
+  }, [role, page, data.studentId, selectedMentoringWeekId, mentoringFollowLatest, mentoringRefreshNonce]);
+
+  function selectMentoringWeek(weekId: string) {
+    setSelectedMentoringWeekId(weekId);
+    setMentoringFollowLatest(weekId === mentoringWeeks[0]?.id);
+  }
 
   async function reconnectMentoring(username: string, password: string) {
     const result = await loginMentoringPortal(username, password);
@@ -6207,7 +6231,7 @@ export default function App() {
         mentoringCurriculum={mentoringCurriculum}
         mentoringError={mentoringError}
         onMentoringReconnect={reconnectMentoring}
-        onMentoringWeekChange={setSelectedMentoringWeekId}
+        onMentoringWeekChange={selectMentoringWeek}
         onRenameSubject={renameSubject}
         onCompleteTask={completeTask}
         onStopTask={stopTask}

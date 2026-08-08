@@ -862,6 +862,8 @@ export type MentoringTasksResult = {
   error?: string;
 };
 
+const mentoringCurriculumCache = new Map<string, { weekId: string; items: MentoringCurriculumItem[] }>();
+
 function parseMaybeJson(value: unknown): unknown {
   if (typeof value !== 'string') return value;
   const text = value.trim();
@@ -1112,6 +1114,7 @@ function findParentOverviewItem(payload: unknown, requestedId: string): ParentOv
 
 export async function loadMentoringTasks(studentId: string, requestedWeekId?: string): Promise<MentoringTasksResult> {
   const headers = authHeaders('mentoring');
+  const refreshToken = Date.now();
   const emptyResult: MentoringTasksResult = {
     tasks: [],
     subjects: [],
@@ -1123,22 +1126,18 @@ export async function loadMentoringTasks(studentId: string, requestedWeekId?: st
 
   try {
     const [weeksPayload, parentOverviewPayload] = await Promise.all([
-      fetchJson<{ weeks?: Array<Record<string, unknown>> }>(`${mentoringBase}/api/weeks`, { headers }, 5000),
-      fetchJson<unknown>(`${mentoringBase}/api/parent/overview`, { headers }, 5000).catch(() => null),
+      fetchJson<{ weeks?: Array<Record<string, unknown>> }>(`${mentoringBase}/api/weeks?_t=${refreshToken}`, { headers, cache: 'no-store' }, 5000),
+      fetchJson<unknown>(`${mentoringBase}/api/parent/overview?_t=${refreshToken}`, { headers, cache: 'no-store' }, 5000).catch(() => null),
     ]);
     const parentOverviewItem = findParentOverviewItem(parentOverviewPayload, studentId);
-    const allowedParentWeekIds = parentOverviewItem
-      ? new Set((parentOverviewItem.weeks ?? []).map((week) => String(week.id ?? '').trim()).filter(Boolean))
-      : null;
     const weeks = [...(weeksPayload.weeks ?? [])]
       .map(normalizeMentoringWeek)
       .filter((week) => week.id)
-      .filter((week) => !allowedParentWeekIds || allowedParentWeekIds.has(week.id))
       .sort((a, b) => (
         (b.startDate || b.endDate).localeCompare(a.startDate || a.endDate)
         || Number(b.id) - Number(a.id)
       ))
-      .slice(0, 3);
+      .slice(0, 8);
     const selectedWeekId = weeks.some((week) => week.id === requestedWeekId)
       ? String(requestedWeekId)
       : weeks[0]?.id;
@@ -1155,27 +1154,28 @@ export async function loadMentoringTasks(studentId: string, requestedWeekId?: st
         ?? '',
       ).trim();
     } else {
-      const studentsPayload = await fetchJson<unknown>(`${mentoringBase}/api/students`, { headers }, 5000);
+      const studentsPayload = await fetchJson<unknown>(`${mentoringBase}/api/students?_t=${refreshToken}`, { headers, cache: 'no-store' }, 5000);
       mentoringStudentId = findMentoringStudentId(studentsPayload, studentId);
     }
     if (!mentoringStudentId) throw new Error('연결된 Medimentors 학생 정보를 찾지 못했습니다.');
-    const record = await fetchJson<RemoteMentoringRecord>(
-      `${mentoringBase}/api/mentoring/record?studentId=${encodeURIComponent(mentoringStudentId)}&weekId=${encodeURIComponent(selectedWeekId)}`,
-      { headers },
+    const fetchMentoringRecord = (weekId: string) => fetchJson<RemoteMentoringRecord>(
+      `${mentoringBase}/api/mentoring/record?studentId=${encodeURIComponent(mentoringStudentId)}&weekId=${encodeURIComponent(weekId)}&_t=${refreshToken}`,
+      { headers, cache: 'no-store' },
       6000,
     );
+    const record = await fetchMentoringRecord(selectedWeekId);
     const payload = record.record ?? record;
     const weekRecord = (payload.week_record ?? payload.weekRecord ?? {}) as Record<string, unknown>;
     const weekRecordId = String(weekRecord.id ?? payload.id ?? '').trim() || undefined;
     const nextTasks: Task[] = [];
     const portalSubjects: Subject[] = [];
-    const curriculum: MentoringCurriculumItem[] = [];
+    const curriculumBySubject = new Map<Subject, string>();
 
     const subjectRecords = payload.subject_records ?? payload.subjectRecords ?? [];
     subjectRecords.forEach((row, index) => {
       const subject = addSubject(portalSubjects, subjectFromRecord(row, index)) ?? toSubject(index);
       const curriculumText = String(row.a_curriculum ?? '').trim();
-      if (curriculumText) curriculum.push({ subject, content: curriculumText });
+      if (curriculumText) curriculumBySubject.set(subject, curriculumText);
       if (row.a_this_hw === undefined || row.a_this_hw === null || row.a_this_hw === '') return;
       walkMentoringTasks(row.a_this_hw, {
         studentId: mentoringStudentId,
@@ -1191,6 +1191,41 @@ export async function loadMentoringTasks(studentId: string, requestedWeekId?: st
 
     const tasks = uniqueTasks(nextTasks);
     tasks.forEach((task) => addSubject(portalSubjects, task.subject));
+
+    // Curriculum changes less frequently than weekly assignments. Preserve the
+    // newest non-empty value per subject while the selected/latest week supplies
+    // the current label and dates.
+    const selectedIndex = Math.max(0, weeks.findIndex((week) => week.id === selectedWeekId));
+    const isLatestWeek = selectedIndex === 0;
+    const cachedCurriculumEntry = mentoringCurriculumCache.get(mentoringStudentId);
+    const cachedCurriculum = isLatestWeek && cachedCurriculumEntry
+      && (cachedCurriculumEntry.weekId === selectedWeekId || weeks.some((week) => week.id === cachedCurriculumEntry.weekId))
+      ? cachedCurriculumEntry.items
+      : [];
+    cachedCurriculum.forEach((item) => {
+      if (!curriculumBySubject.has(item.subject)) curriculumBySubject.set(item.subject, item.content);
+    });
+    const subjectsMissingCurriculum = () => portalSubjects.some((subject) => !curriculumBySubject.has(subject));
+    if (subjectsMissingCurriculum()) {
+      const previousWeeks = weeks.slice(selectedIndex + 1, selectedIndex + 8);
+      const previousRecords = await Promise.all(previousWeeks.map((week) => (
+        fetchMentoringRecord(week.id).catch(() => null)
+      )));
+      previousRecords.forEach((previousRecord) => {
+        if (!previousRecord) return;
+        const previousPayload = previousRecord.record ?? previousRecord;
+        const previousSubjectRecords = previousPayload.subject_records ?? previousPayload.subjectRecords ?? [];
+        previousSubjectRecords.forEach((row, index) => {
+          const subject = subjectFromRecord(row, index);
+          const content = String(row.a_curriculum ?? '').trim();
+          if (subject && content && !curriculumBySubject.has(subject)) curriculumBySubject.set(subject, content);
+        });
+      });
+    }
+    const curriculum = [...curriculumBySubject].map(([subject, content]) => ({ subject, content }));
+    if (isLatestWeek && curriculum.length) {
+      mentoringCurriculumCache.set(mentoringStudentId, { weekId: selectedWeekId, items: curriculum });
+    }
     return {
       tasks,
       subjects: portalSubjects,
