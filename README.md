@@ -28,6 +28,7 @@ This repo includes `render.yaml`.
 - Start command: `npm start`
 - Runtime: Node 20+
 - Set `APP_ADMIN_TOKEN` in Render. The same value is used as the tablet unlock/logout password.
+- Set `MENTORING_SESSION_SECRET` to a long random value so Medimentors sessions can be encrypted and renewed automatically. When omitted, the server falls back to `APP_ADMIN_TOKEN`.
 - Set `MEDISCHEDULE_TOKEN`, `MENTORING_TOKEN`, `MEDIWEEKLY_TOKEN`, and `MEDIPENALTY_TOKEN` on the `medical-studycat-api` Web Service for each enabled integration. A missing or expired value causes the corresponding proxy endpoints to return `401`.
 - The production build uses relative API paths such as `/app-api`, so the web app and realtime API run from the same Render service.
 
@@ -41,3 +42,4 @@ This repo includes `render.yaml`.
 - Optional admin protection: set `APP_ADMIN_TOKEN` on the server, then enter the same value in the admin login `app realtime token` field.
 - Family app sync: Studycat publishes student study reports to `/app-api/family/report`; parent apps read `/app-api/family/snapshot` and `/app-api/family/events`.
 - Optional parent protection: set `APP_PARENT_TOKEN` on the server and `VITE_STUDYCAT_PARENT_TOKEN` in the parent app.
+- Student Medimentors credentials are kept only in an encrypted, HttpOnly session cookie. When an upstream token expires, the Node proxy automatically signs in again and retries the request once.

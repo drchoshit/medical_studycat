@@ -1,7 +1,7 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
-import { scryptSync, timingSafeEqual } from 'node:crypto';
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { extname, join, normalize, resolve } from 'node:path';
 import { Readable } from 'node:stream';
 
@@ -13,6 +13,13 @@ const studentAccountsPath = resolve(process.env.APP_STUDENT_ACCOUNTS_FILE || joi
 const staleStudentMs = Number(process.env.STUDENT_STALE_MS || 90_000);
 const appAdminToken = process.env.APP_ADMIN_TOKEN || '';
 const appParentToken = process.env.APP_PARENT_TOKEN || '';
+const mentoringSessionSecret = process.env.MENTORING_SESSION_SECRET || appAdminToken || appParentToken;
+const mentoringSessionKey = mentoringSessionSecret
+  ? scryptSync(mentoringSessionSecret, 'medical-studycat-mentoring-session-v1', 32)
+  : randomBytes(32);
+const mentoringSessionCookie = 'medical-studycat-mentoring-session';
+const mentoringTokens = new Map();
+const mentoringRefreshes = new Map();
 
 const proxyTargets = {
   '/medischedule-api': process.env.MEDISCHEDULE_API_BASE || 'https://www.medischedule.kr/api',
@@ -72,6 +79,64 @@ function send(res, status, body, headers = {}) {
 
 function sendJson(res, status, payload, headers = {}) {
   send(res, status, JSON.stringify(payload), corsHeaders({ 'content-type': 'application/json; charset=utf-8', ...headers }));
+}
+
+function cookieValue(req, name) {
+  const cookieHeader = Array.isArray(req.headers.cookie) ? req.headers.cookie[0] : req.headers.cookie || '';
+  for (const part of cookieHeader.split(';')) {
+    const separator = part.indexOf('=');
+    if (separator < 0 || part.slice(0, separator).trim() !== name) continue;
+    try {
+      return decodeURIComponent(part.slice(separator + 1).trim());
+    } catch {
+      return '';
+    }
+  }
+  return '';
+}
+
+function encodeMentoringSession(session) {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', mentoringSessionKey, iv);
+  const ciphertext = Buffer.concat([cipher.update(JSON.stringify(session), 'utf8'), cipher.final()]);
+  return [iv, cipher.getAuthTag(), ciphertext].map((value) => value.toString('base64url')).join('.');
+}
+
+function readMentoringSession(req) {
+  const encoded = cookieValue(req, mentoringSessionCookie);
+  if (!encoded) return null;
+  try {
+    const [ivText, tagText, ciphertextText] = encoded.split('.');
+    if (!ivText || !tagText || !ciphertextText) return null;
+    const decipher = createDecipheriv('aes-256-gcm', mentoringSessionKey, Buffer.from(ivText, 'base64url'));
+    decipher.setAuthTag(Buffer.from(tagText, 'base64url'));
+    const plaintext = Buffer.concat([
+      decipher.update(Buffer.from(ciphertextText, 'base64url')),
+      decipher.final(),
+    ]).toString('utf8');
+    const session = JSON.parse(plaintext);
+    if (!normalizeText(session?.username) || !normalizeText(session?.password)) return null;
+    return session;
+  } catch {
+    return null;
+  }
+}
+
+function mentoringSessionCookieHeader(req, session) {
+  const forwardedProtocol = normalizeText(req.headers['x-forwarded-proto']).split(',')[0].trim();
+  const secure = forwardedProtocol === 'https' || Boolean(req.socket?.encrypted);
+  return `${mentoringSessionCookie}=${encodeURIComponent(encodeMentoringSession(session))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${secure ? '; Secure' : ''}`;
+}
+
+function clearMentoringSessionCookieHeader(req) {
+  const forwardedProtocol = normalizeText(req.headers['x-forwarded-proto']).split(',')[0].trim();
+  const secure = forwardedProtocol === 'https' || Boolean(req.socket?.encrypted);
+  return `${mentoringSessionCookie}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? '; Secure' : ''}`;
+}
+
+function rememberMentoringLogin(username, token) {
+  const key = normalizeLoginKey(username);
+  if (key && token) mentoringTokens.set(key, token);
 }
 
 function isAdminAuthorized(req, url) {
@@ -374,6 +439,17 @@ async function readJsonBody(req, limitBytes = 1_000_000) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
+async function readRequestBody(req, limitBytes = 5_000_000) {
+  const chunks = [];
+  let size = 0;
+  for await (const chunk of req) {
+    size += chunk.length;
+    if (size > limitBytes) throw new Error('Request body too large');
+    chunks.push(chunk);
+  }
+  return chunks.length ? Buffer.concat(chunks) : undefined;
+}
+
 function normalizeText(value, fallback = '') {
   const text = String(value ?? '').trim();
   return text || fallback;
@@ -541,6 +617,22 @@ async function authenticateMentorStudentLogin(loginId, password) {
   return { student, token };
 }
 
+async function refreshMentoringSession(session) {
+  const username = normalizeText(session?.username);
+  const password = normalizeText(session?.password);
+  const key = normalizeLoginKey(username);
+  if (!key || !password) throw new Error('Medimentors session credentials are unavailable');
+  if (!mentoringRefreshes.has(key)) {
+    mentoringRefreshes.set(key, authenticateMentorStudentLogin(username, password)
+      .then((result) => {
+        rememberMentoringLogin(username, result.token);
+        return result.token;
+      })
+      .finally(() => mentoringRefreshes.delete(key)));
+  }
+  return mentoringRefreshes.get(key);
+}
+
 async function verifyMentorStudentLogin(loginId, password) {
   const cleanId = normalizeText(loginId);
   const cleanPassword = normalizeText(password);
@@ -643,12 +735,18 @@ async function handleAppApi(req, res, url) {
   if (url.pathname === '/app-api/student-login/verify' && req.method === 'POST') {
     const body = await readJsonBody(req, 20_000);
     try {
-      const result = await verifyMentorStudentLogin(body.loginId || body.id || body.username, body.password);
+      const loginId = normalizeText(body.loginId || body.id || body.username);
+      const password = normalizeText(body.password);
+      const result = await verifyMentorStudentLogin(loginId, password);
+      const sessionHeader = result.token
+        ? mentoringSessionCookieHeader(req, { username: loginId, password, createdAt: new Date().toISOString() })
+        : clearMentoringSessionCookieHeader(req);
+      if (result.token) rememberMentoringLogin(loginId, result.token);
       sendJson(res, 200, {
         student: result.student,
         mentoringToken: result.token || undefined,
         source: result.token ? 'medimentors 계정 직접 인증' : '로컬 학생 계정',
-      });
+      }, { 'set-cookie': sessionHeader });
     } catch (error) {
       sendJson(res, error.statusCode || 500, { error: error instanceof Error ? error.message : String(error), source: 'medimentors 계정 인증 필요' });
     }
@@ -928,34 +1026,25 @@ async function proxyRequest(req, res, prefix, targetBase) {
   const target = new URL(`${targetBase.replace(/\/$/, '')}${path}`);
   const headers = { ...req.headers, host: target.host };
   delete headers.connection;
+  delete headers.cookie;
+  const mentoringSession = prefix === '/mentoring-api' ? readMentoringSession(req) : null;
   const isMentoringLogin = prefix === '/mentoring-api' && target.pathname.endsWith('/api/auth/login');
   if (isMentoringLogin && req.method === 'POST') {
     try {
       const body = await readJsonBody(req, 20_000);
-      const upstream = await fetch(target, {
-        method: 'POST',
-        headers: {
-          accept: 'application/json',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: normalizeText(body.username),
-          password: String(body.password ?? ''),
-        }),
+      const username = normalizeText(body.username);
+      const password = normalizeText(body.password);
+      const result = await authenticateMentorStudentLogin(username, password);
+      rememberMentoringLogin(username, result.token);
+      sendJson(res, 200, { token: result.token, user: result.student }, {
+        'set-cookie': mentoringSessionCookieHeader(req, { username, password, createdAt: new Date().toISOString() }),
       });
-      const text = await upstream.text();
-      send(
-        res,
-        upstream.status,
-        text,
-        corsHeaders({ 'content-type': upstream.headers.get('content-type') || 'application/json; charset=utf-8' }),
-      );
     } catch (error) {
-      sendJson(res, 502, { error: 'Medimentors login proxy failed', detail: error instanceof Error ? error.message : String(error) });
+      sendJson(res, error.statusCode || 502, { error: error instanceof Error ? error.message : String(error) });
     }
     return;
   }
-  if (prefix === '/mentoring-api' && path.startsWith('/api/users/parents') && !headers.authorization) {
+  if (prefix === '/mentoring-api' && path.startsWith('/api/users/parents') && !headers.authorization && !mentoringSession) {
     send(
       res,
       403,
@@ -964,20 +1053,36 @@ async function proxyRequest(req, res, prefix, targetBase) {
     );
     return;
   }
-  // A current client credential must be allowed to override a stale deployment
-  // credential. Fall back to the server token only when the client sent none.
+  const sessionToken = mentoringSession
+    ? mentoringTokens.get(normalizeLoginKey(mentoringSession.username)) || ''
+    : '';
+  // An authenticated student session takes precedence over a stale browser or
+  // deployment token. Other clients can continue to provide their own token.
+  if (sessionToken) headers.authorization = `Bearer ${sessionToken}`;
   if (!isMentoringLogin && !headers.authorization && proxyTokens[prefix]) {
     headers.authorization = `Bearer ${proxyTokens[prefix]}`;
   }
 
   try {
-    const upstream = await fetch(target, {
+    const hasBody = !['GET', 'HEAD'].includes(req.method);
+    const bufferedBody = mentoringSession && hasBody ? await readRequestBody(req) : undefined;
+    const fetchUpstream = (authorization) => fetch(target, {
       method: req.method,
-      headers,
-      body: ['GET', 'HEAD'].includes(req.method) ? undefined : Readable.toWeb(req),
+      headers: {
+        ...headers,
+        ...(authorization ? { authorization: `Bearer ${authorization}` } : {}),
+      },
+      body: hasBody ? (mentoringSession ? bufferedBody : Readable.toWeb(req)) : undefined,
       duplex: 'half',
       redirect: 'manual',
     });
+
+    let upstream = await fetchUpstream(sessionToken);
+    if (mentoringSession && (upstream.status === 401 || upstream.status === 403)) {
+      await upstream.arrayBuffer();
+      const refreshedToken = await refreshMentoringSession(mentoringSession);
+      upstream = await fetchUpstream(refreshedToken);
+    }
 
     const responseHeaders = {
       ...Object.fromEntries(upstream.headers.entries()),

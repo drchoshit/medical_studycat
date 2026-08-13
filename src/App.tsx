@@ -2964,7 +2964,7 @@ function ModernTasksPage({
       />
       {mentoringError ? (
         <form className="mentoring-board-notice" onSubmit={reconnectMentoring}>
-          <span>연동 토큰이 만료됐습니다. Medimentors 계정으로 다시 연결하세요.</span>
+          <span>연동을 자동 복구하지 못했습니다. Medimentors 비밀번호가 변경된 경우에만 다시 연결하세요.</span>
           <input
             value={mentorUsername}
             onChange={(event) => setMentorUsername(event.target.value)}
@@ -3970,7 +3970,7 @@ function MapAvatarCustomizer({ avatar, onChange, onClose }: { avatar: MapAvatar;
             <MapAvatarFigure avatar={avatar} />
           </div>
           <strong className="avatar-preview-title">
-            <span>나만의 <b>{selected.label} 친구</b>를</span>
+            <span>나만의 함께할 친구를</span>
             <em>{selected.label}로 선택하기!</em>
           </strong>
         </div>

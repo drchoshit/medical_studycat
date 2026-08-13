@@ -12,6 +12,8 @@ services:
         sync: false
       - key: APP_PARENT_TOKEN
         sync: false
+      - key: MENTORING_SESSION_SECRET
+        sync: false
       - key: MEDISCHEDULE_API_BASE
         value: https://www.medischedule.kr/api
       - key: MENTORING_API_BASE
