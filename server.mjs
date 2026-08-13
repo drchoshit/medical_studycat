@@ -1088,11 +1088,30 @@ async function proxyRequest(req, res, prefix, targetBase) {
       redirect: 'manual',
     });
 
+    let refreshedSession = false;
     let upstream = await fetchUpstream(sessionToken);
+    const deploymentMentoringToken = prefix === '/mentoring-api' ? proxyTokens[prefix] : '';
+    const isUsingDeploymentToken = headers.authorization === `Bearer ${deploymentMentoringToken}`;
+    if (!mentoringSession
+      && deploymentMentoringToken
+      && !isUsingDeploymentToken
+      && (upstream.status === 401 || upstream.status === 403)) {
+      await upstream.arrayBuffer();
+      upstream = await fetchUpstream(deploymentMentoringToken);
+    }
     if (mentoringSession && (upstream.status === 401 || upstream.status === 403)) {
       await upstream.arrayBuffer();
       const refreshedToken = await refreshMentoringSession(mentoringSession);
       upstream = await fetchUpstream(refreshedToken);
+      refreshedSession = true;
+    }
+    if (mentoringSession && refreshedSession && upstream.status === 403) {
+      await upstream.arrayBuffer();
+      sendJson(res, 403, {
+        error: '이 계정에 공유되지 않은 Medimentors 회차입니다.',
+        code: 'MENTORING_PERMISSION_DENIED',
+      });
+      return;
     }
 
     const responseHeaders = {
@@ -1111,12 +1130,14 @@ async function proxyRequest(req, res, prefix, targetBase) {
       res.end();
     }
   } catch (error) {
-    send(
-      res,
-      502,
-      JSON.stringify({ error: 'Proxy request failed', detail: error instanceof Error ? error.message : String(error) }),
-      { 'content-type': 'application/json; charset=utf-8' },
-    );
+    if (mentoringSession && (error?.statusCode === 401 || error?.statusCode === 403)) {
+      sendJson(res, 401, {
+        error: 'Medimentors 계정 인증 정보가 변경되었습니다.',
+        code: 'MENTORING_RECONNECT_REQUIRED',
+      }, { 'set-cookie': clearMentoringSessionCookieHeader(req) });
+      return;
+    }
+    sendJson(res, 502, { error: 'Proxy request failed', detail: error instanceof Error ? error.message : String(error) });
   }
 }
 

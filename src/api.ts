@@ -75,6 +75,18 @@ function authHeaders(kind: 'medischedule' | 'mentoring' | 'mediweekly' | 'penalt
   };
 }
 
+class ApiRequestError extends Error {
+  status: number;
+  code: string;
+
+  constructor(message: string, status: number, code = '') {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = status;
+    this.code = code;
+  }
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 4500): Promise<T> {
   const requestUrl = new URL(url, window.location.origin);
   const effectiveTimeoutMs = requestUrl.hostname.endsWith('.onrender.com')
@@ -90,7 +102,7 @@ async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 4500): 
       signal: init?.signal ?? controller.signal,
     });
     const text = await res.text();
-    let json: { error?: string; message?: string } | null = null;
+    let json: { error?: string; message?: string; code?: string } | null = null;
     if (text) {
       try {
         json = JSON.parse(text);
@@ -103,7 +115,7 @@ async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 4500): 
     }
     if (!res.ok) {
       const message = json?.error || json?.message || `HTTP ${res.status}`;
-      throw new Error(message);
+      throw new ApiRequestError(message, res.status, json?.code);
     }
     return json as T;
   } finally {
@@ -861,6 +873,7 @@ export type MentoringTasksResult = {
   selectedWeekId: string;
   curriculum: MentoringCurriculumItem[];
   error?: string;
+  reconnectRequired?: boolean;
 };
 
 const mentoringCurriculumCache = new Map<string, { weekId: string; items: MentoringCurriculumItem[] }>();
@@ -1131,9 +1144,13 @@ export async function loadMentoringTasks(studentId: string, requestedWeekId?: st
       fetchJson<unknown>(`${mentoringBase}/api/parent/overview?_t=${refreshToken}`, { headers, cache: 'no-store' }, 5000).catch(() => null),
     ]);
     const parentOverviewItem = findParentOverviewItem(parentOverviewPayload, studentId);
+    const allowedParentWeekIds = parentOverviewItem
+      ? new Set((parentOverviewItem.weeks ?? []).map((week) => String(week.id ?? '').trim()).filter(Boolean))
+      : null;
     const weeks = [...(weeksPayload.weeks ?? [])]
       .map(normalizeMentoringWeek)
       .filter((week) => week.id)
+      .filter((week) => !allowedParentWeekIds || allowedParentWeekIds.has(week.id))
       .sort((a, b) => (
         (b.startDate || b.endDate).localeCompare(a.startDate || a.endDate)
         || Number(b.id) - Number(a.id)
@@ -1239,6 +1256,9 @@ export async function loadMentoringTasks(studentId: string, requestedWeekId?: st
     return {
       ...emptyResult,
       error: error instanceof Error ? error.message : '멘토링 포털 연결에 실패했습니다.',
+      reconnectRequired: error instanceof ApiRequestError
+        && (error.status === 401 || error.status === 403)
+        && error.code !== 'MENTORING_PERMISSION_DENIED',
     };
   }
 }

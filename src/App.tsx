@@ -5663,7 +5663,7 @@ export default function App() {
         setMentoringFollowLatest(true);
       }
       setMentoringCurriculum(mappedCurriculum);
-      setMentoringError(taskResult.error ?? '');
+      setMentoringError(taskResult.reconnectRequired ? taskResult.error ?? '' : '');
       setData((prev) => {
         const hiddenTaskIds = new Set(prev.hiddenTaskIds);
         const visibleTasks = mappedTasks.filter((task) => !hiddenTaskIds.has(task.id));
