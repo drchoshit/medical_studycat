@@ -63,11 +63,22 @@ let writeQueued = false;
 const realtimeClients = new Set();
 const familyClients = new Set();
 
-function corsHeaders(headers = {}) {
+const allowedCorsOrigins = (process.env.APP_CORS_ORIGIN || 'https://medical-studycat.onrender.com,http://localhost,https://localhost,capacitor://localhost')
+  .split(',')
+  .map((value) => value.trim())
+  .filter(Boolean);
+
+function corsHeaders(res, headers = {}) {
+  const requestOrigin = normalizeText(res.req?.headers?.origin);
+  const allowedOrigin = allowedCorsOrigins.includes(requestOrigin)
+    ? requestOrigin
+    : allowedCorsOrigins[0] || 'https://medical-studycat.onrender.com';
   return {
-    'access-control-allow-origin': process.env.APP_CORS_ORIGIN || '*',
+    'access-control-allow-origin': allowedOrigin,
+    'access-control-allow-credentials': 'true',
     'access-control-allow-methods': 'GET,POST,PUT,OPTIONS',
     'access-control-allow-headers': 'content-type,authorization',
+    vary: 'Origin',
     ...headers,
   };
 }
@@ -78,7 +89,7 @@ function send(res, status, body, headers = {}) {
 }
 
 function sendJson(res, status, payload, headers = {}) {
-  send(res, status, JSON.stringify(payload), corsHeaders({ 'content-type': 'application/json; charset=utf-8', ...headers }));
+  send(res, status, JSON.stringify(payload), corsHeaders(res, { 'content-type': 'application/json; charset=utf-8', ...headers }));
 }
 
 function cookieValue(req, name) {
@@ -125,13 +136,13 @@ function readMentoringSession(req) {
 function mentoringSessionCookieHeader(req, session) {
   const forwardedProtocol = normalizeText(req.headers['x-forwarded-proto']).split(',')[0].trim();
   const secure = forwardedProtocol === 'https' || Boolean(req.socket?.encrypted);
-  return `${mentoringSessionCookie}=${encodeURIComponent(encodeMentoringSession(session))}; Path=/; HttpOnly; SameSite=Lax; Max-Age=31536000${secure ? '; Secure' : ''}`;
+  return `${mentoringSessionCookie}=${encodeURIComponent(encodeMentoringSession(session))}; Path=/; HttpOnly; SameSite=${secure ? 'None' : 'Lax'}; Max-Age=31536000${secure ? '; Secure' : ''}`;
 }
 
 function clearMentoringSessionCookieHeader(req) {
   const forwardedProtocol = normalizeText(req.headers['x-forwarded-proto']).split(',')[0].trim();
   const secure = forwardedProtocol === 'https' || Boolean(req.socket?.encrypted);
-  return `${mentoringSessionCookie}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure ? '; Secure' : ''}`;
+  return `${mentoringSessionCookie}=; Path=/; HttpOnly; SameSite=${secure ? 'None' : 'Lax'}; Max-Age=0${secure ? '; Secure' : ''}`;
 }
 
 function rememberMentoringLogin(username, token) {
@@ -652,7 +663,7 @@ function handleRealtimeEvents(req, res, url) {
     role: url.searchParams.get('role') === 'admin' ? 'admin' : 'user',
     studentId: normalizeText(url.searchParams.get('studentId')),
   };
-  res.writeHead(200, corsHeaders({
+  res.writeHead(200, corsHeaders(res, {
     'content-type': 'text/event-stream; charset=utf-8',
     'cache-control': 'no-cache, no-transform',
     connection: 'keep-alive',
@@ -681,7 +692,7 @@ function handleFamilyEvents(req, res, url) {
     res,
     studentId: normalizeText(url.searchParams.get('studentId')),
   };
-  res.writeHead(200, corsHeaders({
+  res.writeHead(200, corsHeaders(res, {
     'content-type': 'text/event-stream; charset=utf-8',
     'cache-control': 'no-cache, no-transform',
     connection: 'keep-alive',
@@ -707,7 +718,7 @@ function handleFamilyEvents(req, res, url) {
 
 async function handleAppApi(req, res, url) {
   if (req.method === 'OPTIONS') {
-    send(res, 204, '', corsHeaders());
+    send(res, 204, '', corsHeaders(res));
     return;
   }
 
@@ -1018,7 +1029,7 @@ async function handleAppApi(req, res, url) {
 
 async function proxyRequest(req, res, prefix, targetBase) {
   if (req.method === 'OPTIONS') {
-    send(res, 204, '', corsHeaders());
+    send(res, 204, '', corsHeaders(res));
     return;
   }
 
@@ -1049,7 +1060,7 @@ async function proxyRequest(req, res, prefix, targetBase) {
       res,
       403,
       JSON.stringify({ error: 'Use /app-api/student-login/verify for student credential checks' }),
-      corsHeaders({ 'content-type': 'application/json; charset=utf-8' }),
+      corsHeaders(res, { 'content-type': 'application/json; charset=utf-8' }),
     );
     return;
   }
@@ -1086,7 +1097,7 @@ async function proxyRequest(req, res, prefix, targetBase) {
 
     const responseHeaders = {
       ...Object.fromEntries(upstream.headers.entries()),
-      ...corsHeaders(),
+      ...corsHeaders(res),
     };
     // Node fetch transparently decompresses upstream bodies. Forwarding the
     // original encoded length makes clients truncate JSON before it completes.

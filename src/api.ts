@@ -82,9 +82,10 @@ async function fetchJson<T>(url: string, init?: RequestInit, timeoutMs = 4500): 
     : timeoutMs;
   const controller = new AbortController();
   const timer = window.setTimeout(() => controller.abort(), effectiveTimeoutMs);
+  const sessionApiOrigins = [appApiBase, mentoringBase].map((base) => new URL(base, window.location.origin).origin);
   try {
     const res = await fetch(url, {
-      credentials: 'same-origin',
+      credentials: sessionApiOrigins.includes(requestUrl.origin) ? 'include' : 'same-origin',
       ...init,
       signal: init?.signal ?? controller.signal,
     });
