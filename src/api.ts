@@ -1,17 +1,25 @@
+import { Capacitor } from '@capacitor/core';
 import { DEFAULT_SUBJECTS, demoSchedule, todayKey } from './demoData';
 import type { AdminMessage, FamilySyncReport, LiveStudentStatus, PenaltySettings, PenaltySummary, RealtimeSnapshot, RewardOrder, RewardSettings, ScheduleItem, StudentStatus, Subject, Task } from './types';
 
 export const weekDays = ['월', '화', '수', '목', '금', '토', '일'];
 
-const medischeduleBase =
-  import.meta.env.VITE_MEDISCHEDULE_API_BASE ||
-  import.meta.env.VITE_MEDISCHECHEDULE_API_BASE ||
-  '/medischedule-api';
+const isLocalBrowser = typeof window !== 'undefined'
+  && !Capacitor.isNativePlatform()
+  && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
-const mentoringBase = import.meta.env.VITE_MENTORING_API_BASE || '/mentoring-api';
-const mediweeklyBase = import.meta.env.VITE_MEDIWEEKLY_API_BASE || '/mediweekly-api';
-const penaltyBase = import.meta.env.VITE_MEDIPENALTY_API_BASE || '/penalty-api';
-const appApiBase = import.meta.env.VITE_APP_API_BASE || '/app-api';
+function integrationBase(configured: string | undefined, localPath: string) {
+  return isLocalBrowser ? localPath : configured || localPath;
+}
+
+const medischeduleBase = integrationBase(
+  import.meta.env.VITE_MEDISCHEDULE_API_BASE || import.meta.env.VITE_MEDISCHECHEDULE_API_BASE,
+  '/medischedule-api',
+);
+const mentoringBase = integrationBase(import.meta.env.VITE_MENTORING_API_BASE, '/mentoring-api');
+const mediweeklyBase = integrationBase(import.meta.env.VITE_MEDIWEEKLY_API_BASE, '/mediweekly-api');
+const penaltyBase = integrationBase(import.meta.env.VITE_MEDIPENALTY_API_BASE, '/penalty-api');
+const appApiBase = integrationBase(import.meta.env.VITE_APP_API_BASE, '/app-api');
 const realtimeSessionId = (() => {
   if (typeof sessionStorage === 'undefined') return `runtime-${Date.now()}`;
   const storageKey = 'medical-studycat-realtime-session-v1';
