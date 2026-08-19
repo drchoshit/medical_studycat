@@ -1654,6 +1654,10 @@ function blocksWithRunningSession(blocks: StudyBlock[], runningSession: RunningS
   ];
 }
 
+function isRunningSessionBlock(block: StudyBlock) {
+  return block.id === 'running-session';
+}
+
 function buildFamilySyncReport(params: {
   data: AppData;
   subjects: Subject[];
@@ -2577,7 +2581,14 @@ function ModernSideRail({
       </div>
       <nav className="modern-nav" aria-label="학생 메뉴">
         {modernNavItems.map(({ key, label, Icon }) => (
-          <button key={key} className={page === key ? 'active' : ''} onClick={() => setPage(key)} type="button">
+          <button
+            key={key}
+            className={page === key ? 'active' : ''}
+            onClick={() => setPage(key)}
+            type="button"
+            aria-label={label}
+            title={label}
+          >
             <Icon size={21} />
             <span>{label}</span>
           </button>
@@ -3160,6 +3171,10 @@ function ModernAnalysisPage({
   const selectedStayStudyMinutes = selectedStayRows.reduce((sum, row) => sum + row.studyMinutes, 0);
   const selectedStayTitle = stayScope === 'week' ? `${selectedWeekKeys[0]} ~ ${selectedWeekKeys[6]}` : reportDate;
 
+  function editRecordedBlock(block: StudyBlock | undefined) {
+    if (block && !isRunningSessionBlock(block)) onEditBlock(block);
+  }
+
   function dateFromKey(dateKey: string) {
     const [year, month, day] = dateKey.split('-').map(Number);
     return new Date(year, (month || 1) - 1, day || 1);
@@ -3333,7 +3348,7 @@ function ModernAnalysisPage({
                       className={`modern-duration-cell slot ${block ? 'filled' : ''}`}
                       style={{ '--block-color': block ? subjectColor(block.subject, subjects) : undefined } as React.CSSProperties}
                       type="button"
-                      onClick={() => block && onEditBlock(block)}
+                      onClick={() => editRecordedBlock(block)}
                       title={block ? `${displaySubject(block.subject, subjects)} · ${block.taskTitle ?? '공부 기록'}` : '빈 10분 기록'}
                     >
                       <span>{block ? displaySubject(block.subject, subjects).slice(0, 2) : ''}</span>
@@ -3410,7 +3425,7 @@ function ModernAnalysisPage({
                 <button
                   className="modern-stay-clock"
                   type="button"
-                  onClick={() => selectedStayRow.firstBlock && onEditBlock(selectedStayRow.firstBlock)}
+                  onClick={() => editRecordedBlock(selectedStayRow.firstBlock)}
                   style={{ '--stay-plan-gradient': selectedStayRow.gradient } as React.CSSProperties}
                 >
                   <span className="stay-hour h0">0</span>
@@ -3425,7 +3440,7 @@ function ModernAnalysisPage({
                 </button>
                 <div className="modern-stay-legend">
                   {selectedStayRow.blocks.slice(0, 5).map((block) => (
-                    <button key={block.id} type="button" onClick={() => onEditBlock(block)}>
+                    <button key={block.id} type="button" onClick={() => editRecordedBlock(block)}>
                       <i style={{ backgroundColor: subjectColor(block.subject, subjects) }} />
                       <span>{blockRange(block)}</span>
                       <strong>{displaySubject(block.subject, subjects)}</strong>
@@ -6318,7 +6333,7 @@ export default function App() {
     content = (
       <ModernAnalysisPage
         subjects={subjects}
-        blocks={data.studyBlocks}
+        blocks={blocksWithRunningSession(data.studyBlocks, runningSession, subjectElapsedSeconds)}
         tasks={data.tasks}
         penaltyPoints={currentPenalty?.points ?? 0}
         onEditBlock={setBlockEditor}

@@ -67,7 +67,7 @@
 }
 
 .student-refresh .tablet-frame.student-mode.with-rail {
-  grid-template-columns: 188px minmax(0, 1fr);
+  grid-template-columns: 74px minmax(0, 1fr);
 }
 
 .student-refresh .student-mode .app-main {
@@ -77,19 +77,19 @@
 .student-refresh .modern-rail {
   position: relative;
   height: 100%;
-  padding: 25px 16px 20px;
-  grid-template-rows: 54px 64px minmax(0, 1fr) 48px;
-  gap: 18px;
+  padding: 18px 8px 16px;
+  grid-template-rows: 48px 48px minmax(0, 1fr) 48px;
+  gap: 14px;
   background: #151518;
   color: white;
 }
 
 .student-refresh .modern-brand {
-  padding: 0 8px;
+  padding: 0;
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 10px;
+  justify-content: center;
+  gap: 0;
 }
 
 .student-refresh .modern-brand-mark {
@@ -107,20 +107,24 @@
 }
 
 .student-refresh .modern-brand span {
-  display: block;
+  display: none;
   font-size: 18px;
   font-weight: 850;
   letter-spacing: -0.5px;
 }
 
 .student-refresh .modern-user-pill {
-  padding: 10px 11px;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  padding: 0;
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
-  gap: 9px;
+  justify-content: center;
+  gap: 0;
 }
 
 .student-refresh .modern-user-pill > svg {
@@ -132,7 +136,7 @@
   color: #a6dfd2;
 }
 
-.student-refresh .modern-user-pill div { display: block; min-width: 0; }
+.student-refresh .modern-user-pill div { display: none; min-width: 0; }
 .student-refresh .modern-user-pill strong { color: #fff; font-size: 13px; font-weight: 800; }
 .student-refresh .modern-user-pill span { margin-top: 2px; color: rgba(255,255,255,.43); font-size: 10px; }
 
@@ -145,21 +149,24 @@
 
 .student-refresh .modern-nav button,
 .student-refresh .modern-logout {
-  padding: 0 14px;
-  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  padding: 0;
+  border-radius: 10px;
   background: transparent;
   color: rgba(255,255,255,.54);
   display: flex;
   align-items: center;
-  justify-content: flex-start;
-  gap: 12px;
+  justify-content: center;
+  gap: 0;
   font-size: 13px;
   font-weight: 760;
   transition: background 160ms ease, color 160ms ease;
 }
 
 .student-refresh .modern-nav button span,
-.student-refresh .modern-logout span { display: block; }
+.student-refresh .modern-logout span { display: none; }
 
 .student-refresh .modern-nav button.active {
   background: #fff;
