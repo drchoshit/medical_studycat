@@ -3,6 +3,11 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    // Keep the five small mascot poses inside the application bundle so they
+    // cannot be delayed by realtime connections, stale caches, or asset URLs.
+    assetsInlineLimit: 300_000,
+  },
   server: {
     port: 5173,
     proxy: {

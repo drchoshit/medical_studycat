@@ -72,6 +72,11 @@ import hedgehogAvatarUrl from './assets/avatars/new-five/hedgehog.png';
 import axolotlAvatarUrl from './assets/avatars/new-five/axolotl.png';
 import sealAvatarUrl from './assets/avatars/new-five/seal.png';
 import deerAvatarUrl from './assets/avatars/new-five/deer.png';
+import studycatMascotUrl from './assets/studycat-mascot.webp';
+import studycatTasksUrl from './assets/studycat-tasks.webp';
+import studycatReportUrl from './assets/studycat-report.webp';
+import studycatAdminUrl from './assets/studycat-admin.webp';
+import studycatCenterUrl from './assets/studycat-center.webp';
 import type { AdminMessage, AppData, AppTheme, FamilySyncReport, LiveStudentStatus, MapAvatar, PageKey, PenaltySettings, PenaltySummary, RealtimeSnapshot, RewardOrder, RewardPurchase, RewardSettings, Role, RunningSession, ScheduleItem, StudentStatus, StudyBlock, Subject, Task, TimerSkin } from './types';
 
 const DESKTOP_FRAME_WIDTH = 1440;
@@ -155,16 +160,13 @@ const modernNavItems: Array<{ key: PageKey; label: string; Icon: typeof Home }> 
   { key: 'center', label: '센터', Icon: Users },
 ];
 
-const modernTimerSkinOptions: Array<{ key: TimerSkin; label: string }> = [
-  { key: 'pure', label: '모던' },
-  { key: 'halo', label: '타일' },
-  { key: 'pulse', label: '스코어' },
-];
+type TimerBackdrop = 'studio' | 'sunset' | 'forest' | 'ivory';
 
-const appThemeOptions: Array<{ key: AppTheme; label: string }> = [
-  { key: 'modern', label: '클린' },
-  { key: 'midnight', label: '미드나잇' },
-  { key: 'botanic', label: '보타닉' },
+const timerBackdropOptions: Array<{ key: TimerBackdrop; label: string }> = [
+  { key: 'studio', label: '잉크' },
+  { key: 'sunset', label: '선셋' },
+  { key: 'forest', label: '포레스트' },
+  { key: 'ivory', label: '아이보리' },
 ];
 
 const subjectFallbackLabels = ['국어', '수학', '영어', '탐구', '탐구', '탐구'];
@@ -355,11 +357,11 @@ const normalizeRewardMapVisibility = (visibility?: Record<string, boolean>): Rec
 );
 
 const rewardMapImages: Record<RewardMapTheme, string> = {
-  august: '/reward-maps/blue-coast-run.png',
-  september: '/reward-maps/campus-hills.png',
-  october: '/reward-maps/night-festival.png',
-  november: '/reward-maps/crystal-lab.png',
-  december: '/reward-maps/snow-finale.png',
+  august: '/reward-maps/blue-coast-run.jpg',
+  september: '/reward-maps/campus-hills.jpg',
+  october: '/reward-maps/night-festival.jpg',
+  november: '/reward-maps/crystal-lab.jpg',
+  december: '/reward-maps/snow-finale.jpg',
 };
 
 const rewardStageLayouts: Record<RewardMapTheme, RewardStageNode[]> = {
@@ -1240,7 +1242,6 @@ function exitPageFullscreen() {
 
 function TimerFace({
   seconds,
-  skin,
   label,
   subLabel,
   fullscreen = false,
@@ -1260,73 +1261,45 @@ function TimerFace({
   const displayMinuteSeconds = pad(safeSeconds % 60);
   const minuteClock = `${displayMinuteCount}:${displayMinuteSeconds}`;
   const ariaLabel = minuteMode ? `${displayMinuteCount}분 ${displayMinuteSeconds}초` : clock;
-
-  if (skin === 'pulse') {
-    return (
-      <div className={`timer-face timer-face-pulse ${minuteMode ? 'timer-face-minute' : ''} ${fullscreen ? 'timer-face-fullscreen' : ''}`} aria-label={ariaLabel}>
-        <div className="pulse-clock-shell">
-          {label ? <span>{label}</span> : null}
-          <div className="pulse-clock-digits">
-            {minuteMode ? (
-              <>
-                <strong>{displayMinuteCount}</strong>
-                <i>:</i>
-                <strong>{displayMinuteSeconds}</strong>
-              </>
-            ) : (
-              <>
-                <strong>{displayHours}</strong>
-                <i />
-                <strong>{displayMinutes}</strong>
-                <i />
-                <strong>{displaySeconds}</strong>
-              </>
-            )}
-          </div>
-          {subLabel ? <em>{subLabel}</em> : null}
-        </div>
-      </div>
-    );
-  }
-
-  if (skin === 'halo') {
-    const progress = `${((seconds % 3600) / 3600) * 360}deg`;
-    return (
-      <div className={`timer-face timer-face-aurora ${minuteMode ? 'timer-face-minute' : ''} ${fullscreen ? 'timer-face-fullscreen' : ''}`} style={{ '--face-progress': progress } as React.CSSProperties} aria-label={ariaLabel}>
-        <div className="aurora-orbit">
-          <div>
-            {label ? <span>{label}</span> : null}
-            <strong>{minuteMode ? minuteClock : clock}</strong>
-            {minuteMode ? <i>분:초</i> : null}
-            {subLabel ? <em>{subLabel}</em> : null}
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const groups = minuteMode
+    ? [String(displayMinuteCount).padStart(2, '0'), displayMinuteSeconds]
+    : [displayHours, displayMinutes, displaySeconds];
+  const progress = `${((safeSeconds % 3600) / 3600) * 100}%`;
 
   return (
-    <div className={`timer-face timer-face-wood ${minuteMode ? 'timer-face-minute' : ''} ${fullscreen ? 'timer-face-fullscreen' : ''}`} aria-label={ariaLabel}>
-      <div className="wood-clock-shell">
-        {label ? <span>{label}</span> : null}
-        <div className="wood-clock-digits">
-          {minuteMode ? (
-            <>
-              <strong>{displayMinuteCount}</strong>
-              <i>:</i>
-              <strong>{displayMinuteSeconds}</strong>
-            </>
-          ) : (
-            <>
-              <strong>{displayHours}</strong>
-              <i>:</i>
-              <strong>{displayMinutes}</strong>
-              <i>:</i>
-              <strong>{displaySeconds}</strong>
-            </>
-          )}
+    <div
+      className={`timer-face editorial-timer-face timer-variant-paper ${minuteMode ? 'timer-face-minute' : ''} ${fullscreen ? 'timer-face-fullscreen' : ''}`}
+      style={{ '--flip-progress': progress } as React.CSSProperties}
+      aria-label={ariaLabel}
+    >
+      <div className="editorial-timer-shell">
+        <div className="editorial-timer-heading">
+          <span>STUDYCAT FOCUS</span>
+          <i />
+          <strong>{label || '집중 시간'}</strong>
         </div>
-        {subLabel ? <em>{subLabel}</em> : null}
+        <div className="flip-clock" aria-hidden="true">
+          {groups.map((group, index) => (
+            <Fragment key={`${group}-${index}`}>
+              {index > 0 ? <b className="flip-separator">:</b> : null}
+              <div className="flip-group">
+                {group.split('').map((digit, digitIndex) => (
+                  <span className="flip-card" key={`${digit}-${digitIndex}`}>
+                    <i className="flip-card-top">{digit}</i>
+                    <i className="flip-card-bottom">{digit}</i>
+                    <em>{digit}</em>
+                  </span>
+                ))}
+              </div>
+            </Fragment>
+          ))}
+        </div>
+        <div className="editorial-timer-meta">
+          <span>{minuteMode === 'remaining' ? 'COUNTDOWN' : 'ELAPSED TIME'}</span>
+          <strong>{minuteMode ? minuteClock : clock}</strong>
+          <em>{subLabel || '시작할 준비가 되었습니다'}</em>
+        </div>
+        <div className="editorial-timer-progress"><i /></div>
       </div>
     </div>
   );
@@ -1900,6 +1873,15 @@ function LoginScreen({ onLogin }: { onLogin: (role: Role, name: string, id: stri
 
   return (
     <div className="login-screen">
+      <section className="login-story" aria-hidden="true">
+        <div className="login-story-copy">
+          <span>STUDYCAT</span>
+          <h2>오늘의 집중을<br />가볍게 시작해요.</h2>
+          <p>공부 시간, 과제, 리포트를 한 흐름으로 이어주는 나만의 학습 메이트</p>
+        </div>
+        <img src={studycatMascotUrl} alt="" />
+        <div className="login-story-bubble">준비됐나요? 오늘도 같이 해봐요!</div>
+      </section>
       <section className="login-card">
         <div className="login-card-head">
           <div className="app-logo">MR</div>
@@ -2614,15 +2596,30 @@ function ModernPageHeader({
   title,
   description,
   right,
+  mascot = studycatMascotUrl,
 }: {
   eyebrow: string;
   title: string;
   description?: string;
   right?: React.ReactNode;
+  mascot?: string;
 }) {
   return (
     <header className="modern-page-header">
-      <div>
+      <div className="modern-page-heading-copy">
+        <img
+          className="page-mascot"
+          src={mascot}
+          alt=""
+          aria-hidden="true"
+          loading="eager"
+          decoding="async"
+          onError={(event) => {
+            if (event.currentTarget.dataset.fallbackApplied) return;
+            event.currentTarget.dataset.fallbackApplied = 'true';
+            event.currentTarget.src = studycatMascotUrl;
+          }}
+        />
         <span>{eyebrow}</span>
         <h1>{title}</h1>
         {description ? <p>{description}</p> : null}
@@ -2638,8 +2635,6 @@ function ModernHomePage({
   schedule,
   selectedSubject,
   selectedTab,
-  timerSkin,
-  appTheme,
   runningSession,
   totalElapsedSeconds,
   subjectElapsedSeconds,
@@ -2649,8 +2644,6 @@ function ModernHomePage({
   onMainSelect,
   onSubjectSelect,
   onRenameSubject,
-  onTimerSkinChange,
-  onAppThemeChange,
   onTimerFullscreen,
   onMockTimerOpen,
   onWeekOpen,
@@ -2660,8 +2653,6 @@ function ModernHomePage({
   schedule: ScheduleItem[];
   selectedSubject: Subject;
   selectedTab: TimerTab;
-  timerSkin: TimerSkin;
-  appTheme: AppTheme;
   runningSession: RunningSession | null;
   totalElapsedSeconds: number;
   subjectElapsedSeconds: number;
@@ -2671,8 +2662,6 @@ function ModernHomePage({
   onMainSelect: () => void;
   onSubjectSelect: (subject: Subject) => void;
   onRenameSubject: (index: number, name: string) => void;
-  onTimerSkinChange: (skin: TimerSkin) => void;
-  onAppThemeChange: (theme: AppTheme) => void;
   onTimerFullscreen: () => void;
   onMockTimerOpen: () => void;
   onWeekOpen: () => void;
@@ -2687,15 +2676,32 @@ function ModernHomePage({
   const selectedTimerSubject = selectedTab === 'main' ? selectedSubject : selectedTab;
   const visibleSubjectSeconds =
     (subjectTotals[selectedTimerSubject] ?? 0) + (activeSubject === selectedTimerSubject ? subjectElapsedSeconds : 0);
-  const timerClock = formatClock(visibleSubjectSeconds);
   const completion = completionRate(data.tasks);
   const completed = data.tasks.filter((task) => task.completed).length;
+  const weeklyTasks = data.tasks.filter((task) => !task.completed).slice(0, 6);
   const timerProgress = `${((visibleSubjectSeconds % 3600) / 3600) * 360}deg`;
   const timerProgressFill = `${((visibleSubjectSeconds % 3600) / 3600) * 100}%`;
   const selectedLabel = displaySubject(selectedTimerSubject, subjects);
   const sessionLabel = runningSession?.paused ? '일시정지' : runningSession ? '집중 중' : '대기 중';
   const [editingSubjectIndex, setEditingSubjectIndex] = useState<number | null>(null);
   const [subjectDraft, setSubjectDraft] = useState('');
+  const [timerBackdrop, setTimerBackdrop] = useState<TimerBackdrop>(() => {
+    try {
+      const saved = window.localStorage.getItem('studycat-timer-backdrop-v1');
+      return timerBackdropOptions.some((option) => option.key === saved) ? saved as TimerBackdrop : 'studio';
+    } catch {
+      return 'studio';
+    }
+  });
+
+  function changeTimerBackdrop(backdrop: TimerBackdrop) {
+    setTimerBackdrop(backdrop);
+    try {
+      window.localStorage.setItem('studycat-timer-backdrop-v1', backdrop);
+    } catch {
+      // Keep the in-session choice when browser storage is unavailable.
+    }
+  }
 
   function openSubjectEditor(index: number, subject: Subject) {
     setEditingSubjectIndex(index);
@@ -2724,13 +2730,6 @@ function ModernHomePage({
               <Timer size={18} />
               <span>수능 카운트다운</span>
             </button>
-            <div className="modern-theme-switch" aria-label="앱 테마 선택">
-              {appThemeOptions.map((option) => (
-                <button className={appTheme === option.key ? 'active' : ''} key={option.key} type="button" onClick={() => onAppThemeChange(option.key)}>
-                  {option.label}
-                </button>
-              ))}
-            </div>
             <div className={`modern-live-chip ${runningSession && !runningSession.paused ? 'live' : ''}`}>
               <span>{sessionLabel}</span>
               <strong>{runningSession ? displaySubject(runningSession.subject, subjects) : `${weekDayLabels[todayIndex]}요일`}</strong>
@@ -2740,18 +2739,30 @@ function ModernHomePage({
       />
       <section className="modern-home-grid">
         <section className="modern-timer-panel">
-          <div className={`modern-timer-stage timer-${timerSkin}`} style={{ '--timer-progress': timerProgress, '--timer-progress-fill': timerProgressFill } as React.CSSProperties}>
+          <div className={`modern-timer-stage timer-backdrop-${timerBackdrop}`} style={{ '--timer-progress': timerProgress, '--timer-progress-fill': timerProgressFill } as React.CSSProperties}>
             <div className="modern-timer-toolbar">
               <div>
                 <span>현재 과목</span>
                 <strong>{selectedLabel}</strong>
               </div>
-              <div className="modern-skin-switch" aria-label="타이머 스타일">
-                {modernTimerSkinOptions.map((option) => (
-                  <button className={timerSkin === option.key ? 'active' : ''} key={option.key} type="button" onClick={() => onTimerSkinChange(option.key)}>
-                    {option.label}
-                  </button>
-                ))}
+              <div className="timer-backdrop-picker" aria-label="타이머 배경 선택">
+                <span>배경</span>
+                <div>
+                  {timerBackdropOptions.map((option) => (
+                    <button
+                      aria-label={`${option.label} 배경`}
+                      aria-pressed={timerBackdrop === option.key}
+                      className={`${timerBackdrop === option.key ? 'active' : ''} backdrop-${option.key}`}
+                      key={option.key}
+                      title={option.label}
+                      type="button"
+                      onClick={() => changeTimerBackdrop(option.key)}
+                    >
+                      <i />
+                      <b>{option.label}</b>
+                    </button>
+                  ))}
+                </div>
               </div>
               <button className="modern-icon-button" type="button" onClick={onTimerFullscreen} aria-label="전체 화면">
                 <Expand size={20} />
@@ -2759,7 +2770,7 @@ function ModernHomePage({
             </div>
             <TimerFace
               seconds={visibleSubjectSeconds}
-              skin={timerSkin}
+              skin="pulse"
               label={selectedLabel}
               subLabel={runningSession?.subject === selectedTimerSubject && !runningSession.paused ? '진행 중' : '대기 중'}
             />
@@ -2770,10 +2781,6 @@ function ModernHomePage({
           </div>
 
           <div className="modern-subject-strip">
-            <div className="modern-subject-strip-head">
-              <span>과목별</span>
-              <strong>오늘의 총 공부 시간</strong>
-            </div>
             {subjects.map((subject, index) => {
               const seconds = (subjectTotals[subject] ?? 0) + (activeSubject === subject ? subjectElapsedSeconds : 0);
               return (
@@ -2818,7 +2825,45 @@ function ModernHomePage({
             </button>
           </div>
         </section>
-
+        <aside className="study-companion-panel">
+          <section className="weekly-tasks-card">
+            <div className="weekly-tasks-head">
+              <div><span>THIS WEEK</span><strong>이번 주 할 일</strong></div>
+              <em>{weeklyTasks.length}개 남음</em>
+            </div>
+            <div className="weekly-task-list">
+              {weeklyTasks.map((task) => (
+                <div key={task.id}>
+                  <CheckCircle2 size={16} />
+                  <span>{displaySubject(task.subject, subjects)}</span>
+                  <strong>{displayTaskTitle(task)}</strong>
+                </div>
+              ))}
+              {!weeklyTasks.length ? <p><CheckCircle2 size={18} /> 이번 주 할 일을 모두 마쳤어요.</p> : null}
+            </div>
+            <div className="weekly-tasks-foot">
+              <span>완료 {completed}개</span>
+              <i><b style={{ width: `${completion}%` }} /></i>
+            </div>
+            <img src={studycatMascotUrl} alt="" aria-hidden="true" />
+          </section>
+          <section className="today-schedule-card">
+            <div className="glance-card-head">
+              <div><span>SCHEDULE</span><strong>오늘 일정</strong></div>
+              <button type="button" onClick={onWeekOpen}>전체보기 <ChevronRight size={15} /></button>
+            </div>
+            <div className="companion-schedule-list">
+              {todaySchedule.map((item) => (
+                <div key={item.id}>
+                  <i />
+                  <span>{item.start}–{item.end}</span>
+                  <strong>{displayScheduleTitle(item)}</strong>
+                </div>
+              ))}
+              {!todaySchedule.length ? <p>오늘은 등록된 일정이 없어요.</p> : null}
+            </div>
+          </section>
+        </aside>
       </section>
     </div>
   );
@@ -2933,13 +2978,17 @@ function ModernTasksPage({
   }
 
   return (
-    <div className={`page modern-page modern-tasks-page ${mentoringError ? 'mentoring-error' : ''}`}>
+    <div
+      className={`page modern-page modern-tasks-page ${mentoringError ? 'mentoring-error' : ''}`}
+      style={{ '--studycat-mascot': `url(${studycatTasksUrl})` } as React.CSSProperties}
+    >
       <ModernPageHeader
         eyebrow="Assignments"
         title="과목별 과제 보드"
         description="멘토링 포털의 회차별 이번주 과제를 확인합니다."
+        mascot={studycatTasksUrl}
         right={(
-          <div className="mentoring-board-tools">
+          <div className={`mentoring-board-tools ${mentoringWeeks.length ? '' : 'loading'}`}>
             <label>
               <span>멘토링 회차</span>
               <select
@@ -2947,7 +2996,7 @@ function ModernTasksPage({
                 onChange={(event) => onMentoringWeekChange(event.target.value)}
                 disabled={!mentoringWeeks.length}
               >
-                {!mentoringWeeks.length ? <option value="">회차 불러오는 중</option> : null}
+                {!mentoringWeeks.length ? <option value="">회차 동기화 중…</option> : null}
                 {mentoringWeeks.map((week) => (
                   <option value={week.id} key={week.id}>
                     {week.label} · {week.startDate} ~ {week.endDate}
@@ -2989,27 +3038,31 @@ function ModernTasksPage({
             return (
               <section className="modern-task-column" key={subject}>
                 <div className="modern-column-head">
-                  <i style={{ backgroundColor: subjectColor(subject, subjects) }} />
-                  {editingSubjectIndex === subjectIndex ? (
-                    <input
-                      className="modern-column-subject-input"
-                      value={subjectDraft}
-                      autoFocus
-                      onChange={(event) => setSubjectDraft(event.target.value)}
-                      onBlur={finishSubjectRename}
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter') finishSubjectRename();
-                        if (event.key === 'Escape') setEditingSubjectIndex(null);
-                      }}
-                    />
-                  ) : <strong>{displaySubject(subject, subjects)}</strong>}
-                  <span>{subjectTasks.length}</span>
-                  <button type="button" onClick={() => beginSubjectRename(subjectIndex, subject)} aria-label="과목명 변경">
-                    <Pencil size={15} />
-                  </button>
-                  <button type="button" onClick={() => onNewTask(subject)} aria-label="과제 추가">
-                    <Plus size={17} />
-                  </button>
+                  <div className="modern-column-identity">
+                    <i style={{ backgroundColor: subjectColor(subject, subjects) }} />
+                    {editingSubjectIndex === subjectIndex ? (
+                      <input
+                        className="modern-column-subject-input"
+                        value={subjectDraft}
+                        autoFocus
+                        onChange={(event) => setSubjectDraft(event.target.value)}
+                        onBlur={finishSubjectRename}
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter') finishSubjectRename();
+                          if (event.key === 'Escape') setEditingSubjectIndex(null);
+                        }}
+                      />
+                    ) : <strong>{displaySubject(subject, subjects)}</strong>}
+                    <span>{subjectTasks.length}</span>
+                  </div>
+                  <div className="modern-column-tools">
+                    <button type="button" onClick={() => beginSubjectRename(subjectIndex, subject)} aria-label="과목명 변경">
+                      <Pencil size={15} />
+                    </button>
+                    <button type="button" onClick={() => onNewTask(subject)} aria-label="과제 추가">
+                      <Plus size={17} />
+                    </button>
+                  </div>
                 </div>
                 <div className="modern-task-list">
                   {subjectTasks.map((task) => (
@@ -3210,11 +3263,12 @@ function ModernAnalysisPage({
   }
 
   return (
-    <div className="page modern-page modern-analysis-page">
+    <div className="page modern-page modern-analysis-page" style={{ '--studycat-mascot': `url(${studycatReportUrl})` } as React.CSSProperties}>
       <ModernPageHeader
         eyebrow="Insights"
         title="학습 리포트"
         description="선택한 날짜의 공부량, 균형, 과제 진행도를 한 번에 봅니다."
+        mascot={studycatReportUrl}
         right={(
           <div className="modern-report-header-tools">
             <label>
@@ -4031,11 +4085,12 @@ function ModernGardenPage({
 
   return (
     <>
-    <div className="page modern-page modern-garden-page">
+    <div className="page modern-page modern-garden-page" style={{ '--studycat-mascot': `url(${studycatAdminUrl})` } as React.CSSProperties}>
       <ModernPageHeader
         eyebrow="Quest Map"
         title="스테이지 보상"
         description={`공부 시간이 쌓이면 ${selectedMonth.tokenLabel} 컬렉션이 채워지고 캐릭터가 다음 스테이지로 이동합니다.`}
+        mascot={studycatAdminUrl}
         right={<div className="modern-wallet-chip"><Star size={18} /><strong>{data.fruits}개</strong><span>별</span></div>}
       />
       <div className="modern-month-tabs" aria-label="월별 맵 선택">
@@ -4052,11 +4107,17 @@ function ModernGardenPage({
       </div>
       {stageTab === 'map' ? (
         <section className="modern-stage-layout map-only">
-          <div className={`modern-stage-map reward-map-zero theme-${selectedMonth.theme} ${selectedMapOpen ? '' : 'map-closed'}`}>
+          <div
+            className={`modern-stage-map reward-map-zero theme-${selectedMonth.theme} ${selectedMapOpen ? '' : 'map-closed'}`}
+            style={selectedMapOpen ? { backgroundImage: `url(${rewardMapImages[selectedMonth.theme]})` } : undefined}
+          >
             <img
               className="reward-map-art"
               src={rewardMapImages[selectedMonth.theme]}
               alt=""
+              loading="eager"
+              decoding="sync"
+              fetchPriority="high"
               draggable={false}
             />
             <div className="modern-map-title">
@@ -4151,13 +4212,23 @@ function ModernGardenPage({
                 </div>
               </div>
               <div className="stage-shop-list">
-                {modernRewardItems.map((item) => (
-                  <article key={item.id}>
-                    <div><Star size={14} /><strong>{item.cost}</strong></div>
-                    <span>{displayRewardName(item)}</span>
-                    <button type="button" onClick={() => onBuyReward({ id: item.id, name: displayRewardName(item), cost: item.cost })} disabled={data.fruits < item.cost}>교환</button>
-                  </article>
-                ))}
+                {modernRewardItems.map((item, index) => {
+                  const shortage = Math.max(0, item.cost - data.fruits);
+                  return (
+                    <article className={`reward-shop-card tone-${(index % 4) + 1}`} key={item.id}>
+                      <div className="reward-shop-icon"><Gift size={18} /></div>
+                      <div className="reward-shop-copy">
+                        <strong>{displayRewardName(item)}</strong>
+                      </div>
+                      <div className="reward-shop-action">
+                        <div><Star size={14} /><strong>{item.cost}</strong><span>별</span></div>
+                        <button type="button" onClick={() => onBuyReward({ id: item.id, name: displayRewardName(item), cost: item.cost })} disabled={shortage > 0}>
+                          {shortage > 0 ? `${shortage}개 부족` : '교환하기'}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             </div>
             <div className="stage-history-panel">
@@ -4199,11 +4270,12 @@ function ModernCenterPage({ students, subjects }: { students: StudentStatus[]; s
   };
 
   return (
-    <div className="page modern-page modern-center-page">
+    <div className="page modern-page modern-center-page" style={{ '--studycat-mascot': `url(${studycatCenterUrl})` } as React.CSSProperties}>
       <ModernPageHeader
         eyebrow="Live Center"
         title="센터 학습 현황"
         description="같은 센터 학생들의 오늘 집중 상태를 한눈에 봅니다."
+        mascot={studycatCenterUrl}
       />
       <section className="modern-center-grid">
         <div className="modern-center-stats">
@@ -4467,18 +4539,19 @@ function ModernMockExamTimerModal({
           </div>
         ) : null}
         <div className={`modern-mock-stage timer-${timerSkin} ${mockFullscreen ? 'timer-only' : ''}`} style={{ '--subject-color': selectedExamColor } as React.CSSProperties}>
-          <div className="modern-mock-state exam">
+          {!mockFullscreen ? <div className="modern-mock-state exam">
             <span>{countdownRunning && !countdownPaused ? '카운트다운 진행' : countdownPaused ? '일시정지' : '선택 과목'}</span>
             <strong>{selectedExam?.label ?? '과목 선택'}</strong>
             <em>{selectedExam ? `${selectedExam.start}-${selectedExam.end}` : ''}</em>
-          </div>
+          </div> : null}
           <TimerFace
             seconds={remainingSeconds}
             skin={timerSkin}
             label={selectedExam?.label}
             minuteMode="remaining"
+            fullscreen={mockFullscreen}
           />
-          <div className="modern-mock-actions">
+          {!mockFullscreen ? <div className="modern-mock-actions">
             <button className="primary" onClick={startCountdown} type="button" disabled={!selectedExam || (countdownRunning && !countdownPaused)}>
               <Play size={22} />{countdownPaused ? '다시 시작' : remainingSeconds < selectedExamSeconds && remainingSeconds > 0 ? '이어가기' : '시작'}
             </button>
@@ -4486,7 +4559,7 @@ function ModernMockExamTimerModal({
               <Pause size={22} />{countdownPaused ? '해제' : '일시정지'}
             </button>
             <button className="danger" onClick={stopCountdown} type="button"><Square size={21} />종료</button>
-          </div>
+          </div> : null}
         </div>
       </section>
     </div>
@@ -4887,7 +4960,12 @@ function AdminPage({
       <PageTitle
         label="Admin Console"
         title="학생 앱 운영 대시보드"
-        right={<div className="session-state live">실시간 · {realtimeLabel}</div>}
+        right={(
+          <div className="admin-title-tools">
+            <img src={studycatAdminUrl} alt="" aria-hidden="true" />
+            <div className="session-state live">실시간 · {realtimeLabel}</div>
+          </div>
+        )}
       />
       <nav className="admin-tabs">
         {[
@@ -6203,8 +6281,6 @@ export default function App() {
         schedule={schedule}
         selectedSubject={selectedSubject}
         selectedTab={timerTab}
-        timerSkin={data.timerSkin}
-        appTheme={data.appTheme}
         runningSession={runningSession}
         totalElapsedSeconds={totalElapsedSeconds}
         subjectElapsedSeconds={subjectElapsedSeconds}
@@ -6214,8 +6290,6 @@ export default function App() {
         onMainSelect={() => setTimerTab('main')}
         onSubjectSelect={selectSubject}
         onRenameSubject={renameSubject}
-        onTimerSkinChange={setTimerSkin}
-        onAppThemeChange={setAppTheme}
         onTimerFullscreen={openTimerFullscreen}
         onMockTimerOpen={openMockTimer}
         onWeekOpen={() => setWeekOpen(true)}
@@ -6257,7 +6331,17 @@ export default function App() {
   }
 
   return (
-    <div className={`app-viewport app-theme-${data.appTheme} ${role === 'user' ? 'student-viewport' : ''}`}>
+    <div
+      className={`app-viewport app-theme-${role === 'user' ? 'modern' : data.appTheme} ${role === 'user' ? `student-viewport student-page-${page}` : ''} ${role === 'user' && page !== 'garden' ? 'student-refresh' : ''} ${role === 'admin' ? 'admin-refresh' : ''} ${!role ? 'login-refresh' : ''}`}
+      style={{ '--studycat-mascot': `url(${studycatMascotUrl})` } as React.CSSProperties}
+    >
+      {role === 'user' ? (
+        <div className="mascot-asset-preload" aria-hidden="true">
+          {[studycatMascotUrl, studycatTasksUrl, studycatReportUrl, studycatAdminUrl, studycatCenterUrl].map((src) => (
+            <img src={src} alt="" loading="eager" decoding="async" key={src} />
+          ))}
+        </div>
+      ) : null}
       <div
         className="desktop-scale-stage"
         style={{

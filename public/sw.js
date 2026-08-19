@@ -1,5 +1,14 @@
-const CACHE_NAME = 'studycat-shell-v1';
-const APP_SHELL = ['/', '/manifest.webmanifest', '/studycat-icon-512.png'];
+const CACHE_NAME = 'studycat-shell-v3';
+const APP_SHELL = [
+  '/',
+  '/manifest.webmanifest',
+  '/studycat-icon-512.png',
+  '/mascots/studycat-home.webp?v=3',
+  '/mascots/studycat-tasks.webp?v=3',
+  '/mascots/studycat-report.webp?v=3',
+  '/mascots/studycat-reward.webp?v=3',
+  '/mascots/studycat-center.webp?v=3',
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
@@ -28,6 +37,11 @@ self.addEventListener('fetch', (event) => {
         caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         return response;
       })
-      .catch(() => caches.match(event.request).then((cached) => cached || caches.match('/'))),
+      .catch(async () => {
+        const cached = await caches.match(event.request);
+        if (cached) return cached;
+        if (event.request.mode === 'navigate') return caches.match('/');
+        return new Response('', { status: 503, statusText: 'Offline asset unavailable' });
+      }),
   );
 });
