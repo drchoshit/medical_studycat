@@ -816,7 +816,10 @@
 .student-refresh .modern-report-header-tools label { border-radius:10px; }
 .student-refresh .modern-progress-chip { border:0; background:#17171a; }
 .student-refresh .modern-progress-chip strong,.student-refresh .modern-progress-chip span { color:white; }
-.student-refresh .modern-report-grid { gap:11px; }
+.student-refresh .modern-report-grid {
+  grid-template-rows: 166px minmax(300px, 1fr) 300px !important;
+  gap: 11px;
+}
 .student-refresh .modern-report-hero,
 .student-refresh .modern-report-metrics,
 .student-refresh .modern-report-card { border:1px solid var(--st-line); border-radius:13px; background:#fff; box-shadow:none; }
@@ -839,6 +842,7 @@
 .student-refresh .modern-report-subject-row > i { background:#e8e6e0; }
 .student-refresh .modern-stay-controls > div,.student-refresh .modern-stay-controls input,.student-refresh .modern-report-header-tools input { border-color:var(--st-line); border-radius:8px; background:#f2f1ed; }
 .student-refresh .modern-stay-controls button.active { border-radius:6px; background:#17171a; color:white; }
+.student-refresh .modern-stay-clock { width:min(100%,156px); }
 .student-refresh .modern-penalty-score { border-radius:10px; background:#f9e9ec; }
 .student-refresh .modern-penalty-score strong { color:var(--st-red-deep); }
 .student-refresh .modern-panel-title svg { color:var(--st-red); }
