@@ -848,6 +848,15 @@
 .student-refresh .modern-panel-title span { color:var(--st-red-deep); }
 .student-refresh .modern-duration-cell { border-color:rgba(30,30,32,.06); background:#f1f0ec; }
 .student-refresh .modern-duration-cell.slot.filled { background:color-mix(in srgb,var(--block-color) 20%,white); }
+.student-refresh .modern-report-subject-row {
+  grid-template-columns:58px minmax(72px,1fr) 96px 44px;
+  gap:8px;
+}
+.student-refresh .modern-report-subject-row strong {
+  overflow:visible;
+  font-size:12px;
+  text-overflow:clip;
+}
 .student-refresh .modern-report-subject-row > i { background:#e8e6e0; }
 .student-refresh .modern-stay-controls > div,.student-refresh .modern-stay-controls input,.student-refresh .modern-report-header-tools input { border-color:var(--st-line); border-radius:8px; background:#f2f1ed; }
 .student-refresh .modern-stay-controls button.active { border-radius:6px; background:#17171a; color:white; }
