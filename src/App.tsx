@@ -3433,9 +3433,8 @@ function ModernAnalysisPage({
                   <span className="stay-hour h12">12</span>
                   <span className="stay-hour h18">18</span>
                   <div>
+                    <span className="modern-stay-clock-label">체류</span>
                     <strong>{formatStudyMinutes(selectedStayRow.stayMinutes)}</strong>
-                    <span>{selectedStayRow.start}-{selectedStayRow.end}</span>
-                    <em>공부 {formatStudyMinutes(selectedStayRow.studyMinutes)}</em>
                   </div>
                 </button>
                 <div className="modern-stay-legend">

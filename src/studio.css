@@ -834,8 +834,17 @@
 .student-refresh .modern-report-goal span,.student-refresh .modern-report-goal strong { color:white; }
 .student-refresh .modern-report-goal i { background:rgba(255,255,255,.12); }
 .student-refresh .modern-report-goal i b { background:var(--st-red); }
-.student-refresh .modern-report-metrics > div { border-color:var(--st-line); background:#f4f3ef; }
-.student-refresh .modern-report-metrics strong,.student-refresh .modern-panel-title strong { color:var(--st-ink); }
+.student-refresh .modern-report-metrics > div { padding:10px 12px; border-color:var(--st-line); background:#f4f3ef; }
+.student-refresh .modern-report-metrics strong {
+  overflow:visible;
+  color:var(--st-ink);
+  font-size:17px;
+  line-height:20px;
+  white-space:normal;
+  word-break:keep-all;
+  text-overflow:clip;
+}
+.student-refresh .modern-panel-title strong { color:var(--st-ink); }
 .student-refresh .modern-panel-title span { color:var(--st-red-deep); }
 .student-refresh .modern-duration-cell { border-color:rgba(30,30,32,.06); background:#f1f0ec; }
 .student-refresh .modern-duration-cell.slot.filled { background:color-mix(in srgb,var(--block-color) 20%,white); }
@@ -843,6 +852,8 @@
 .student-refresh .modern-stay-controls > div,.student-refresh .modern-stay-controls input,.student-refresh .modern-report-header-tools input { border-color:var(--st-line); border-radius:8px; background:#f2f1ed; }
 .student-refresh .modern-stay-controls button.active { border-radius:6px; background:#17171a; color:white; }
 .student-refresh .modern-stay-clock { width:min(100%,156px); }
+.student-refresh .modern-stay-clock > div { gap:2px; }
+.student-refresh .modern-stay-clock .modern-stay-clock-label { color:#77736d; font-size:9px; line-height:11px; }
 .student-refresh .modern-penalty-score { border-radius:10px; background:#f9e9ec; }
 .student-refresh .modern-penalty-score strong { color:var(--st-red-deep); }
 .student-refresh .modern-panel-title svg { color:var(--st-red); }
