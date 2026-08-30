@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useId, useMemo, useState } from 'react';
+import { Fragment, useEffect, useId, useMemo, useRef, useState } from 'react';
 import {
   Activity,
   BarChart3,
@@ -15,6 +15,7 @@ import {
   Gift,
   FlaskConical,
   Home,
+  ImagePlus,
   LogOut,
   MessageSquare,
   Pause,
@@ -160,7 +161,7 @@ const modernNavItems: Array<{ key: PageKey; label: string; Icon: typeof Home }> 
   { key: 'center', label: '센터', Icon: Users },
 ];
 
-type TimerBackdrop = 'studio' | 'sunset' | 'forest' | 'ivory';
+type TimerBackdrop = 'studio' | 'sunset' | 'forest' | 'ivory' | 'custom';
 
 const timerBackdropOptions: Array<{ key: TimerBackdrop; label: string }> = [
   { key: 'studio', label: '잉크' },
@@ -168,6 +169,62 @@ const timerBackdropOptions: Array<{ key: TimerBackdrop; label: string }> = [
   { key: 'forest', label: '포레스트' },
   { key: 'ivory', label: '아이보리' },
 ];
+
+const TIMER_BACKDROP_STORAGE_KEY = 'studycat-timer-backdrop-v1';
+const TIMER_BACKDROP_IMAGE_STORAGE_KEY = 'studycat-timer-backdrop-image-v1';
+
+function getStoredTimerBackdrop(): TimerBackdrop {
+  try {
+    const saved = window.localStorage.getItem(TIMER_BACKDROP_STORAGE_KEY);
+    if (saved === 'custom') return window.localStorage.getItem(TIMER_BACKDROP_IMAGE_STORAGE_KEY) ? 'custom' : 'studio';
+    if (timerBackdropOptions.some((option) => option.key === saved)) return saved as TimerBackdrop;
+  } catch {
+    // Use the default background when browser storage is unavailable.
+  }
+  return 'studio';
+}
+
+function getStoredTimerBackdropImage() {
+  try {
+    return window.localStorage.getItem(TIMER_BACKDROP_IMAGE_STORAGE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function timerBackdropStyle(backdrop: TimerBackdrop, image: string, extra?: React.CSSProperties) {
+  return {
+    ...extra,
+    ...(backdrop === 'custom' && image ? { '--timer-custom-image': `url("${image}")` } : {}),
+  } as React.CSSProperties;
+}
+
+async function optimizeTimerBackdropImage(file: File) {
+  if (!file.type.startsWith('image/')) throw new Error('이미지 파일만 선택할 수 있습니다.');
+  if (file.size > 20 * 1024 * 1024) throw new Error('20MB 이하 이미지를 선택해 주세요.');
+
+  const source = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error('이미지를 읽지 못했습니다.'));
+    reader.readAsDataURL(file);
+  });
+  const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const element = new Image();
+    element.onload = () => resolve(element);
+    element.onerror = () => reject(new Error('지원하지 않는 이미지 형식입니다.'));
+    element.src = source;
+  });
+  const maxSide = 1920;
+  const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('이미지를 처리하지 못했습니다.');
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL('image/jpeg', 0.84);
+}
 
 const subjectFallbackLabels = ['국어', '수학', '영어', '탐구', '탐구', '탐구'];
 const subjectAlias: Record<string, string> = {
@@ -2655,6 +2712,10 @@ function ModernHomePage({
   onMainSelect,
   onSubjectSelect,
   onRenameSubject,
+  timerBackdrop,
+  timerBackdropImage,
+  onTimerBackdropChange,
+  onTimerBackdropImageChange,
   onTimerFullscreen,
   onMockTimerOpen,
   onWeekOpen,
@@ -2673,6 +2734,10 @@ function ModernHomePage({
   onMainSelect: () => void;
   onSubjectSelect: (subject: Subject) => void;
   onRenameSubject: (index: number, name: string) => void;
+  timerBackdrop: TimerBackdrop;
+  timerBackdropImage: string;
+  onTimerBackdropChange: (backdrop: TimerBackdrop) => void;
+  onTimerBackdropImageChange: (image: string) => void;
   onTimerFullscreen: () => void;
   onMockTimerOpen: () => void;
   onWeekOpen: () => void;
@@ -2696,21 +2761,16 @@ function ModernHomePage({
   const sessionLabel = runningSession?.paused ? '일시정지' : runningSession ? '집중 중' : '대기 중';
   const [editingSubjectIndex, setEditingSubjectIndex] = useState<number | null>(null);
   const [subjectDraft, setSubjectDraft] = useState('');
-  const [timerBackdrop, setTimerBackdrop] = useState<TimerBackdrop>(() => {
-    try {
-      const saved = window.localStorage.getItem('studycat-timer-backdrop-v1');
-      return timerBackdropOptions.some((option) => option.key === saved) ? saved as TimerBackdrop : 'studio';
-    } catch {
-      return 'studio';
-    }
-  });
+  const backgroundInputRef = useRef<HTMLInputElement>(null);
 
-  function changeTimerBackdrop(backdrop: TimerBackdrop) {
-    setTimerBackdrop(backdrop);
+  async function uploadTimerBackdrop(file?: File) {
+    if (!file) return;
     try {
-      window.localStorage.setItem('studycat-timer-backdrop-v1', backdrop);
-    } catch {
-      // Keep the in-session choice when browser storage is unavailable.
+      onTimerBackdropImageChange(await optimizeTimerBackdropImage(file));
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : '이미지를 불러오지 못했습니다.');
+    } finally {
+      if (backgroundInputRef.current) backgroundInputRef.current.value = '';
     }
   }
 
@@ -2750,7 +2810,10 @@ function ModernHomePage({
       />
       <section className="modern-home-grid">
         <section className="modern-timer-panel">
-          <div className={`modern-timer-stage timer-backdrop-${timerBackdrop}`} style={{ '--timer-progress': timerProgress, '--timer-progress-fill': timerProgressFill } as React.CSSProperties}>
+          <div
+            className={`modern-timer-stage timer-backdrop-${timerBackdrop}`}
+            style={timerBackdropStyle(timerBackdrop, timerBackdropImage, { '--timer-progress': timerProgress, '--timer-progress-fill': timerProgressFill } as React.CSSProperties)}
+          >
             <div className="modern-timer-toolbar">
               <div>
                 <span>현재 과목</span>
@@ -2767,12 +2830,33 @@ function ModernHomePage({
                       key={option.key}
                       title={option.label}
                       type="button"
-                      onClick={() => changeTimerBackdrop(option.key)}
+                      onClick={() => onTimerBackdropChange(option.key)}
                     >
                       <i />
                       <b>{option.label}</b>
                     </button>
                   ))}
+                  <button
+                    aria-label={timerBackdropImage && timerBackdrop !== 'custom' ? '내 이미지 배경 선택' : '내 이미지 배경 업로드'}
+                    aria-pressed={timerBackdrop === 'custom'}
+                    className={`${timerBackdrop === 'custom' ? 'active' : ''} backdrop-custom`}
+                    title={timerBackdropImage && timerBackdrop !== 'custom' ? '저장된 내 이미지 선택' : '내 이미지 업로드'}
+                    type="button"
+                    onClick={() => {
+                      if (timerBackdropImage && timerBackdrop !== 'custom') onTimerBackdropChange('custom');
+                      else backgroundInputRef.current?.click();
+                    }}
+                  >
+                    <ImagePlus size={13} />
+                    <b>{timerBackdropImage ? '내 사진' : '업로드'}</b>
+                  </button>
+                  <input
+                    ref={backgroundInputRef}
+                    className="timer-backdrop-input"
+                    type="file"
+                    accept="image/*"
+                    onChange={(event) => void uploadTimerBackdrop(event.currentTarget.files?.[0])}
+                  />
                 </div>
               </div>
               <button className="modern-icon-button" type="button" onClick={onTimerFullscreen} aria-label="전체 화면">
@@ -4421,6 +4505,8 @@ function ModernTimerFullscreenModal({
   elapsedSeconds,
   subject,
   timerSkin,
+  timerBackdrop,
+  timerBackdropImage,
   onClose,
   onPause,
   onStop,
@@ -4430,6 +4516,8 @@ function ModernTimerFullscreenModal({
   elapsedSeconds: number;
   subject: Subject;
   timerSkin: TimerSkin;
+  timerBackdrop: TimerBackdrop;
+  timerBackdropImage: string;
   onClose: () => void;
   onPause: () => void;
   onStop: () => void;
@@ -4439,7 +4527,10 @@ function ModernTimerFullscreenModal({
   const stateText = canControl ? (paused ? '일시정지' : '진행 중') : '대기 중';
   return (
     <div className="modern-modal-layer">
-      <section className={`modern-fullscreen-timer timer-${timerSkin}`}>
+      <section
+        className={`modern-fullscreen-timer timer-${timerSkin} timer-backdrop-${timerBackdrop}`}
+        style={timerBackdropStyle(timerBackdrop, timerBackdropImage)}
+      >
         <button className="modern-modal-close" onClick={onClose} type="button" aria-label="닫기"><X size={28} /></button>
         <span>{stateText} · {displaySubject(subject)}</span>
         <TimerFace seconds={elapsedSeconds} skin={timerSkin} label={displaySubject(subject)} subLabel={stateText} fullscreen />
@@ -4454,10 +4545,14 @@ function ModernTimerFullscreenModal({
 
 function ModernMockExamTimerModal({
   timerSkin,
+  timerBackdrop,
+  timerBackdropImage,
   onClose,
   onFullscreenChange,
 }: {
   timerSkin: TimerSkin;
+  timerBackdrop: TimerBackdrop;
+  timerBackdropImage: string;
   onClose: () => void;
   onFullscreenChange: (fullscreen: boolean) => void;
 }) {
@@ -4524,7 +4619,10 @@ function ModernMockExamTimerModal({
 
   return (
     <div className="modern-modal-layer">
-      <section className={`modern-modal-panel modern-mock-modal ${mockFullscreen ? 'mock-fullscreen' : ''}`}>
+      <section
+        className={`modern-modal-panel modern-mock-modal timer-backdrop-${timerBackdrop} ${mockFullscreen ? 'mock-fullscreen' : ''}`}
+        style={timerBackdropStyle(timerBackdrop, timerBackdropImage)}
+      >
         {!mockFullscreen ? (
           <div className="modern-modal-head">
             <div><h2>수능 카운트다운</h2><span>과목을 선택하면 해당 시험 시간만 카운트다운합니다.</span></div>
@@ -4552,7 +4650,10 @@ function ModernMockExamTimerModal({
             ))}
           </div>
         ) : null}
-        <div className={`modern-mock-stage timer-${timerSkin} ${mockFullscreen ? 'timer-only' : ''}`} style={{ '--subject-color': selectedExamColor } as React.CSSProperties}>
+        <div
+          className={`modern-mock-stage timer-${timerSkin} timer-backdrop-${timerBackdrop} ${mockFullscreen ? 'timer-only' : ''}`}
+          style={timerBackdropStyle(timerBackdrop, timerBackdropImage, { '--subject-color': selectedExamColor } as React.CSSProperties)}
+        >
           {!mockFullscreen ? <div className="modern-mock-state exam">
             <span>{countdownRunning && !countdownPaused ? '카운트다운 진행' : countdownPaused ? '일시정지' : '선택 과목'}</span>
             <strong>{selectedExam?.label ?? '과목 선택'}</strong>
@@ -5584,6 +5685,8 @@ export default function App() {
   const [timerOpen, setTimerOpen] = useState(false);
   const [mockTimerOpen, setMockTimerOpen] = useState(false);
   const [mockPageFullscreen, setMockPageFullscreen] = useState(false);
+  const [timerBackdrop, setTimerBackdrop] = useState<TimerBackdrop>(getStoredTimerBackdrop);
+  const [timerBackdropImage, setTimerBackdropImage] = useState(getStoredTimerBackdropImage);
   const [attendanceOpen, setAttendanceOpen] = useState(false);
   const [animatedAttendanceDate, setAnimatedAttendanceDate] = useState<string | null>(null);
   const [taskEditor, setTaskEditor] = useState<{ task: Task | null; subject: Subject } | null>(null);
@@ -5938,6 +6041,26 @@ export default function App() {
     setMockPageFullscreen(fullscreen);
     if (fullscreen) requestPageFullscreen();
     else exitPageFullscreen();
+  }
+
+  function changeTimerBackdrop(backdrop: TimerBackdrop) {
+    setTimerBackdrop(backdrop);
+    try {
+      window.localStorage.setItem(TIMER_BACKDROP_STORAGE_KEY, backdrop);
+    } catch {
+      // Keep the selected background for this session.
+    }
+  }
+
+  function changeTimerBackdropImage(image: string) {
+    setTimerBackdropImage(image);
+    setTimerBackdrop('custom');
+    try {
+      window.localStorage.setItem(TIMER_BACKDROP_IMAGE_STORAGE_KEY, image);
+      window.localStorage.setItem(TIMER_BACKDROP_STORAGE_KEY, 'custom');
+    } catch {
+      // Large images can exceed the storage quota; the current session still keeps it.
+    }
   }
 
   function startSession(subject = selectedSubject, taskId?: string) {
@@ -6304,6 +6427,10 @@ export default function App() {
         onMainSelect={() => setTimerTab('main')}
         onSubjectSelect={selectSubject}
         onRenameSubject={renameSubject}
+        timerBackdrop={timerBackdrop}
+        timerBackdropImage={timerBackdropImage}
+        onTimerBackdropChange={changeTimerBackdrop}
+        onTimerBackdropImageChange={changeTimerBackdropImage}
         onTimerFullscreen={openTimerFullscreen}
         onMockTimerOpen={openMockTimer}
         onWeekOpen={() => setWeekOpen(true)}
@@ -6374,12 +6501,22 @@ export default function App() {
         ) : null}
         <main className={role ? 'app-main' : 'login-main'}>{content}</main>
         {weekOpen ? <ModernWeekScheduleModal schedule={schedule} source={scheduleSource} onClose={() => setWeekOpen(false)} /> : null}
-        {mockTimerOpen ? <ModernMockExamTimerModal timerSkin={data.timerSkin} onClose={closeMockTimer} onFullscreenChange={handleMockFullscreenChange} /> : null}
+        {mockTimerOpen ? (
+          <ModernMockExamTimerModal
+            timerSkin={data.timerSkin}
+            timerBackdrop={timerBackdrop}
+            timerBackdropImage={timerBackdropImage}
+            onClose={closeMockTimer}
+            onFullscreenChange={handleMockFullscreenChange}
+          />
+        ) : null}
         {timerOpen ? (
           <ModernTimerFullscreenModal
             elapsedSeconds={fullscreenElapsedSeconds}
             subject={fullscreenSubject}
             timerSkin={data.timerSkin}
+            timerBackdrop={timerBackdrop}
+            timerBackdropImage={timerBackdropImage}
             paused={runningSession?.paused ?? false}
             canControl={Boolean(runningSession)}
             onPause={pauseSession}

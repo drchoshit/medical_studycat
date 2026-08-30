@@ -1240,6 +1240,157 @@
 .student-refresh .modern-mock-modal.mock-fullscreen .editorial-timer-face { width: 100%; height: 100%; }
 .student-refresh .modern-mock-modal.mock-fullscreen .timer-face-fullscreen .editorial-timer-shell { width: min(820px, 76vw); }
 
+/* Shared timer backgrounds, including user-uploaded images. */
+.student-refresh .timer-backdrop-input {
+  display: none;
+}
+
+.student-refresh .timer-backdrop-picker button.backdrop-custom {
+  border: 1px dashed rgba(255,255,255,.3);
+}
+
+.student-refresh .timer-backdrop-picker button.backdrop-custom svg {
+  flex: 0 0 auto;
+}
+
+.student-refresh .modern-timer-stage.timer-backdrop-custom,
+.student-refresh .modern-fullscreen-timer.timer-backdrop-custom,
+.student-refresh .modern-mock-stage.timer-backdrop-custom {
+  background-color: #111216 !important;
+  background-image:
+    linear-gradient(180deg, rgba(6,8,12,.28), rgba(6,8,12,.55)),
+    var(--timer-custom-image) !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: cover !important;
+}
+
+.student-refresh .modern-timer-stage.timer-backdrop-custom::before {
+  inset: 0;
+  width: auto;
+  height: auto;
+  left: 0;
+  top: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(5,8,12,.24), transparent 48%, rgba(5,8,12,.12));
+  box-shadow: none;
+  opacity: 1;
+  transform: none;
+}
+
+.student-refresh .modern-fullscreen-timer {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: #0d0d11;
+}
+
+.student-refresh .modern-fullscreen-timer.timer-backdrop-studio {
+  background:
+    radial-gradient(circle at 50% 48%, #481b2b 0, #25151d 30%, #0d0d11 67%);
+}
+
+.student-refresh .modern-fullscreen-timer.timer-backdrop-sunset {
+  background:
+    radial-gradient(circle at 50% 48%, #d36a75 0, #6f293a 31%, #24131c 68%);
+}
+
+.student-refresh .modern-fullscreen-timer.timer-backdrop-forest {
+  background:
+    radial-gradient(circle at 50% 48%, #77b9a1 0, #315f53 31%, #0d1d1a 68%);
+}
+
+.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory {
+  background:
+    radial-gradient(circle at 50% 48%, #e0a8b0 0, #d3bdad 31%, #f0ece4 72%);
+}
+
+.student-refresh .modern-fullscreen-timer::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  background:
+    linear-gradient(115deg, transparent 0 34%, rgba(255,255,255,.055) 34.2%, transparent 35%),
+    linear-gradient(180deg, rgba(0,0,0,.04), rgba(0,0,0,.24));
+  pointer-events: none;
+}
+
+.student-refresh .modern-fullscreen-timer > * {
+  position: relative;
+  z-index: 1;
+}
+
+.student-refresh .modern-fullscreen-timer > .modern-modal-close {
+  position: absolute;
+  z-index: 5;
+}
+
+.student-refresh .modern-fullscreen-timer > span,
+.student-refresh .modern-fullscreen-timer .editorial-timer-heading,
+.student-refresh .modern-fullscreen-timer .editorial-timer-heading strong,
+.student-refresh .modern-fullscreen-timer .editorial-timer-meta strong {
+  color: #fff;
+  text-shadow: 0 2px 12px rgba(0,0,0,.45);
+}
+
+.student-refresh .modern-fullscreen-timer .editorial-timer-heading span,
+.student-refresh .modern-fullscreen-timer .editorial-timer-meta,
+.student-refresh .modern-fullscreen-timer .editorial-timer-meta em {
+  color: rgba(255,255,255,.76);
+  text-shadow: 0 2px 10px rgba(0,0,0,.5);
+}
+
+.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory > span,
+.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .editorial-timer-heading,
+.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .editorial-timer-heading strong,
+.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .editorial-timer-meta strong {
+  color: #292522;
+  text-shadow: 0 1px 8px rgba(255,255,255,.5);
+}
+
+.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .editorial-timer-heading span,
+.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .editorial-timer-meta,
+.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .editorial-timer-meta em {
+  color: rgba(41,37,34,.7);
+  text-shadow: none;
+}
+
+.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .modern-modal-close,
+.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .modern-fullscreen-actions button {
+  border-color: rgba(45,41,38,.18);
+  background: rgba(255,255,255,.46);
+  color: #292522;
+}
+
+.student-refresh .modern-mock-stage.timer-backdrop-studio {
+  background: radial-gradient(circle at 50% 48%, #481b2b 0, #25151d 30%, #0d0d11 67%) !important;
+}
+
+.student-refresh .modern-mock-stage.timer-backdrop-sunset {
+  background: radial-gradient(circle at 50% 48%, #d36a75 0, #6f293a 31%, #24131c 68%) !important;
+}
+
+.student-refresh .modern-mock-stage.timer-backdrop-forest {
+  background: radial-gradient(circle at 50% 48%, #77b9a1 0, #315f53 31%, #0d1d1a 68%) !important;
+}
+
+.student-refresh .modern-mock-stage.timer-backdrop-ivory {
+  background: radial-gradient(circle at 50% 48%, #e0a8b0 0, #d3bdad 31%, #f0ece4 72%) !important;
+}
+
+.student-refresh .modern-mock-stage.timer-backdrop-ivory .editorial-timer-heading,
+.student-refresh .modern-mock-stage.timer-backdrop-ivory .editorial-timer-heading strong,
+.student-refresh .modern-mock-stage.timer-backdrop-ivory .editorial-timer-meta strong {
+  color: #292522;
+}
+
+.student-refresh .modern-mock-stage.timer-backdrop-ivory .editorial-timer-heading span,
+.student-refresh .modern-mock-stage.timer-backdrop-ivory .editorial-timer-meta,
+.student-refresh .modern-mock-stage.timer-backdrop-ivory .editorial-timer-meta em {
+  color: rgba(41,37,34,.68);
+}
+
 /* Assignment board: shorter columns, stable counts, and non-clipping task copy. */
 .student-refresh .mentoring-board-tools {
   align-items: center;
