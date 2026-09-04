@@ -161,13 +161,15 @@ const modernNavItems: Array<{ key: PageKey; label: string; Icon: typeof Home }> 
   { key: 'center', label: '센터', Icon: Users },
 ];
 
-type TimerBackdrop = 'studio' | 'sunset' | 'forest' | 'ivory' | 'custom';
+type PresetTimerBackdrop = 'forest-concert' | 'cat-classroom' | 'sunny-garden' | 'rainy-study' | 'seaside-picnic';
+type TimerBackdrop = PresetTimerBackdrop | 'custom';
 
-const timerBackdropOptions: Array<{ key: TimerBackdrop; label: string }> = [
-  { key: 'studio', label: '잉크' },
-  { key: 'sunset', label: '선셋' },
-  { key: 'forest', label: '포레스트' },
-  { key: 'ivory', label: '아이보리' },
+const timerBackdropOptions: Array<{ key: PresetTimerBackdrop; label: string; image: string }> = [
+  { key: 'forest-concert', label: '음악숲', image: '/timer-backgrounds/forest-concert.png' },
+  { key: 'cat-classroom', label: '교실', image: '/timer-backgrounds/cat-classroom.png' },
+  { key: 'sunny-garden', label: '정원', image: '/timer-backgrounds/sunny-garden.png' },
+  { key: 'rainy-study', label: '비오는밤', image: '/timer-backgrounds/rainy-study.png' },
+  { key: 'seaside-picnic', label: '바다', image: '/timer-backgrounds/seaside-picnic.png' },
 ];
 
 const TIMER_BACKDROP_STORAGE_KEY = 'studycat-timer-backdrop-v1';
@@ -176,12 +178,12 @@ const TIMER_BACKDROP_IMAGE_STORAGE_KEY = 'studycat-timer-backdrop-image-v1';
 function getStoredTimerBackdrop(): TimerBackdrop {
   try {
     const saved = window.localStorage.getItem(TIMER_BACKDROP_STORAGE_KEY);
-    if (saved === 'custom') return window.localStorage.getItem(TIMER_BACKDROP_IMAGE_STORAGE_KEY) ? 'custom' : 'studio';
+    if (saved === 'custom') return window.localStorage.getItem(TIMER_BACKDROP_IMAGE_STORAGE_KEY) ? 'custom' : 'seaside-picnic';
     if (timerBackdropOptions.some((option) => option.key === saved)) return saved as TimerBackdrop;
   } catch {
     // Use the default background when browser storage is unavailable.
   }
-  return 'studio';
+  return 'seaside-picnic';
 }
 
 function getStoredTimerBackdropImage() {
@@ -193,8 +195,10 @@ function getStoredTimerBackdropImage() {
 }
 
 function timerBackdropStyle(backdrop: TimerBackdrop, image: string, extra?: React.CSSProperties) {
+  const presetImage = timerBackdropOptions.find((option) => option.key === backdrop)?.image;
   return {
     ...extra,
+    ...(presetImage ? { '--timer-backdrop-image': `url("${presetImage}")` } : {}),
     ...(backdrop === 'custom' && image ? { '--timer-custom-image': `url("${image}")` } : {}),
   } as React.CSSProperties;
 }
@@ -2832,7 +2836,7 @@ function ModernHomePage({
                       type="button"
                       onClick={() => onTimerBackdropChange(option.key)}
                     >
-                      <i />
+                      <i style={{ backgroundImage: `url("${option.image}")` }} />
                       <b>{option.label}</b>
                     </button>
                   ))}

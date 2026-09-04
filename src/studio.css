@@ -386,17 +386,16 @@
   box-shadow: 0 15px 32px rgba(15, 14, 20, .16);
 }
 
-.student-refresh .modern-timer-stage.timer-backdrop-sunset {
-  background: linear-gradient(145deg, #24131c, #401b28 58%, #171116);
-}
-
-.student-refresh .modern-timer-stage.timer-backdrop-forest {
-  background: linear-gradient(145deg, #0d1d1a, #16362f 58%, #0b1514);
-}
-
-.student-refresh .modern-timer-stage.timer-backdrop-ivory {
-  background: linear-gradient(145deg, #f0ece4, #ded7ca 58%, #f7f4ed);
-  box-shadow: 0 15px 32px rgba(63, 51, 37, .13);
+.student-refresh .modern-timer-stage.timer-backdrop-forest-concert,
+.student-refresh .modern-timer-stage.timer-backdrop-cat-classroom,
+.student-refresh .modern-timer-stage.timer-backdrop-sunny-garden,
+.student-refresh .modern-timer-stage.timer-backdrop-rainy-study,
+.student-refresh .modern-timer-stage.timer-backdrop-seaside-picnic {
+  background-color: #111216;
+  background-image: var(--timer-backdrop-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .student-refresh .modern-timer-stage::before {
@@ -415,20 +414,21 @@
   transform: translate(-50%, -50%);
 }
 
-.student-refresh .timer-backdrop-sunset::before {
-  background: radial-gradient(circle at 37% 32%, rgba(255,255,255,.18), transparent 10%), radial-gradient(circle at 58% 57%, #d36a75 0, #6f293a 42%, #28151d 71%);
-  opacity: .62;
-}
-
-.student-refresh .timer-backdrop-forest::before {
-  background: radial-gradient(circle at 37% 32%, rgba(255,255,255,.18), transparent 10%), radial-gradient(circle at 58% 57%, #77b9a1 0, #315f53 42%, #12241f 71%);
-  opacity: .54;
-}
-
-.student-refresh .timer-backdrop-ivory::before {
-  background: radial-gradient(circle at 37% 32%, rgba(255,255,255,.9), transparent 11%), radial-gradient(circle at 58% 57%, #e0a8b0 0, #d3bdad 42%, #eae4da 71%);
+.student-refresh .modern-timer-stage.timer-backdrop-forest-concert::before,
+.student-refresh .modern-timer-stage.timer-backdrop-cat-classroom::before,
+.student-refresh .modern-timer-stage.timer-backdrop-sunny-garden::before,
+.student-refresh .modern-timer-stage.timer-backdrop-rainy-study::before,
+.student-refresh .modern-timer-stage.timer-backdrop-seaside-picnic::before {
+  inset: 0;
+  width: auto;
+  height: auto;
+  left: 0;
+  top: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(5,8,12,.2), transparent 48%, rgba(5,8,12,.1));
   box-shadow: none;
-  opacity: .5;
+  opacity: 1;
+  transform: none;
 }
 
 .student-refresh .modern-timer-stage::after {
@@ -481,17 +481,17 @@
 }
 
 .student-refresh .timer-backdrop-picker button i {
-  width: 11px;
-  height: 11px;
+  width: 32px;
+  height: 20px;
+  flex: 0 0 auto;
   border: 1px solid rgba(255,255,255,.38);
-  border-radius: 50%;
+  border-radius: 5px;
   background: #17171b;
+  background-position: center;
+  background-size: cover;
 }
 
 .student-refresh .timer-backdrop-picker button b { font-size: 8px; font-weight: 700; white-space: nowrap; }
-.student-refresh .timer-backdrop-picker button.backdrop-sunset i { background:#b85267; }
-.student-refresh .timer-backdrop-picker button.backdrop-forest i { background:#467e70; }
-.student-refresh .timer-backdrop-picker button.backdrop-ivory i { background:#e8e0d2; }
 .student-refresh .timer-backdrop-picker button.active {
   background: rgba(255,255,255,.94);
   color: #17171a;
@@ -1285,24 +1285,16 @@
   background: #0d0d11;
 }
 
-.student-refresh .modern-fullscreen-timer.timer-backdrop-studio {
-  background:
-    radial-gradient(circle at 50% 48%, #481b2b 0, #25151d 30%, #0d0d11 67%);
-}
-
-.student-refresh .modern-fullscreen-timer.timer-backdrop-sunset {
-  background:
-    radial-gradient(circle at 50% 48%, #d36a75 0, #6f293a 31%, #24131c 68%);
-}
-
-.student-refresh .modern-fullscreen-timer.timer-backdrop-forest {
-  background:
-    radial-gradient(circle at 50% 48%, #77b9a1 0, #315f53 31%, #0d1d1a 68%);
-}
-
-.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory {
-  background:
-    radial-gradient(circle at 50% 48%, #e0a8b0 0, #d3bdad 31%, #f0ece4 72%);
+.student-refresh .modern-fullscreen-timer.timer-backdrop-forest-concert,
+.student-refresh .modern-fullscreen-timer.timer-backdrop-cat-classroom,
+.student-refresh .modern-fullscreen-timer.timer-backdrop-sunny-garden,
+.student-refresh .modern-fullscreen-timer.timer-backdrop-rainy-study,
+.student-refresh .modern-fullscreen-timer.timer-backdrop-seaside-picnic {
+  background-color: #111216;
+  background-image: var(--timer-backdrop-image);
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 
 .student-refresh .modern-fullscreen-timer::before {
@@ -1341,54 +1333,39 @@
   text-shadow: 0 2px 10px rgba(0,0,0,.5);
 }
 
-.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory > span,
-.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .editorial-timer-heading,
-.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .editorial-timer-heading strong,
-.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .editorial-timer-meta strong {
-  color: #292522;
-  text-shadow: 0 1px 8px rgba(255,255,255,.5);
+.student-refresh .modern-mock-stage.timer-backdrop-forest-concert,
+.student-refresh .modern-mock-stage.timer-backdrop-cat-classroom,
+.student-refresh .modern-mock-stage.timer-backdrop-sunny-garden,
+.student-refresh .modern-mock-stage.timer-backdrop-rainy-study,
+.student-refresh .modern-mock-stage.timer-backdrop-seaside-picnic {
+  background-color: #111216 !important;
+  background-image: var(--timer-backdrop-image) !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+  background-size: cover !important;
 }
 
-.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .editorial-timer-heading span,
-.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .editorial-timer-meta,
-.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .editorial-timer-meta em {
-  color: rgba(41,37,34,.7);
-  text-shadow: none;
+/* Keep the clock centered on the viewport; status and controls float independently. */
+.student-refresh .modern-fullscreen-timer > span {
+  position: absolute;
+  z-index: 5;
+  top: 34px;
+  left: 42px;
 }
 
-.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .modern-modal-close,
-.student-refresh .modern-fullscreen-timer.timer-backdrop-ivory .modern-fullscreen-actions button {
-  border-color: rgba(45,41,38,.18);
-  background: rgba(255,255,255,.46);
-  color: #292522;
+.student-refresh .modern-fullscreen-timer > .timer-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.student-refresh .modern-mock-stage.timer-backdrop-studio {
-  background: radial-gradient(circle at 50% 48%, #481b2b 0, #25151d 30%, #0d0d11 67%) !important;
-}
-
-.student-refresh .modern-mock-stage.timer-backdrop-sunset {
-  background: radial-gradient(circle at 50% 48%, #d36a75 0, #6f293a 31%, #24131c 68%) !important;
-}
-
-.student-refresh .modern-mock-stage.timer-backdrop-forest {
-  background: radial-gradient(circle at 50% 48%, #77b9a1 0, #315f53 31%, #0d1d1a 68%) !important;
-}
-
-.student-refresh .modern-mock-stage.timer-backdrop-ivory {
-  background: radial-gradient(circle at 50% 48%, #e0a8b0 0, #d3bdad 31%, #f0ece4 72%) !important;
-}
-
-.student-refresh .modern-mock-stage.timer-backdrop-ivory .editorial-timer-heading,
-.student-refresh .modern-mock-stage.timer-backdrop-ivory .editorial-timer-heading strong,
-.student-refresh .modern-mock-stage.timer-backdrop-ivory .editorial-timer-meta strong {
-  color: #292522;
-}
-
-.student-refresh .modern-mock-stage.timer-backdrop-ivory .editorial-timer-heading span,
-.student-refresh .modern-mock-stage.timer-backdrop-ivory .editorial-timer-meta,
-.student-refresh .modern-mock-stage.timer-backdrop-ivory .editorial-timer-meta em {
-  color: rgba(41,37,34,.68);
+.student-refresh .modern-fullscreen-timer > .modern-fullscreen-actions {
+  position: absolute;
+  z-index: 5;
+  left: 50%;
+  bottom: 28px;
+  transform: translateX(-50%);
 }
 
 /* Assignment board: shorter columns, stable counts, and non-clipping task copy. */
