@@ -15,7 +15,6 @@ import {
   Gift,
   FlaskConical,
   Home,
-  ImagePlus,
   LogOut,
   MessageSquare,
   Pause,
@@ -165,10 +164,10 @@ type PresetTimerBackdrop = 'forest-concert' | 'cat-classroom' | 'sunny-garden' |
 type TimerBackdrop = PresetTimerBackdrop | 'custom';
 
 const timerBackdropOptions: Array<{ key: PresetTimerBackdrop; label: string; image: string }> = [
-  { key: 'forest-concert', label: '음악숲', image: '/timer-backgrounds/forest-concert.png' },
-  { key: 'cat-classroom', label: '교실', image: '/timer-backgrounds/cat-classroom.png' },
-  { key: 'sunny-garden', label: '정원', image: '/timer-backgrounds/sunny-garden.png' },
-  { key: 'rainy-study', label: '비오는밤', image: '/timer-backgrounds/rainy-study.png' },
+  { key: 'forest-concert', label: '숲속 음악', image: '/timer-backgrounds/forest-concert.png' },
+  { key: 'cat-classroom', label: '고양이 교실', image: '/timer-backgrounds/cat-classroom.png' },
+  { key: 'sunny-garden', label: '햇살 정원', image: '/timer-backgrounds/sunny-garden.png' },
+  { key: 'rainy-study', label: '비 오는 밤', image: '/timer-backgrounds/rainy-study.png' },
   { key: 'seaside-picnic', label: '바다', image: '/timer-backgrounds/seaside-picnic.png' },
 ];
 
@@ -2836,7 +2835,6 @@ function ModernHomePage({
                       type="button"
                       onClick={() => onTimerBackdropChange(option.key)}
                     >
-                      <i style={{ backgroundImage: `url("${option.image}")` }} />
                       <b>{option.label}</b>
                     </button>
                   ))}
@@ -2851,7 +2849,6 @@ function ModernHomePage({
                       else backgroundInputRef.current?.click();
                     }}
                   >
-                    <ImagePlus size={13} />
                     <b>{timerBackdropImage ? '내 사진' : '업로드'}</b>
                   </button>
                   <input
@@ -5838,6 +5835,11 @@ export default function App() {
     if (!subjects.includes(selectedSubject)) setSelectedSubject(subjects[0] ?? '수학');
     if (timerTab !== 'main' && !subjects.includes(timerTab)) setTimerTab('main');
   }, [selectedSubject, subjects, timerTab]);
+
+  useEffect(() => {
+    if (page !== 'tasks') return;
+    setMentoringFollowLatest(true);
+  }, [page, data.studentId]);
 
   useEffect(() => {
     if (!role) return;

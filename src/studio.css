@@ -446,55 +446,69 @@
   color: white;
 }
 
-.student-refresh .modern-timer-toolbar > div:first-child span { color: rgba(255,255,255,.4); font-size: 9px; }
-.student-refresh .modern-timer-toolbar > div:first-child strong { color: white; font-size: 14px; }
+.student-refresh .modern-timer-toolbar > div:first-child {
+  width: max-content;
+  padding: 9px 13px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 10px;
+  background: rgba(8,17,23,.58);
+  box-shadow: 0 5px 18px rgba(0,0,0,.2);
+  backdrop-filter: blur(10px);
+}
+
+.student-refresh .modern-timer-toolbar > div:first-child span {
+  color: rgba(255,255,255,.82);
+  font-size: 10px;
+  font-weight: 800;
+  text-shadow: 0 1px 5px rgba(0,0,0,.7);
+}
+
+.student-refresh .modern-timer-toolbar > div:first-child strong {
+  color: #fff;
+  font-size: 16px;
+  line-height: 21px;
+  text-shadow: 0 1px 7px rgba(0,0,0,.75);
+}
 
 .student-refresh .timer-backdrop-picker {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 6px 4px 9px;
-  border: 1px solid rgba(255,255,255,.12);
-  border-radius: 10px;
-  background: rgba(255,255,255,.07);
+  gap: 10px;
+  padding: 5px 6px 5px 10px;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 11px;
+  background: rgba(18,28,35,.44);
   backdrop-filter: blur(10px);
 }
 
 .student-refresh .timer-backdrop-picker > span {
-  color: rgba(255,255,255,.55);
-  font-size: 8px;
-  font-weight: 750;
+  color: rgba(255,255,255,.84);
+  font-size: 10px;
+  font-weight: 850;
 }
 
-.student-refresh .timer-backdrop-picker > div { display: flex; align-items: center; gap: 3px; }
+.student-refresh .timer-backdrop-picker > div { display: flex; align-items: center; gap: 5px; }
 
 .student-refresh .timer-backdrop-picker button {
-  height: 29px;
-  padding: 0 7px;
+  height: 30px;
+  padding: 0 10px;
   display: flex;
   align-items: center;
-  gap: 5px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: rgba(255,255,255,.58);
+  justify-content: center;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 8px;
+  background: rgba(255,255,255,.12);
+  color: rgba(255,255,255,.92);
+  text-shadow: 0 1px 5px rgba(0,0,0,.55);
 }
 
-.student-refresh .timer-backdrop-picker button i {
-  width: 32px;
-  height: 20px;
-  flex: 0 0 auto;
-  border: 1px solid rgba(255,255,255,.38);
-  border-radius: 5px;
-  background: #17171b;
-  background-position: center;
-  background-size: cover;
-}
-
-.student-refresh .timer-backdrop-picker button b { font-size: 8px; font-weight: 700; white-space: nowrap; }
+.student-refresh .timer-backdrop-picker button b { font-size: 10px; font-weight: 850; white-space: nowrap; }
 .student-refresh .timer-backdrop-picker button.active {
-  background: rgba(255,255,255,.94);
-  color: #17171a;
+  border-color: #fff;
+  background: #fff;
+  color: #13222a;
+  text-shadow: none;
+  box-shadow: 0 3px 10px rgba(0,0,0,.2);
 }
 
 .student-refresh .modern-icon-button {
@@ -570,18 +584,32 @@
   align-items: center;
   justify-content: center;
   gap: 10px;
+  min-height: 38px;
+  padding: 8px 14px;
+  border: 1px solid rgba(255,255,255,.24);
+  border-radius: 10px;
+  background: rgba(8,17,23,.58);
   color: white;
+  box-shadow: 0 5px 18px rgba(0,0,0,.2);
+  backdrop-filter: blur(10px);
 }
 
 .editorial-timer-heading span {
-  color: rgba(255,255,255,.55);
-  font-size: 8px;
-  font-weight: 750;
-  letter-spacing: 2.4px;
+  color: rgba(255,255,255,.9);
+  font-size: 11px;
+  font-weight: 850;
+  letter-spacing: 1.5px;
+  text-shadow: 0 1px 6px rgba(0,0,0,.8);
 }
 
 .editorial-timer-heading i { width: 28px; height: 1px; background: var(--st-red); }
-.editorial-timer-heading strong { color: white; font-size: 10px; font-weight: 750; letter-spacing: .5px; }
+.editorial-timer-heading strong {
+  color: #fff;
+  font-size: 13px;
+  font-weight: 850;
+  letter-spacing: .3px;
+  text-shadow: 0 1px 6px rgba(0,0,0,.8);
+}
 
 .flip-clock {
   display: flex;
@@ -659,20 +687,36 @@
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   width: 100%;
-  color: rgba(255,255,255,.45);
-  font-size: 8px;
-  letter-spacing: 1.3px;
+  min-height: 38px;
+  padding: 8px 13px;
+  border: 1px solid rgba(255,255,255,.22);
+  border-radius: 10px;
+  background: rgba(8,17,23,.58);
+  color: rgba(255,255,255,.88);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  box-shadow: 0 5px 18px rgba(0,0,0,.2);
+  text-shadow: 0 1px 6px rgba(0,0,0,.8);
+  backdrop-filter: blur(10px);
 }
 
 .editorial-timer-meta strong {
-  color: white;
+  color: #fff;
   font-family: "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
-  font-weight: 500;
-  letter-spacing: 2px;
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: 1.5px;
 }
 
-.editorial-timer-meta em { justify-self: end; color: rgba(255,255,255,.52); font-size: 8px; font-style: normal; letter-spacing: 0; }
+.editorial-timer-meta em {
+  justify-self: end;
+  color: #fff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 850;
+  letter-spacing: 0;
+}
 
 .editorial-timer-progress { width: 100%; height: 2px; overflow: hidden; background: rgba(255,255,255,.12); }
 .editorial-timer-progress i { display: block; width: var(--flip-progress); height: 100%; background: var(--st-red); transition: width 300ms linear; }
@@ -711,6 +755,12 @@
 
 .timer-face-minute .flip-card { width: 94px; }
 .timer-face-fullscreen .editorial-timer-shell { width: min(900px, 82vw); gap: 28px; }
+.timer-face-fullscreen .editorial-timer-heading { min-height: 48px; padding: 11px 18px; }
+.timer-face-fullscreen .editorial-timer-heading span { font-size: 14px; }
+.timer-face-fullscreen .editorial-timer-heading strong { font-size: 16px; }
+.timer-face-fullscreen .editorial-timer-meta { min-height: 48px; padding: 11px 16px; font-size: 13px; }
+.timer-face-fullscreen .editorial-timer-meta strong { font-size: 17px; }
+.timer-face-fullscreen .editorial-timer-meta em { font-size: 14px; }
 .timer-face-fullscreen .flip-card { width: 110px; height: 154px; }
 .timer-face-fullscreen .flip-card em { font-size: 105px; }
 
@@ -1246,7 +1296,7 @@
 }
 
 .student-refresh .timer-backdrop-picker button.backdrop-custom {
-  border: 1px dashed rgba(255,255,255,.3);
+  border: 1px dashed rgba(255,255,255,.52);
 }
 
 .student-refresh .timer-backdrop-picker button.backdrop-custom svg {
@@ -1351,6 +1401,16 @@
   z-index: 5;
   top: 34px;
   left: 42px;
+  padding: 10px 15px;
+  border: 1px solid rgba(255,255,255,.28);
+  border-radius: 10px;
+  background: rgba(8,17,23,.62);
+  color: #fff;
+  font-size: 18px;
+  font-weight: 850;
+  box-shadow: 0 5px 18px rgba(0,0,0,.22);
+  text-shadow: 0 1px 7px rgba(0,0,0,.8);
+  backdrop-filter: blur(10px);
 }
 
 .student-refresh .modern-fullscreen-timer > .timer-face {

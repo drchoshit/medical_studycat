@@ -1088,6 +1088,18 @@ function normalizeMentoringWeek(raw: Record<string, unknown>): MentoringWeekOpti
   };
 }
 
+function compareMentoringWeeksLatestFirst(a: MentoringWeekOption, b: MentoringWeekOption) {
+  const aId = Number(a.id);
+  const bId = Number(b.id);
+  if (Number.isFinite(aId) && Number.isFinite(bId) && aId !== bId) return bId - aId;
+
+  const aRound = Number(a.label.match(/\d+/)?.[0] ?? Number.NaN);
+  const bRound = Number(b.label.match(/\d+/)?.[0] ?? Number.NaN);
+  if (Number.isFinite(aRound) && Number.isFinite(bRound) && aRound !== bRound) return bRound - aRound;
+
+  return (b.startDate || b.endDate).localeCompare(a.startDate || a.endDate);
+}
+
 function normalizedAccountKey(value: unknown) {
   return String(value ?? '').trim().toLowerCase().replace(/\s+/g, '');
 }
@@ -1159,10 +1171,7 @@ export async function loadMentoringTasks(studentId: string, requestedWeekId?: st
       .map(normalizeMentoringWeek)
       .filter((week) => week.id)
       .filter((week) => !allowedParentWeekIds || allowedParentWeekIds.has(week.id))
-      .sort((a, b) => (
-        (b.startDate || b.endDate).localeCompare(a.startDate || a.endDate)
-        || Number(b.id) - Number(a.id)
-      ))
+      .sort(compareMentoringWeeksLatestFirst)
       .slice(0, 8);
     const selectedWeekId = weeks.some((week) => week.id === requestedWeekId)
       ? String(requestedWeekId)
