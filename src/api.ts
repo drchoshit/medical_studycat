@@ -1126,6 +1126,12 @@ type ParentOverviewItem = {
   weeks?: Array<Record<string, unknown>>;
 };
 
+type ParentAssignmentsPayload = RemoteMentoringRecord & {
+  student?: Record<string, unknown>;
+  weeks?: Array<Record<string, unknown>>;
+  selected_week_id?: string | number | null;
+};
+
 function findParentOverviewItem(payload: unknown, requestedId: string): ParentOverviewItem | undefined {
   if (!payload || typeof payload !== 'object') return undefined;
   const items = Array.isArray((payload as { items?: unknown[] }).items)
@@ -1159,46 +1165,83 @@ export async function loadMentoringTasks(studentId: string, requestedWeekId?: st
   };
 
   try {
-    const [weeksPayload, parentOverviewPayload] = await Promise.all([
-      fetchJson<{ weeks?: Array<Record<string, unknown>> }>(`${mentoringBase}/api/weeks?_t=${refreshToken}`, { headers, cache: 'no-store' }, 5000),
-      fetchJson<unknown>(`${mentoringBase}/api/parent/overview?_t=${refreshToken}`, { headers, cache: 'no-store' }, 5000).catch(() => null),
-    ]);
-    const parentOverviewItem = findParentOverviewItem(parentOverviewPayload, studentId);
-    const allowedParentWeekIds = parentOverviewItem
-      ? new Set((parentOverviewItem.weeks ?? []).map((week) => String(week.id ?? '').trim()).filter(Boolean))
-      : null;
-    const weeks = [...(weeksPayload.weeks ?? [])]
-      .map(normalizeMentoringWeek)
-      .filter((week) => week.id)
-      .filter((week) => !allowedParentWeekIds || allowedParentWeekIds.has(week.id))
-      .sort(compareMentoringWeeksLatestFirst)
-      .slice(0, 8);
-    const selectedWeekId = weeks.some((week) => week.id === requestedWeekId)
-      ? String(requestedWeekId)
-      : weeks[0]?.id;
-    if (!selectedWeekId) {
-      throw new Error(parentOverviewItem ? '아직 학부모에게 공유된 멘토링 회차가 없습니다.' : '선택 가능한 멘토링 회차가 없습니다.');
-    }
+    const assignmentParams = new URLSearchParams({ _t: String(refreshToken) });
+    if (requestedWeekId) assignmentParams.set('weekId', requestedWeekId);
+    const assignmentsPayload = await fetchJson<ParentAssignmentsPayload>(
+      `${mentoringBase}/api/parent/assignments?${assignmentParams}`,
+      { headers, cache: 'no-store' },
+      5000,
+    ).catch(() => null);
 
+    let weeks: MentoringWeekOption[];
+    let selectedWeekId: string | undefined;
     let mentoringStudentId = '';
-    if (parentOverviewItem?.student) {
+    let record: RemoteMentoringRecord;
+
+    if (assignmentsPayload) {
+      weeks = [...(assignmentsPayload.weeks ?? [])]
+        .map(normalizeMentoringWeek)
+        .filter((week) => week.id)
+        .sort(compareMentoringWeeksLatestFirst)
+        .slice(0, 8);
+      const responseWeekId = String(assignmentsPayload.selected_week_id ?? '').trim();
+      selectedWeekId = weeks.some((week) => week.id === responseWeekId)
+        ? responseWeekId
+        : weeks[0]?.id;
       mentoringStudentId = String(
-        parentOverviewItem.student.id
-        ?? parentOverviewItem.student.student_id
-        ?? parentOverviewItem.student.studentId
+        assignmentsPayload.student?.id
+        ?? assignmentsPayload.student?.student_id
+        ?? assignmentsPayload.student?.studentId
         ?? '',
       ).trim();
+      record = assignmentsPayload;
     } else {
-      const studentsPayload = await fetchJson<unknown>(`${mentoringBase}/api/students?_t=${refreshToken}`, { headers, cache: 'no-store' }, 5000);
-      mentoringStudentId = findMentoringStudentId(studentsPayload, studentId);
+      const [weeksPayload, parentOverviewPayload] = await Promise.all([
+        fetchJson<{ weeks?: Array<Record<string, unknown>> }>(`${mentoringBase}/api/weeks?_t=${refreshToken}`, { headers, cache: 'no-store' }, 5000),
+        fetchJson<unknown>(`${mentoringBase}/api/parent/overview?_t=${refreshToken}`, { headers, cache: 'no-store' }, 5000).catch(() => null),
+      ]);
+      const parentOverviewItem = findParentOverviewItem(parentOverviewPayload, studentId);
+      const allowedParentWeekIds = parentOverviewItem
+        ? new Set((parentOverviewItem.weeks ?? []).map((week) => String(week.id ?? '').trim()).filter(Boolean))
+        : null;
+      weeks = [...(weeksPayload.weeks ?? [])]
+        .map(normalizeMentoringWeek)
+        .filter((week) => week.id)
+        .filter((week) => !allowedParentWeekIds || allowedParentWeekIds.has(week.id))
+        .sort(compareMentoringWeeksLatestFirst)
+        .slice(0, 8);
+      selectedWeekId = weeks.some((week) => week.id === requestedWeekId)
+        ? String(requestedWeekId)
+        : weeks[0]?.id;
+      if (parentOverviewItem?.student) {
+        mentoringStudentId = String(
+          parentOverviewItem.student.id
+          ?? parentOverviewItem.student.student_id
+          ?? parentOverviewItem.student.studentId
+          ?? '',
+        ).trim();
+      } else {
+        const studentsPayload = await fetchJson<unknown>(`${mentoringBase}/api/students?_t=${refreshToken}`, { headers, cache: 'no-store' }, 5000);
+        mentoringStudentId = findMentoringStudentId(studentsPayload, studentId);
+      }
+      if (!selectedWeekId) {
+        throw new Error(parentOverviewItem ? '아직 학부모에게 공유된 멘토링 회차가 없습니다.' : '선택 가능한 멘토링 회차가 없습니다.');
+      }
+      if (!mentoringStudentId) throw new Error('연결된 Medimentors 학생 정보를 찾지 못했습니다.');
+      record = await fetchJson<RemoteMentoringRecord>(
+        `${mentoringBase}/api/mentoring/record?studentId=${encodeURIComponent(mentoringStudentId)}&weekId=${encodeURIComponent(selectedWeekId)}&_t=${refreshToken}`,
+        { headers, cache: 'no-store' },
+        6000,
+      );
     }
+
+    if (!selectedWeekId) throw new Error('선택 가능한 멘토링 회차가 없습니다.');
     if (!mentoringStudentId) throw new Error('연결된 Medimentors 학생 정보를 찾지 못했습니다.');
     const fetchMentoringRecord = (weekId: string) => fetchJson<RemoteMentoringRecord>(
       `${mentoringBase}/api/mentoring/record?studentId=${encodeURIComponent(mentoringStudentId)}&weekId=${encodeURIComponent(weekId)}&_t=${refreshToken}`,
       { headers, cache: 'no-store' },
       6000,
     );
-    const record = await fetchMentoringRecord(selectedWeekId);
     const payload = record.record ?? record;
     const weekRecord = (payload.week_record ?? payload.weekRecord ?? {}) as Record<string, unknown>;
     const weekRecordId = String(weekRecord.id ?? payload.id ?? '').trim() || undefined;
